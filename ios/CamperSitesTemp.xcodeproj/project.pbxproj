@@ -12,8 +12,6 @@
 		13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.mm */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
-		4481CD142F3CAB3C00861F4B /* Dummy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4481CD132F3CAB3C00861F4B /* Dummy.swift */; };
-		4481CD172F3CAB8300861F4B /* Swift File  in Resources */ = {isa = PBXBuildFile; fileRef = 4481CD162F3CAB8300861F4B /* Swift File  */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
@@ -38,9 +36,7 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CamperSitesTemp/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CamperSitesTemp/Info.plist; sourceTree = "<group>"; };
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = CamperSitesTemp/main.m; sourceTree = "<group>"; };
-		4481CD132F3CAB3C00861F4B /* Dummy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dummy.swift; sourceTree = "<group>"; };
 		4481CD152F3CAB7500861F4B /* CamperSitesTemp-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CamperSitesTemp-Bridging-Header.h"; sourceTree = "<group>"; };
-		4481CD162F3CAB8300861F4B /* Swift File  */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Swift File "; sourceTree = "<group>"; };
 		691E8622D9537DAB27C40CA3 /* Pods-CamperSitesTemp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CamperSitesTemp.debug.xcconfig"; path = "Target Support Files/Pods-CamperSitesTemp/Pods-CamperSitesTemp.debug.xcconfig"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = CamperSitesTemp/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		C1489DA90E6C3FEDCC6B7286 /* Pods-CamperSitesTemp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CamperSitesTemp.release.xcconfig"; path = "Target Support Files/Pods-CamperSitesTemp/Pods-CamperSitesTemp.release.xcconfig"; sourceTree = "<group>"; };
@@ -92,9 +88,7 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB71A68108700A75B9A /* main.m */,
-				4481CD132F3CAB3C00861F4B /* Dummy.swift */,
 				4481CD152F3CAB7500861F4B /* CamperSitesTemp-Bridging-Header.h */,
-				4481CD162F3CAB8300861F4B /* Swift File  */,
 			);
 			name = CamperSitesTemp;
 			sourceTree = "<group>";
@@ -240,7 +234,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
-				4481CD172F3CAB8300861F4B /* Swift File  in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -336,7 +329,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
-				4481CD142F3CAB3C00861F4B /* Dummy.swift in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
