@@ -11,7 +11,7 @@
 ### 🗺️ GPS Nativo Integrado
 - Actualización **cada 1 segundo**
 - Navegación turn-by-turn
-- **SIN salir de la app** (vs Park4Night)
+- **SIN salir de la app** (vs Competencia)
 - Funciona en background
 - Precisión ±10 metros
 
