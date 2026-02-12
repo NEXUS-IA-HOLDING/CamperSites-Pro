@@ -74,6 +74,7 @@ android/app/google-services.json
 # ============ IDE ============
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~

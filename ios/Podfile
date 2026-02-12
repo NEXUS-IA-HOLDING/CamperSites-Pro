@@ -1,5 +1,6 @@
 require_relative '../node_modules/react-native/scripts/react_native_pods'
 require_relative '../node_modules/@react-native-community/cli-platform-ios/native_modules'
+require_relative '../node_modules/react-native-permissions/scripts/setup'
 
 platform :ios, '14.0'
 install! 'cocoapods', :deterministic_uuids => false
@@ -12,7 +13,12 @@ target 'CamperSitesTemp' do
     :hermes_enabled => true,
   )
 
-  # NO agregues permisos manualmente, se auto-linkean
+  # react-native-permissions: setup de permisos necesarios
+  setup_permissions([
+    'LocationWhenInUse',
+    'LocationAlways',
+    'Notifications',
+  ])
 
   post_install do |installer|
     react_native_post_install(
