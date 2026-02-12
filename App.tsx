@@ -1,8 +1,18 @@
+/**
+ * CamperSites Pro - App principal
+ * YRYS
+ */
+
 import React from 'react';
-import MapScreen from './src/screens/MapScreen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AppNavigator from './src/navigation/AppNavigator';
 
 function App(): React.JSX.Element {
-  return <MapScreen />;
+  return (
+    <SafeAreaProvider>
+      <AppNavigator />
+    </SafeAreaProvider>
+  );
 }
 
 export default App;

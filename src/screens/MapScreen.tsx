@@ -17,6 +17,7 @@ import PushNotification from 'react-native-push-notification';
 import BackgroundTimer from 'react-native-background-timer';
 import haversine from 'haversine-distance';
 import { MAPBOX_ACCESS_TOKEN } from '@env';
+import { supabase } from '../lib/supabase';
 
 // ⚠️ CONFIGURACIÓN CRÍTICA
 const GPS_UPDATE_INTERVAL = 1000; // 1 segundo - TIEMPO REAL
