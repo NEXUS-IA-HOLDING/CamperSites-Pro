@@ -1,0 +1,97 @@
+# ===========================================
+# CamperSites Pro - .gitignore
+# YRYS - Proteccion de datos sensibles
+# ===========================================
+
+# ============ DATOS SENSIBLES ============
+# CRITICO: Nunca subir credenciales al repositorio
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+.env.*
+!.env.example
+
+# API Keys y tokens sueltos
+*.key
+*.pem
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+secrets/
+credentials/
+
+# Supabase
+supabase/.env
+supabase/.temp/
+
+# ============ DEPENDENCIAS ============
+node_modules/
+.pnp.*
+
+# ============ BUILDS ============
+ios/build/
+ios/Pods/
+ios/Podfile.lock
+android/app/build/
+android/build/
+android/.gradle/
+*.jsbundle
+*.hbc
+
+# ============ METRO ============
+.metro-health-check*
+
+# ============ XCODE ============
+ios/*.xcworkspace
+!ios/*.xcworkspace/contents.xcworkspacedata
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcshareddata/
+ios/DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ============ ANDROID ============
+android/local.properties
+android/keystore/
+*.keystore
+*.jks
+!android/app/debug.keystore
+android/app/google-services.json
+
+# ============ REACT NATIVE ============
+.buckconfig
+.watchmanconfig
+
+# ============ IDE ============
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ============ LOGS ============
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============ TESTING ============
+coverage/
+.jest/
+
+# ============ TEMPORAL ============
+tmp/
+temp/
+.cache/
+*.tmp

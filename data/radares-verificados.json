@@ -1,0 +1,59 @@
+{
+  "radares": [
+    {
+      "id": "dgt-m30-001",
+      "code": "M30-KM12.5",
+      "type": "FIJO",
+      "latitude": 40.4168,
+      "longitude": -3.7038,
+      "speedLimit": 90,
+      "road": "M-30",
+      "km": "12.5",
+      "direction": "Ambos sentidos",
+      "province": "Madrid",
+      "source": "DGT",
+      "verified": false,
+      "lastVerified": "2026-02-11T15:48:51.386Z",
+      "verificationCount": 1543,
+      "verificationSources": {
+        "dgt": true,
+        "waze": null,
+        "coordinates": false
+      }
+    },
+    {
+      "id": "dgt-a2-002",
+      "code": "A2-KM24.3",
+      "type": "FIJO",
+      "latitude": 40.5089,
+      "longitude": -3.3721,
+      "speedLimit": 120,
+      "road": "A-2",
+      "km": "24.3",
+      "direction": "Madrid-Barcelona",
+      "province": "Madrid",
+      "source": "DGT",
+      "verified": false,
+      "lastVerified": "2026-02-11T15:48:51.387Z",
+      "verificationCount": 2341,
+      "verificationSources": {
+        "dgt": true,
+        "waze": null,
+        "coordinates": false
+      }
+    }
+  ],
+  "stats": {
+    "total": 2,
+    "verified": 0,
+    "needsReview": 2,
+    "verificationRate": "0.0%"
+  },
+  "sources": [
+    "dgt",
+    "madrid",
+    "catalunya",
+    "andalucia"
+  ],
+  "lastUpdate": "2026-02-11T15:49:14.768Z"
+}
