@@ -60,8 +60,11 @@
 ✅ GPS ilimitado
 ✅ 5,000 ubicaciones básicas
 ✅ Alertas radares + controles
+✅ Alertas comunitarias (accidentes, peligros, controles...)
+✅ Sistema de puntos y reputación
 ✅ 5 favoritos
 ✅ Ubicacion Vehiculo
+📢 Con anuncios
 ```
 
 ### PREMIUM (9.99€/mes):
@@ -72,7 +75,7 @@
 ✅ Mapas offline
 ✅ Carpetas ilimitadas
 ✅ Estadísticas avanzadas
-✅ Sin anuncios
+✅ SIN ANUNCIOS
 ✅ Soporte prioritario
 ```
 
