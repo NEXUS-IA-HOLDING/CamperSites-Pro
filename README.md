@@ -61,7 +61,7 @@
 ✅ 5,000 ubicaciones básicas
 ✅ Alertas radares + controles
 ✅ 5 favoritos
-✅ Sin anuncios nivel básico
+✅ Ubicacion Vehiculo
 ```
 
 ### PREMIUM (9.99€/mes):
