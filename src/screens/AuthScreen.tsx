@@ -19,6 +19,14 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { supabase } from '../lib/supabase';
 import { CamperSitesTheme as theme } from '../theme';
+import {
+  sanitizeInput,
+  isValidEmail,
+  validatePassword,
+  checkRateLimit,
+  registerSession,
+  logSecurityEvent,
+} from '../lib/security';
 
 type AuthMode = 'login' | 'register';
 
@@ -34,20 +42,32 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!email.trim()) {
+    // Validar email con security service
+    const cleanEmail = sanitizeInput(email.trim(), 254);
+    if (!cleanEmail) {
       newErrors.email = 'El email es obligatorio';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!isValidEmail(cleanEmail)) {
       newErrors.email = 'Email no válido';
     }
 
+    // Validar password
     if (!password) {
       newErrors.password = 'La contraseña es obligatoria';
+    } else if (mode === 'register') {
+      const pwCheck = validatePassword(password);
+      if (!pwCheck.valid) {
+        newErrors.password = pwCheck.errors[0];
+      }
     } else if (password.length < 6) {
       newErrors.password = 'Mínimo 6 caracteres';
     }
 
-    if (mode === 'register' && !displayName.trim()) {
-      newErrors.displayName = 'El nombre es obligatorio';
+    // Validar nombre (sanitizado)
+    if (mode === 'register') {
+      const cleanName = sanitizeInput(displayName.trim(), 50);
+      if (!cleanName) {
+        newErrors.displayName = 'El nombre es obligatorio';
+      }
     }
 
     setErrors(newErrors);
@@ -56,15 +76,30 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
 
   const handleLogin = async () => {
     if (!validate()) return;
+
+    // Rate limiting anti-brute-force
+    if (!checkRateLimit('login')) {
+      Alert.alert(
+        'Demasiados intentos',
+        'Has intentado iniciar sesión demasiadas veces. Espera 5 minutos.',
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const cleanEmail = sanitizeInput(email.trim(), 254);
+
       const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: cleanEmail,
         password,
       });
 
       if (error) {
+        // Log intento fallido
+        logSecurityEvent('login_failed', { email: cleanEmail });
+
         if (error.message.includes('Invalid login credentials')) {
           Alert.alert('Error', 'Email o contraseña incorrectos');
         } else {
@@ -72,6 +107,10 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
         }
         return;
       }
+
+      // Login exitoso: registrar sesión + log
+      await registerSession();
+      logSecurityEvent('login_success', { email: cleanEmail });
 
       onAuthSuccess();
     } catch (err: any) {

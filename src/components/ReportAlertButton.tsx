@@ -24,6 +24,7 @@ import {
   createAlert,
 } from '../lib/communityAlerts';
 import { CamperSitesTheme as theme } from '../theme';
+import { validateAlert, isUserBanned, logSecurityEvent } from '../lib/security';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -83,7 +84,33 @@ export default function ReportAlertButton({
   };
 
   const handleReport = async (alertType: AlertType) => {
+    // Anti-cheat: validar alerta antes de enviar
+    const validation = validateAlert({
+      type: alertType,
+      latitude: userLatitude,
+      longitude: userLongitude,
+    });
+
+    if (!validation.valid) {
+      Alert.alert('No se puede reportar', validation.error || 'Error de validación');
+      return;
+    }
+
+    // Verificar si usuario está baneado
+    const banned = await isUserBanned();
+    if (banned) {
+      Alert.alert(
+        'Cuenta suspendida',
+        'Tu cuenta ha sido suspendida por actividad sospechosa. Contacta soporte.',
+      );
+      setShowModal(false);
+      return;
+    }
+
     setSending(true);
+
+    // Log de seguridad
+    logSecurityEvent('create_alert', { type: alertType, lat: userLatitude, lon: userLongitude });
 
     const result = await createAlert({
       alertType,

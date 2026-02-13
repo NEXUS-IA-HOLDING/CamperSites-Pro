@@ -84,6 +84,7 @@ async function uploadLocations() {
     address: loc.address || '',
     city: loc.city || '',
     province: loc.province || '',
+    country: loc.country || '',
     has_water: loc.hasWater || false,
     has_electricity: loc.hasElectricity || false,
     capacity: loc.capacity || null,
@@ -95,8 +96,9 @@ async function uploadLocations() {
     verified: false,
   }));
 
-  // Subir en lotes de 200
-  const BATCH_SIZE = 200;
+  // Subir en lotes de 500 (optimizado para 100K+ registros)
+  const BATCH_SIZE = 500;
+  const BATCH_DELAY = 300; // 300ms entre batches para no saturar Supabase
   let uploaded = 0;
   let errors = 0;
 
@@ -117,11 +119,17 @@ async function uploadLocations() {
         errors++;
       } else {
         uploaded += batch.length;
-        process.stdout.write(`\r  ✅ ${uploaded}/${mapped.length} locations subidas`);
+        const pct = ((uploaded / mapped.length) * 100).toFixed(1);
+        process.stdout.write(`\r  ✅ ${uploaded}/${mapped.length} locations subidas (${pct}%)`);
       }
     } catch (err) {
       console.error(`  ❌ Lote ${i}-${i + batch.length} error: ${err.message}`);
       errors++;
+    }
+
+    // Pequeño delay entre batches
+    if (i + BATCH_SIZE < mapped.length) {
+      await new Promise(r => setTimeout(r, BATCH_DELAY));
     }
   }
 

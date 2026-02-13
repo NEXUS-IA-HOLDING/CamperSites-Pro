@@ -55,6 +55,28 @@ interface Route {
   type: 'fastest' | 'alternative';
 }
 
+// Configuración de iconos y colores por categoría para el mapa
+const getMarkerConfig = (category: string): { icon: string; color: string } => {
+  switch (category) {
+    case 'CAMPING': return { icon: 'tent', color: '#2D5016' };
+    case 'PARKING_PERMITIDO': return { icon: 'parking', color: '#1976D2' };
+    case 'AREA_DESCANSO': return { icon: 'bench', color: '#E67E22' };
+    case 'AREA_SERVICIOS': return { icon: 'water-pump', color: '#8E44AD' };
+    case 'MIRADOR': return { icon: 'binoculars', color: '#27AE60' };
+    case 'PLAYA': return { icon: 'beach', color: '#3498DB' };
+    case 'MONTANA': return { icon: 'image-filter-hdr', color: '#795548' };
+    case 'LAGO': return { icon: 'waves', color: '#0097A7' };
+    case 'CASCADA': return { icon: 'waterfall', color: '#00BCD4' };
+    case 'LAVADERO_COCHES': return { icon: 'car-wash', color: '#607D8B' };
+    case 'GASOLINERA_GLP': return { icon: 'gas-station', color: '#F44336' };
+    case 'LAVANDERIA': return { icon: 'tshirt-crew', color: '#9C27B0' };
+    case 'SUPERMERCADO': return { icon: 'cart', color: '#4CAF50' };
+    case 'RESTAURANTE': return { icon: 'silverware-fork-knife', color: '#FF9800' };
+    case 'FARMACIA': return { icon: 'medical-bag', color: '#F44336' };
+    default: return { icon: 'map-marker', color: '#2E7D32' };
+  }
+};
+
 const MapScreen = () => {
   // Estados principales
   const [currentLocation, setCurrentLocation] = useState<{
@@ -134,22 +156,45 @@ const MapScreen = () => {
 
   const requestLocationPermission = async () => {
     try {
-      const permission = Platform.OS === 'ios'
-        ? PERMISSIONS.IOS.LOCATION_ALWAYS
-        : PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
-
-      const result = await request(permission);
-
-      if (result === RESULTS.GRANTED) {
-        startRealtimeLocationTracking();
+      if (Platform.OS === 'ios') {
+        // iOS: pedir WHEN_IN_USE primero, luego ALWAYS
+        let result = await request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE);
+        if (result === RESULTS.GRANTED) {
+          // Ahora pedir ALWAYS para background
+          result = await request(PERMISSIONS.IOS.LOCATION_ALWAYS);
+        }
+        if (result === RESULTS.GRANTED || result === RESULTS.LIMITED) {
+          startRealtimeLocationTracking();
+        } else {
+          // Intentar con solo WHEN_IN_USE
+          startRealtimeLocationTracking();
+        }
       } else {
-        Alert.alert(
-          'Permiso Denegado',
-          'Necesitamos acceso a tu ubicación en segundo plano para alertas en tiempo real'
-        );
+        // Android: pedir FINE_LOCATION primero (obligatorio)
+        const fineResult = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+
+        if (fineResult === RESULTS.GRANTED) {
+          startRealtimeLocationTracking();
+
+          // Luego pedir BACKGROUND si Android 10+
+          if (Platform.Version >= 29) {
+            const bgResult = await request(PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION);
+            if (bgResult !== RESULTS.GRANTED) {
+              console.log('Background location not granted - alerts may not work in background');
+            }
+          }
+        } else {
+          Alert.alert(
+            'Permiso de Ubicación',
+            'CamperSites necesita tu ubicación para mostrarte lugares cercanos y alertas de radares.\n\nVe a Ajustes > Aplicaciones > CamperSites > Permisos > Ubicación y actívalo.',
+            [{ text: 'Entendido' }]
+          );
+        }
       }
     } catch (error) {
       console.error('Error requesting location permission:', error);
+      // Intentar tracking de todas formas por si ya tiene permisos
+      startRealtimeLocationTracking();
     }
   };
 
@@ -359,45 +404,80 @@ const MapScreen = () => {
     );
   };
 
-  const fetchLocations = async () => {
+  // ⭐ CARGA DINÁMICA: Locations desde Supabase en radio de 50km
+  const lastFetchCenter = useRef<{lat: number; lng: number} | null>(null);
+
+  const fetchLocations = async (lat?: number, lng?: number) => {
     try {
-      const response = await fetch('https://tu-api.com/api/locations');
-      const data = await response.json();
-      setLocations(data);
+      const centerLat = lat || currentLocation?.latitude || 40.4168;
+      const centerLng = lng || currentLocation?.longitude || -3.7038;
+
+      // Radio de 50km = ~0.45° lat, ~0.55° lon
+      const latDelta = 0.45;
+      const lngDelta = 0.55;
+
+      const { data, error } = await supabase
+        .from('locations')
+        .select('id, name, latitude, longitude, category, description, address')
+        .gte('latitude', centerLat - latDelta)
+        .lte('latitude', centerLat + latDelta)
+        .gte('longitude', centerLng - lngDelta)
+        .lte('longitude', centerLng + lngDelta)
+        .limit(500);
+
+      if (error) {
+        console.error('Error fetching locations:', error);
+        return;
+      }
+
+      setLocations(data || []);
+      lastFetchCenter.current = { lat: centerLat, lng: centerLng };
     } catch (error) {
       console.error('Error fetching locations:', error);
-      // Datos de ejemplo
-      setLocations([
-        {
-          id: '1',
-          name: 'Camping Sierra Nevada',
-          latitude: 37.0949,
-          longitude: -3.3935,
-          category: 'CAMPING',
-          description: 'Camping de montaña con servicios completos',
-        },
-      ]);
+      // Fallback vacío - sin datos hardcoded
+      setLocations([]);
     }
   };
 
+  // Refetch dinámico: recargar cuando usuario se mueve >15km
+  useEffect(() => {
+    if (!currentLocation || !lastFetchCenter.current) return;
+    const dist = haversine(
+      { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
+      { latitude: lastFetchCenter.current.lat, longitude: lastFetchCenter.current.lng },
+    );
+    if (dist > 15000) {
+      fetchLocations(currentLocation.latitude, currentLocation.longitude);
+    }
+  }, [currentLocation]);
+
   const fetchRadars = async () => {
     try {
-      const response = await fetch('https://tu-api.com/api/radars');
-      const data = await response.json();
-      setRadars(data);
+      const { data, error } = await supabase
+        .from('radars')
+        .select('id, latitude, longitude, type, speed_limit, verified, last_verified, active')
+        .eq('active', true);
+
+      if (error) {
+        console.error('Error fetching radars:', error);
+        return;
+      }
+
+      // Mapear snake_case → camelCase
+      const mapped = (data || []).map(r => ({
+        id: r.id,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        type: (r.type === 'FIJO' || r.type === 'RADAR') ? 'RADAR' as const : 'CONTROL' as const,
+        speedLimit: r.speed_limit || 0,
+        verified: r.verified || false,
+        lastVerified: r.last_verified || undefined,
+      }));
+
+      setRadars(mapped);
     } catch (error) {
       console.error('Error fetching radars:', error);
-      // Datos de ejemplo
-      setRadars([
-        {
-          id: 'radar-1',
-          latitude: 40.4168,
-          longitude: -3.7038,
-          type: 'RADAR',
-          speedLimit: 90,
-          verified: true,
-        },
-      ]);
+      setRadars([]);
     }
   };
 
@@ -525,20 +605,28 @@ const MapScreen = () => {
     if (!radarToVerify) return;
 
     try {
-      await fetch('https://tu-api.com/api/radars/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          radarId: radarToVerify.id,
-          verified: stillThere,
-          timestamp: new Date().toISOString(),
-        }),
+      // Insertar reporte de verificación en Supabase
+      await supabase.from('radar_reports').insert({
+        radar_id: radarToVerify.id,
+        report_type: stillThere ? 'confirmed' : 'removed',
+        reported_at: new Date().toISOString(),
       });
+
+      // Actualizar radar si se confirma
+      if (stillThere) {
+        await supabase
+          .from('radars')
+          .update({
+            last_verified: new Date().toISOString(),
+            verified: true,
+          })
+          .eq('id', radarToVerify.id);
+      }
 
       Alert.alert(
         'Gracias',
-        stillThere 
-          ? 'Radar confirmado y actualizado' 
+        stillThere
+          ? 'Radar confirmado y actualizado'
           : 'Radar marcado como eliminado'
       );
     } catch (error) {
@@ -587,30 +675,33 @@ const MapScreen = () => {
           </Marker>
         )}
 
-        {/* Ubicaciones */}
-        {locations.map((location) => (
-          <Marker
-            key={location.id}
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            title={location.name}
-            description={location.description}
-            onPress={() => {
-              setSelectedLocation(location);
-              if (currentLocation) {
-                calculateRoutes(
-                  currentLocation.latitude,
-                  currentLocation.longitude,
-                  location.latitude,
-                  location.longitude
-                );
-              }
-            }}>
-            <Icon name="map-marker" size={35} color="#2E7D32" />
-          </Marker>
-        ))}
+        {/* Ubicaciones - con iconos y colores por categoría */}
+        {locations.map((location) => {
+          const markerConfig = getMarkerConfig(location.category);
+          return (
+            <Marker
+              key={location.id}
+              coordinate={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+              }}
+              title={location.name}
+              description={location.description || location.address}
+              onPress={() => {
+                setSelectedLocation(location);
+                if (currentLocation) {
+                  calculateRoutes(
+                    currentLocation.latitude,
+                    currentLocation.longitude,
+                    location.latitude,
+                    location.longitude
+                  );
+                }
+              }}>
+              <Icon name={markerConfig.icon} size={32} color={markerConfig.color} />
+            </Marker>
+          );
+        })}
 
         {/* Radares */}
         {radars.map((radar) => (
