@@ -522,7 +522,12 @@ const MapScreen = () => {
 
       if (error) throw error;
 
-      const result = data as { ok: boolean; error?: string };
+      const result = data as {
+        ok: boolean;
+        error?: string;
+        geo_verified?: boolean;
+        distance_m?: number;
+      };
 
       if (!result.ok) {
         const msgs: Record<string, string> = {
@@ -536,17 +541,27 @@ const MapScreen = () => {
       }
 
       // Si el reporte de "no está" tuvo éxito, quitar el radar del mapa localmente
-      // (el backend decide si desactivarlo con 5+ votos distintos)
+      // (el backend solo desactiva con 5+ usuarios geo-verificados distintos en 7 días)
       if (!stillThere) {
-        // Feedback visual inmediato: ocultar el marcador localmente
-        // (si el backend no lo desactiva aún, reaparecerá en el próximo fetchRadars)
         setRadars(prev => prev.filter(r => r.id !== radarToVerify.id));
       }
 
-      Alert.alert(
-        'Gracias por reportar',
-        stillThere ? '✅ Radar confirmado' : '❌ Reporte registrado — gracias por la info',
-      );
+      // Feedback diferenciado según si el reporte fue geo-verificado
+      if (result.geo_verified) {
+        Alert.alert(
+          'Gracias — reporte verificado ✅',
+          stillThere
+            ? '📍 Posición confirmada cerca del radar. Tu reporte cuenta con peso extra.'
+            : `📍 Paso confirmado (a ${result.distance_m?.toFixed(0) ?? '?'}m). Reporte registrado con alta fiabilidad.`,
+        );
+      } else {
+        Alert.alert(
+          'Reporte recibido',
+          stillThere
+            ? '✅ Radar confirmado (sin verificación de posición exacta).'
+            : '⚠️ Reporte guardado, pero no se pudo verificar tu posición GPS cerca del punto.',
+        );
+      }
     } catch (error: any) {
       console.error('Error verifying radar:', error);
       // Mensaje amigable para errores de red
