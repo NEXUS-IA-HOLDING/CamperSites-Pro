@@ -34,8 +34,8 @@ export async function getDeviceFingerprint(): Promise<string> {
   const components = [
     Platform.OS,
     Platform.Version,
-    Platform.constants?.Brand || 'unknown',
-    Platform.constants?.Model || 'unknown',
+    (Platform.constants as any)?.Brand || 'unknown',
+    (Platform.constants as any)?.Model || 'unknown',
     Date.now().toString(36),
     Math.random().toString(36).substring(2, 10),
   ];

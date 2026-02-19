@@ -1,13 +1,18 @@
 {
-  "extends": "@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
-    "strict": false,
+    "target": "esnext",
+    "module": "esnext",
+    "lib": ["esnext"],
+    "allowJs": true,
     "jsx": "react-native",
+    "strict": false,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "noEmit": true,
+    "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
       "@env": ["src/types/env.d.ts"]

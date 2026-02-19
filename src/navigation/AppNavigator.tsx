@@ -63,12 +63,10 @@ export default function AppNavigator() {
       setIsReady(true);
     });
 
-    // Escuchar cambios de auth
+    // Escuchar cambios de auth (login Y logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        if (session) {
-          setShowAuth(false);
-        }
+        setShowAuth(!session);
       },
     );
 

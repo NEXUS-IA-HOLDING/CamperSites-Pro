@@ -131,7 +131,7 @@ const MapScreen = () => {
   const [showRadarVerification, setShowRadarVerification] = useState(false);
   const [radarToVerify, setRadarToVerify] = useState<Radar | null>(null);
 
-  const cameraRef = useRef<MapLibreGL.Camera>(null);
+  const cameraRef = useRef<any>(null);
   const watchId = useRef<number | null>(null);
   const checkIntervalId = useRef<any>(null);
   const lastFetchCenter = useRef<{lat: number; lng: number} | null>(null);
@@ -505,20 +505,55 @@ const MapScreen = () => {
   const verifyRadar = async (stillThere: boolean) => {
     if (!radarToVerify) return;
     try {
-      await supabase.from('radar_reports').insert({
-        radar_id: radarToVerify.id,
-        report_type: stillThere ? 'confirmed' : 'removed',
-        reported_at: new Date().toISOString(),
+      /**
+       * Llamar a la función RPC de Supabase (migration-006-anti-abuse.sql)
+       * que incluye:
+       *   - Verificación de autenticación obligatoria
+       *   - Rate limiting: máx 20 reportes/usuario/día
+       *   - Unique constraint: 1 voto/usuario/radar/día
+       *   - Lógica de desactivación solo con 5+ usuarios distintos en 7 días
+       */
+      const { data, error } = await supabase.rpc('submit_radar_report', {
+        p_radar_id: radarToVerify.id,
+        p_still_there: stillThere,
+        p_latitude: currentLocation?.latitude ?? null,
+        p_longitude: currentLocation?.longitude ?? null,
       });
-      if (stillThere) {
-        await supabase.from('radars').update({
-          last_verified: new Date().toISOString(),
-          verified: true,
-        }).eq('id', radarToVerify.id);
+
+      if (error) throw error;
+
+      const result = data as { ok: boolean; error?: string };
+
+      if (!result.ok) {
+        const msgs: Record<string, string> = {
+          AUTH_REQUIRED: 'Inicia sesión para reportar radares.',
+          RATE_LIMIT_EXCEEDED: 'Has alcanzado el límite diario de reportes (20/día).',
+          ALREADY_VOTED_TODAY: 'Ya has votado sobre este radar hoy.',
+          RADAR_NOT_FOUND: 'Radar no encontrado.',
+        };
+        Alert.alert('No se pudo enviar', msgs[result.error || ''] || result.error || 'Error desconocido');
+        return;
       }
-      Alert.alert('Gracias', stillThere ? 'Radar confirmado y actualizado' : 'Radar marcado como eliminado');
-    } catch (error) {
+
+      // Si el reporte de "no está" tuvo éxito, quitar el radar del mapa localmente
+      // (el backend decide si desactivarlo con 5+ votos distintos)
+      if (!stillThere) {
+        // Feedback visual inmediato: ocultar el marcador localmente
+        // (si el backend no lo desactiva aún, reaparecerá en el próximo fetchRadars)
+        setRadars(prev => prev.filter(r => r.id !== radarToVerify.id));
+      }
+
+      Alert.alert(
+        'Gracias por reportar',
+        stillThere ? '✅ Radar confirmado' : '❌ Reporte registrado — gracias por la info',
+      );
+    } catch (error: any) {
       console.error('Error verifying radar:', error);
+      // Mensaje amigable para errores de red
+      const msg = error?.message?.includes('network') || error?.message?.includes('fetch')
+        ? 'Sin conexión. Inténtalo cuando tengas internet.'
+        : 'No se pudo enviar el reporte. Inténtalo de nuevo.';
+      Alert.alert('Error', msg);
     }
     setShowRadarVerification(false);
     setRadarToVerify(null);
@@ -579,7 +614,7 @@ const MapScreen = () => {
     <View style={styles.container}>
       <MapLibreGL.MapView
         style={styles.map}
-        styleJSON={JSON.stringify(OSM_STYLE)}
+        mapStyle={OSM_STYLE}
         logoEnabled={false}
         attributionEnabled={false}
         onRegionDidChange={handleRegionDidChange}>
