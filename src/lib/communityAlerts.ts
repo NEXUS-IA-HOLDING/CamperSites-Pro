@@ -154,35 +154,35 @@ export const TRUST_LEVELS: Record<TrustLevel, {
     label: 'Novato',
     icon: 'account',
     color: '#9E9E9E',
-    perks: 'Reportar alertas básicas',
+    perks: 'Reportar alertas básicas (requieren verificación)',
   },
   EXPLORADOR: {
-    minScore: 25,
+    minScore: 150,
     label: 'Explorador',
     icon: 'compass',
     color: '#1976D2',
-    perks: 'Alertas con mayor visibilidad',
+    perks: 'Alertas visibles + votar otras alertas',
   },
   GUARDIAN: {
-    minScore: 75,
+    minScore: 500,
     label: 'Guardián',
     icon: 'shield-check',
     color: '#2E7D32',
-    perks: 'Alertas priorizadas + badge',
+    perks: 'Alertas priorizadas + badge verificado',
   },
   VETERANO: {
-    minScore: 200,
+    minScore: 1500,
     label: 'Veterano',
     icon: 'star',
     color: '#FF6F00',
-    perks: 'Alertas de alta confianza + moderación',
+    perks: 'Alta confianza + moderación + rutas premium',
   },
   LEYENDA: {
-    minScore: 500,
+    minScore: 5000,
     label: 'Leyenda',
     icon: 'crown',
     color: '#FFD700',
-    perks: 'Máxima confianza + alertas permanentes',
+    perks: 'Máxima confianza + alertas permanentes + beta tester',
   },
 };
 
@@ -379,10 +379,10 @@ export async function getPointHistory(limit: number = 20): Promise<PointTransact
  * Helper: obtener el nivel actual basado en el score
  */
 export function getTrustLevelForScore(score: number): TrustLevel {
-  if (score >= 500) return 'LEYENDA';
-  if (score >= 200) return 'VETERANO';
-  if (score >= 75) return 'GUARDIAN';
-  if (score >= 25) return 'EXPLORADOR';
+  if (score >= 5000) return 'LEYENDA';
+  if (score >= 1500) return 'VETERANO';
+  if (score >= 500) return 'GUARDIAN';
+  if (score >= 150) return 'EXPLORADOR';
   return 'NOVATO';
 }
 
@@ -397,10 +397,10 @@ export function getProgressToNextLevel(score: number): {
 } {
   const levels: { level: TrustLevel; min: number }[] = [
     { level: 'NOVATO', min: 0 },
-    { level: 'EXPLORADOR', min: 25 },
-    { level: 'GUARDIAN', min: 75 },
-    { level: 'VETERANO', min: 200 },
-    { level: 'LEYENDA', min: 500 },
+    { level: 'EXPLORADOR', min: 150 },
+    { level: 'GUARDIAN', min: 500 },
+    { level: 'VETERANO', min: 1500 },
+    { level: 'LEYENDA', min: 5000 },
   ];
 
   const currentIdx = levels.findIndex(

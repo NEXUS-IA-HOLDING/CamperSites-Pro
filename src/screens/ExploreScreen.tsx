@@ -1,11 +1,9 @@
 /**
  * ExploreScreen - Buscar y explorar locations
  * CamperSites Pro - YRYS
- *
- * 30+ categorías organizadas por secciones
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,8 +13,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SectionList,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { supabase } from '../lib/supabase';
@@ -39,53 +37,52 @@ interface Location {
 }
 
 // ============================================
-// TODAS LAS CATEGORÍAS ORGANIZADAS
+// CATEGORÍAS CON EMOJIS NATIVOS (alta calidad)
 // ============================================
 const CATEGORY_SECTIONS = [
   {
     title: 'Alojamiento',
-    icon: 'bed',
+    emoji: '🏕️',
     categories: [
-      { key: 'CAMPING', label: 'Campings', icon: 'tent', color: '#2D5016' },
-      { key: 'PARKING_PERMITIDO', label: 'Parkings', icon: 'parking', color: '#1976D2' },
-      { key: 'AREA_DESCANSO', label: 'Descanso', icon: 'bench', color: '#E67E22' },
-      { key: 'AREA_SERVICIOS', label: 'Servicios', icon: 'water-pump', color: '#8E44AD' },
+      { key: 'CAMPING', label: 'Campings', emoji: '⛺', icon: 'tent', color: '#2D5016' },
+      { key: 'PARKING_PERMITIDO', label: 'Parkings', emoji: '🅿️', icon: 'parking', color: '#1976D2' },
+      { key: 'AREA_DESCANSO', label: 'Descanso', emoji: '🛋️', icon: 'bench', color: '#E67E22' },
+      { key: 'AREA_SERVICIOS', label: 'Servicios', emoji: '🚿', icon: 'water-pump', color: '#8E44AD' },
     ],
   },
   {
     title: 'Naturaleza',
-    icon: 'pine-tree',
+    emoji: '🌲',
     categories: [
-      { key: 'MIRADOR', label: 'Miradores', icon: 'binoculars', color: '#27AE60' },
-      { key: 'PLAYA', label: 'Playas', icon: 'beach', color: '#3498DB' },
-      { key: 'MONTANA', label: 'Montañas', icon: 'image-filter-hdr', color: '#795548' },
-      { key: 'LAGO', label: 'Lagos', icon: 'waves', color: '#0097A7' },
-      { key: 'CASCADA', label: 'Cascadas', icon: 'waterfall', color: '#00BCD4' },
+      { key: 'MIRADOR', label: 'Miradores', emoji: '🏔️', icon: 'binoculars', color: '#27AE60' },
+      { key: 'PLAYA', label: 'Playas', emoji: '🏖️', icon: 'beach', color: '#3498DB' },
+      { key: 'MONTANA', label: 'Montañas', emoji: '⛰️', icon: 'image-filter-hdr', color: '#795548' },
+      { key: 'LAGO', label: 'Lagos', emoji: '🌊', icon: 'waves', color: '#0097A7' },
+      { key: 'CASCADA', label: 'Cascadas', emoji: '💧', icon: 'waterfall', color: '#00BCD4' },
     ],
   },
   {
     title: 'Servicios Camper',
-    icon: 'rv-truck',
+    emoji: '🚐',
     categories: [
-      { key: 'LAVADERO_COCHES', label: 'Lavaderos', icon: 'car-wash', color: '#607D8B' },
-      { key: 'GASOLINERA_GLP', label: 'GLP/Autogas', icon: 'gas-station', color: '#F44336' },
-      { key: 'LAVANDERIA', label: 'Lavanderías', icon: 'tshirt-crew', color: '#9C27B0' },
+      { key: 'LAVADERO_COCHES', label: 'Lavaderos', emoji: '🧽', icon: 'car-wash', color: '#607D8B' },
+      { key: 'GASOLINERA_GLP', label: 'GLP/Autogas', emoji: '⛽', icon: 'gas-station', color: '#F44336' },
+      { key: 'LAVANDERIA', label: 'Lavanderías', emoji: '👕', icon: 'tshirt-crew', color: '#9C27B0' },
     ],
   },
   {
     title: 'Alimentación',
-    icon: 'food',
+    emoji: '🍽️',
     categories: [
-      { key: 'SUPERMERCADO', label: 'Supermercados', icon: 'cart', color: '#4CAF50' },
-      { key: 'RESTAURANTE', label: 'Restaurantes', icon: 'silverware-fork-knife', color: '#FF9800' },
-      { key: 'FARMACIA', label: 'Farmacias', icon: 'medical-bag', color: '#F44336' },
+      { key: 'SUPERMERCADO', label: 'Supermercados', emoji: '🛒', icon: 'cart', color: '#4CAF50' },
+      { key: 'RESTAURANTE', label: 'Restaurantes', emoji: '🍴', icon: 'silverware-fork-knife', color: '#FF9800' },
+      { key: 'FARMACIA', label: 'Farmacias', emoji: '💊', icon: 'medical-bag', color: '#F44336' },
     ],
   },
 ];
 
-// Flat list para el filtro horizontal
 const ALL_CATEGORIES = [
-  { key: 'ALL', label: 'Todos', icon: 'map-marker-multiple', color: '#333' },
+  { key: 'ALL', label: 'Todos', emoji: '📍', icon: 'map-marker-multiple', color: '#333' },
   ...CATEGORY_SECTIONS.flatMap(s => s.categories),
 ];
 
@@ -94,12 +91,11 @@ const getCategoryConfig = (category: string) => {
     const found = section.categories.find(c => c.key === category);
     if (found) return found;
   }
-  return { key: category, label: category, icon: 'map-marker', color: '#999' };
+  return { key: category, label: category, emoji: '📍', icon: 'map-marker', color: '#999' };
 };
 
 export default function ExploreScreen() {
   const [locations, setLocations] = useState<Location[]>([]);
-  const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -107,24 +103,38 @@ export default function ExploreScreen() {
   const [showCategoryGrid, setShowCategoryGrid] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
-  const fetchLocations = useCallback(async () => {
+  // Ref para evitar race conditions en búsqueda
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  const fetchLocations = useCallback(async (query: string, category: string) => {
     try {
-      let query = supabase
+      let q = supabase
         .from('locations')
         .select('*', { count: 'exact' })
         .order('name', { ascending: true })
         .limit(200);
 
-      if (selectedCategory !== 'ALL') {
-        query = query.eq('category', selectedCategory);
+      if (category !== 'ALL') {
+        q = q.eq('category', category);
       }
 
-      if (searchQuery.trim().length > 0) {
-        const q = searchQuery.trim();
-        query = query.or(`name.ilike.%${q}%,city.ilike.%${q}%,province.ilike.%${q}%`);
+      if (query.trim().length > 0) {
+        // Sanitizar: eliminar caracteres especiales de iLIKE y limitar longitud
+        const search = query.trim().replace(/[%_\\'"]/g, '').substring(0, 100);
+        if (search.length > 0) {
+          q = q.or(`name.ilike.%${search}%,city.ilike.%${search}%,province.ilike.%${search}%`);
+        }
       }
 
-      const { data, error, count } = await query;
+      const { data, error, count } = await q;
+
+      if (!isMountedRef.current) return;
 
       if (error) {
         console.error('Error fetching locations:', error);
@@ -132,28 +142,46 @@ export default function ExploreScreen() {
       }
 
       setLocations(data || []);
-      setFilteredLocations(data || []);
       setTotalCount(count || data?.length || 0);
     } catch (err) {
       console.error('Error:', err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [selectedCategory, searchQuery]);
+  }, []);
 
+  // Efecto para búsqueda con debounce
   useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      fetchLocations();
-    }, searchQuery.length > 0 ? 500 : 0); // Debounce búsqueda
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
 
-    return () => clearTimeout(timer);
-  }, [fetchLocations]);
+    if (searchQuery.length === 0) {
+      // Sin búsqueda → fetch inmediato
+      setLoading(true);
+      fetchLocations('', selectedCategory);
+    } else {
+      // Con búsqueda → debounce 600ms
+      setLoading(true);
+      searchTimerRef.current = setTimeout(() => {
+        fetchLocations(searchQuery, selectedCategory);
+      }, 600);
+    }
+
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [searchQuery, selectedCategory, fetchLocations]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchLocations();
+    fetchLocations(searchQuery, selectedCategory);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    Keyboard.dismiss();
   };
 
   const renderCategoryChip = (item: typeof ALL_CATEGORIES[0]) => {
@@ -169,11 +197,7 @@ export default function ExploreScreen() {
           setSelectedCategory(item.key);
           setShowCategoryGrid(false);
         }}>
-        <Icon
-          name={item.icon}
-          size={15}
-          color={isActive ? '#FFFFFF' : item.color}
-        />
+        <Text style={styles.chipEmoji}>{item.emoji}</Text>
         <Text
           style={[
             styles.categoryChipText,
@@ -189,58 +213,64 @@ export default function ExploreScreen() {
     const config = getCategoryConfig(item.category);
     return (
       <TouchableOpacity style={styles.card} activeOpacity={0.7}>
-        <View style={styles.cardHeader}>
-          <View
-            style={[
-              styles.categoryBadge,
-              { backgroundColor: config.color + '18' },
-            ]}>
-            <Icon name={config.icon} size={16} color={config.color} />
-            <Text style={[styles.categoryBadgeText, { color: config.color }]}>
-              {config.label}
-            </Text>
+        {/* Barra de color superior */}
+        <View style={[styles.cardColorBar, { backgroundColor: config.color }]} />
+
+        <View style={styles.cardBody}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.categoryBadge, { backgroundColor: config.color + '12' }]}>
+              <Text style={styles.badgeEmoji}>{config.emoji}</Text>
+              <Text style={[styles.categoryBadgeText, { color: config.color }]}>
+                {config.label}
+              </Text>
+            </View>
+            <View style={styles.cardHeaderRight}>
+              {item.price !== null && item.price > 0 && (
+                <View style={styles.priceBadge}>
+                  <Text style={styles.priceText}>{item.price}€</Text>
+                </View>
+              )}
+              {item.price === 0 && (
+                <View style={styles.freeBadge}>
+                  <Text style={styles.freeText}>GRATIS</Text>
+                </View>
+              )}
+            </View>
           </View>
-          <View style={styles.cardHeaderRight}>
-            {item.country ? (
-              <Text style={styles.countryBadge}>{item.country}</Text>
-            ) : null}
-            {item.price !== null && item.price > 0 && (
-              <Text style={styles.priceText}>{item.price}€</Text>
+
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {item.name}
+          </Text>
+
+          {(item.city || item.province) ? (
+            <View style={styles.locationRow}>
+              <Text style={styles.locationEmoji}>📍</Text>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {[item.city, item.province, item.country].filter(Boolean).join(', ')}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.amenities}>
+            {item.has_water && (
+              <View style={styles.amenityBadge}>
+                <Text style={styles.amenityEmoji}>💧</Text>
+                <Text style={styles.amenityText}>Agua</Text>
+              </View>
             )}
-            {item.price === 0 && (
-              <View style={styles.freeBadge}>
-                <Text style={styles.freeText}>GRATIS</Text>
+            {item.has_electricity && (
+              <View style={[styles.amenityBadge, styles.amenityElectric]}>
+                <Text style={styles.amenityEmoji}>⚡</Text>
+                <Text style={styles.amenityText}>Luz</Text>
+              </View>
+            )}
+            {item.description && item.description.toLowerCase().includes('wifi') && (
+              <View style={[styles.amenityBadge, styles.amenityWifi]}>
+                <Text style={styles.amenityEmoji}>📶</Text>
+                <Text style={styles.amenityText}>WiFi</Text>
               </View>
             )}
           </View>
-        </View>
-
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {item.name}
-        </Text>
-
-        {(item.city || item.province) ? (
-          <View style={styles.locationRow}>
-            <Icon name="map-marker" size={14} color={theme.colors.text.secondary} />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {[item.city, item.province].filter(Boolean).join(', ')}
-            </Text>
-          </View>
-        ) : null}
-
-        <View style={styles.amenities}>
-          {item.has_water && (
-            <View style={[styles.amenityBadge, { backgroundColor: '#E3F2FD' }]}>
-              <Icon name="water" size={13} color="#1976D2" />
-              <Text style={[styles.amenityText, { color: '#1976D2' }]}>Agua</Text>
-            </View>
-          )}
-          {item.has_electricity && (
-            <View style={[styles.amenityBadge, { backgroundColor: '#FFF3E0' }]}>
-              <Icon name="flash" size={13} color="#E67E22" />
-              <Text style={[styles.amenityText, { color: '#E67E22' }]}>Luz</Text>
-            </View>
-          )}
         </View>
       </TouchableOpacity>
     );
@@ -251,7 +281,7 @@ export default function ExploreScreen() {
       {CATEGORY_SECTIONS.map(section => (
         <View key={section.title} style={styles.gridSection}>
           <View style={styles.gridSectionHeader}>
-            <Icon name={section.icon} size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.gridSectionEmoji}>{section.emoji}</Text>
             <Text style={styles.gridSectionTitle}>{section.title}</Text>
           </View>
           <View style={styles.gridRow}>
@@ -268,11 +298,7 @@ export default function ExploreScreen() {
                     setSelectedCategory(cat.key);
                     setShowCategoryGrid(false);
                   }}>
-                  <Icon
-                    name={cat.icon}
-                    size={22}
-                    color={isActive ? '#FFF' : cat.color}
-                  />
+                  <Text style={styles.gridItemEmoji}>{cat.emoji}</Text>
                   <Text
                     style={[
                       styles.gridItemText,
@@ -293,7 +319,7 @@ export default function ExploreScreen() {
           setSelectedCategory('ALL');
           setShowCategoryGrid(false);
         }}>
-        <Icon name="map-marker-multiple" size={18} color={theme.colors.primary.main} />
+        <Text style={styles.showAllEmoji}>📍</Text>
         <Text style={styles.showAllText}>Ver todos</Text>
       </TouchableOpacity>
     </View>
@@ -301,55 +327,61 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header con gradiente visual */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Explorar</Text>
-        <Text style={styles.headerSubtitle}>
-          {totalCount > 200 ? `${totalCount}+ lugares` : `${filteredLocations.length} lugares`}
-          {selectedCategory !== 'ALL' ? ` · ${getCategoryConfig(selectedCategory).label}` : ''}
-        </Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Explorar</Text>
+          <Text style={styles.headerSubtitle}>
+            {totalCount > 200 ? `${totalCount.toLocaleString()}+ lugares` : `${locations.length} lugares`}
+            {selectedCategory !== 'ALL' ? ` · ${getCategoryConfig(selectedCategory).emoji} ${getCategoryConfig(selectedCategory).label}` : ''}
+          </Text>
+        </View>
       </View>
 
-      {/* Barra de búsqueda */}
+      {/* Barra de búsqueda mejorada */}
       <View style={styles.searchContainer}>
-        <Icon name="magnify" size={22} color={theme.colors.text.hint} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar por nombre, ciudad..."
-          placeholderTextColor={theme.colors.text.hint}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close-circle" size={20} color={theme.colors.text.hint} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.searchBar}>
+          <Text style={styles.searchEmoji}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por nombre, ciudad, provincia..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={Keyboard.dismiss}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+              <Icon name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
+        </View>
         <TouchableOpacity
-          style={styles.filterButton}
+          style={[styles.filterButton, showCategoryGrid && styles.filterButtonActive]}
           onPress={() => setShowCategoryGrid(!showCategoryGrid)}>
           <Icon
             name={showCategoryGrid ? 'close' : 'tune-variant'}
             size={20}
-            color={selectedCategory !== 'ALL' ? theme.colors.primary.main : theme.colors.text.secondary}
+            color={showCategoryGrid ? '#FFF' : (selectedCategory !== 'ALL' ? theme.colors.primary.main : '#666')}
           />
         </TouchableOpacity>
       </View>
 
-      {/* Filtros de categoría - Horizontal chips */}
+      {/* Filtros horizontal */}
       {!showCategoryGrid && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.categoriesScroll}
-          contentContainerStyle={styles.categoriesList}>
+          contentContainerStyle={styles.categoriesList}
+          keyboardShouldPersistTaps="handled">
           {ALL_CATEGORIES.slice(0, 8).map(renderCategoryChip)}
           <TouchableOpacity
             style={styles.moreChip}
             onPress={() => setShowCategoryGrid(true)}>
-            <Icon name="dots-horizontal" size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.moreChipEmoji}>➕</Text>
             <Text style={styles.moreChipText}>Más</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -357,7 +389,7 @@ export default function ExploreScreen() {
 
       {/* Grid de categorías expandido */}
       {showCategoryGrid && (
-        <ScrollView style={styles.categoryGridScroll} nestedScrollEnabled>
+        <ScrollView style={styles.categoryGridScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
           {renderCategoryGrid()}
         </ScrollView>
       )}
@@ -366,15 +398,16 @@ export default function ExploreScreen() {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary.main} />
-          <Text style={styles.loadingText}>Cargando lugares...</Text>
+          <Text style={styles.loadingText}>Buscando lugares...</Text>
         </View>
       ) : (
         <FlatList
-          data={filteredLocations}
+          data={locations}
           keyExtractor={item => item.id}
           renderItem={renderLocationCard}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -385,12 +418,12 @@ export default function ExploreScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="map-search" size={64} color={theme.colors.text.disabled} />
+              <Text style={styles.emptyEmoji}>🗺️</Text>
               <Text style={styles.emptyText}>No se encontraron lugares</Text>
               <Text style={styles.emptySubtext}>
                 {searchQuery.length > 0
                   ? 'Prueba con otro término de búsqueda'
-                  : 'Aún no hay datos para esta categoría.\nEjecuta el scraper para obtener datos.'}
+                  : 'No hay datos para esta categoría'}
               </Text>
             </View>
           }
@@ -403,49 +436,85 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.light,
+    backgroundColor: '#F2F4F7',
   },
+  // Header
   header: {
     backgroundColor: theme.colors.primary.main,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 56,
+    paddingBottom: 28,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
+  headerContent: {},
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 30,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.85)',
     marginTop: 4,
+    fontWeight: '500',
   },
+  // Search
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: -20,
-    borderRadius: 12,
+    marginTop: -18,
+    gap: 10,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    ...theme.shadows.md,
+    paddingVertical: 12,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+  },
+  searchEmoji: {
+    fontSize: 18,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: theme.colors.text.primary,
-    marginLeft: 8,
+    color: '#1A1A1A',
+    marginLeft: 10,
     padding: 0,
   },
-  filterButton: {
-    marginLeft: 8,
+  clearButton: {
     padding: 4,
   },
+  filterButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+  },
+  filterButtonActive: {
+    backgroundColor: theme.colors.primary.main,
+  },
+  // Categories
   categoriesScroll: {
-    marginTop: 12,
-    maxHeight: 44,
+    marginTop: 14,
+    maxHeight: 48,
   },
   categoriesList: {
     paddingHorizontal: 16,
@@ -456,17 +525,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    gap: 5,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 24,
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  chipEmoji: {
+    fontSize: 16,
   },
   categoryChipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.text.secondary,
+    color: '#444',
   },
   categoryChipTextActive: {
     color: '#FFFFFF',
@@ -474,41 +551,47 @@ const styles = StyleSheet.create({
   moreChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    gap: 4,
-    borderWidth: 1,
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 24,
+    gap: 5,
+    borderWidth: 1.5,
     borderColor: '#E0E0E0',
   },
+  moreChipEmoji: {
+    fontSize: 14,
+  },
   moreChipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.text.secondary,
+    color: '#666',
   },
   // Category Grid
   categoryGridScroll: {
-    maxHeight: 340,
-    marginTop: 8,
+    maxHeight: 360,
+    marginTop: 10,
   },
   categoryGridContainer: {
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
   gridSection: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   gridSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 10,
+  },
+  gridSectionEmoji: {
+    fontSize: 18,
   },
   gridSectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: theme.colors.text.secondary,
+    color: '#555',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -521,48 +604,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    minWidth: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#EBEBEB',
+    minWidth: 110,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  gridItemEmoji: {
+    fontSize: 20,
   },
   gridItemText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: theme.colors.text.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
   },
   showAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 6,
   },
+  showAllEmoji: {
+    fontSize: 16,
+  },
   showAllText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: theme.colors.primary.main,
   },
   // Cards
   listContent: {
     padding: 16,
-    gap: 10,
+    gap: 12,
     paddingBottom: 100,
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    ...theme.shadows.sm,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  cardColorBar: {
+    height: 4,
+  },
+  cardBody: {
+    padding: 16,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   cardHeaderRight: {
     flexDirection: 'row',
@@ -572,75 +676,90 @@ const styles = StyleSheet.create({
   categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 5,
+  },
+  badgeEmoji: {
+    fontSize: 14,
   },
   categoryBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
-  countryBadge: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: theme.colors.text.hint,
-    backgroundColor: '#F0F0F0',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: 'hidden',
+  priceBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   priceText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: theme.colors.primary.main,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#2E7D32',
   },
   freeBadge: {
     backgroundColor: '#E8F5E9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   freeText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
     color: '#2E7D32',
+    letterSpacing: 0.5,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 6,
+    marginBottom: 10,
+  },
+  locationEmoji: {
+    fontSize: 12,
   },
   locationText: {
     fontSize: 13,
-    color: theme.colors.text.secondary,
+    color: '#777',
     flex: 1,
   },
   amenities: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   amenityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 3,
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+  },
+  amenityElectric: {
+    backgroundColor: '#FFF8E1',
+  },
+  amenityWifi: {
+    backgroundColor: '#F3E5F5',
+  },
+  amenityEmoji: {
+    fontSize: 13,
   },
   amenityText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
+    color: '#555',
   },
   // Loading / Empty
   loadingContainer: {
@@ -651,23 +770,27 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: theme.colors.text.secondary,
+    color: '#888',
+    fontWeight: '500',
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingTop: 60,
-    gap: 8,
+    paddingTop: 80,
+    gap: 10,
     paddingHorizontal: 32,
   },
+  emptyEmoji: {
+    fontSize: 56,
+  },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
   },
   emptySubtext: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
+    fontSize: 15,
+    color: '#888',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,23 +9,54 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapLibreGL from '@maplibre/maplibre-react-native';
 import Geolocation from 'react-native-geolocation-service';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
-import PushNotification from 'react-native-push-notification';
 import BackgroundTimer from 'react-native-background-timer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import haversine from 'haversine-distance';
-import { MAPBOX_ACCESS_TOKEN } from '@env';
 import { supabase } from '../lib/supabase';
 
-// ⚠️ CONFIGURACIÓN CRÍTICA
-const GPS_UPDATE_INTERVAL = 1000; // 1 segundo - TIEMPO REAL
-const RADAR_ALERT_DISTANCE = 1000; // 1km antes
-const RADAR_REMINDER_DISTANCE = 50; // 50m recordatorio
-const CONTROL_ALERT_DISTANCE = 5000; // 5KM ANTES - CRÍTICO para autopista
-const CONTROL_REMINDER_DISTANCE = 1000; // 1km recordatorio
-const CHECK_INTERVAL = 2000; // Verificar cada 2 segundos
+// Inicializar MapLibre (sin token - usa OSM gratuito)
+MapLibreGL.setAccessToken(null);
+
+// Tile server OpenStreetMap gratuito
+const OSM_STYLE = {
+  version: 8 as const,
+  sources: {
+    osm: {
+      type: 'raster' as const,
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    {
+      id: 'osm',
+      type: 'raster' as const,
+      source: 'osm',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+};
+
+// Centro de España (fallback)
+const DEFAULT_CENTER: [number, number] = [-3.5, 40.0]; // [lng, lat] - MapLibre usa [lng, lat]
+const DEFAULT_ZOOM = 5;
+
+const LAST_LOCATION_KEY = '@camper_last_known_location';
+
+// Configuración GPS
+const GPS_UPDATE_INTERVAL = 1000;
+const RADAR_ALERT_DISTANCE = 1000;
+const RADAR_REMINDER_DISTANCE = 50;
+const CONTROL_ALERT_DISTANCE = 5000;
+const CONTROL_REMINDER_DISTANCE = 1000;
+const CHECK_INTERVAL = 2000;
 
 interface Location {
   id: string;
@@ -55,7 +86,6 @@ interface Route {
   type: 'fastest' | 'alternative';
 }
 
-// Configuración de iconos y colores por categoría para el mapa
 const getMarkerConfig = (category: string): { icon: string; color: string } => {
   switch (category) {
     case 'CAMPING': return { icon: 'tent', color: '#2D5016' };
@@ -78,13 +108,12 @@ const getMarkerConfig = (category: string): { icon: string; color: string } => {
 };
 
 const MapScreen = () => {
-  // Estados principales
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
     longitude: number;
     speed: number;
   } | null>(null);
-  
+
   const [locations, setLocations] = useState<Location[]>([]);
   const [radars, setRadars] = useState<Radar[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
@@ -92,30 +121,67 @@ const MapScreen = () => {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Estados de alertas
+
+  const [gpsEnabled, setGpsEnabled] = useState(false);
+  const [cameraCenter, setCameraCenter] = useState<[number, number]>(DEFAULT_CENTER);
+  const [cameraZoom, setCameraZoom] = useState(DEFAULT_ZOOM);
+
   const [alertedRadars, setAlertedRadars] = useState<Set<string>>(new Set());
   const [showRouteSelector, setShowRouteSelector] = useState(false);
   const [showRadarVerification, setShowRadarVerification] = useState(false);
   const [radarToVerify, setRadarToVerify] = useState<Radar | null>(null);
-  
-  const mapRef = useRef<MapView>(null);
+
+  const cameraRef = useRef<MapLibreGL.Camera>(null);
   const watchId = useRef<number | null>(null);
   const checkIntervalId = useRef<any>(null);
+  const lastFetchCenter = useRef<{lat: number; lng: number} | null>(null);
+
+  const saveLastKnownLocation = useCallback(async (lat: number, lng: number) => {
+    try {
+      await AsyncStorage.setItem(LAST_LOCATION_KEY, JSON.stringify({
+        latitude: lat,
+        longitude: lng,
+        timestamp: Date.now(),
+      }));
+    } catch (e) {
+      console.error('AsyncStorage setItem error:', e);
+    }
+  }, []);
+
+  const getLastKnownLocation = useCallback(async (): Promise<{latitude: number; longitude: number} | null> => {
+    try {
+      const saved = await AsyncStorage.getItem(LAST_LOCATION_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Date.now() - parsed.timestamp < 30 * 24 * 60 * 60 * 1000) {
+          return { latitude: parsed.latitude, longitude: parsed.longitude };
+        }
+      }
+    } catch (e) {
+      console.error('AsyncStorage getItem error:', e);
+    }
+    return null;
+  }, []);
 
   useEffect(() => {
-    // Configurar notificaciones push
-    configurePushNotifications();
-    
-    // Solicitar permisos y empezar tracking
-    requestLocationPermission();
-    
-    // Cargar datos
-    fetchLocations();
-    fetchRadars();
-    
+    const initMap = async () => {
+      const lastLoc = await getLastKnownLocation();
+      if (lastLoc) {
+        setCameraCenter([lastLoc.longitude, lastLoc.latitude]);
+        setCameraZoom(12);
+        fetchLocations(lastLoc.latitude, lastLoc.longitude);
+      } else {
+        fetchLocations(DEFAULT_CENTER[1], DEFAULT_CENTER[0]);
+      }
+
+      fetchRadars();
+      setLoading(false);
+      requestLocationPermission();
+    };
+
+    initMap();
+
     return () => {
-      // Cleanup
       if (watchId.current !== null) {
         Geolocation.clearWatch(watchId.current);
       }
@@ -125,132 +191,75 @@ const MapScreen = () => {
     };
   }, []);
 
-  const configurePushNotifications = () => {
-    PushNotification.configure({
-      onNotification: function (notification) {
-        console.log('Notification:', notification);
-      },
-      permissions: {
-        alert: true,
-        badge: true,
-        sound: true,
-      },
-      popInitialNotification: true,
-      requestPermissions: true,
-    });
-
-    // Canal para Android
-    PushNotification.createChannel(
-      {
-        channelId: 'alerts',
-        channelName: 'Alertas de Tráfico',
-        channelDescription: 'Alertas de radares y controles',
-        playSound: true,
-        soundName: 'default',
-        importance: 4,
-        vibrate: true,
-      },
-      (created) => console.log(`Channel created: ${created}`)
-    );
-  };
-
   const requestLocationPermission = async () => {
     try {
       if (Platform.OS === 'ios') {
-        // iOS: pedir WHEN_IN_USE primero, luego ALWAYS
         let result = await request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE);
-        if (result === RESULTS.GRANTED) {
-          // Ahora pedir ALWAYS para background
-          result = await request(PERMISSIONS.IOS.LOCATION_ALWAYS);
-        }
         if (result === RESULTS.GRANTED || result === RESULTS.LIMITED) {
           startRealtimeLocationTracking();
-        } else {
-          // Intentar con solo WHEN_IN_USE
-          startRealtimeLocationTracking();
+          await request(PERMISSIONS.IOS.LOCATION_ALWAYS);
         }
       } else {
-        // Android: pedir FINE_LOCATION primero (obligatorio)
         const fineResult = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
-
         if (fineResult === RESULTS.GRANTED) {
           startRealtimeLocationTracking();
-
-          // Luego pedir BACKGROUND si Android 10+
-          if (Platform.Version >= 29) {
-            const bgResult = await request(PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION);
-            if (bgResult !== RESULTS.GRANTED) {
-              console.log('Background location not granted - alerts may not work in background');
-            }
+          if (parseInt(String(Platform.Version), 10) >= 29) {
+            await request(PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION);
           }
-        } else {
-          Alert.alert(
-            'Permiso de Ubicación',
-            'CamperSites necesita tu ubicación para mostrarte lugares cercanos y alertas de radares.\n\nVe a Ajustes > Aplicaciones > CamperSites > Permisos > Ubicación y actívalo.',
-            [{ text: 'Entendido' }]
-          );
         }
       }
     } catch (error) {
       console.error('Error requesting location permission:', error);
-      // Intentar tracking de todas formas por si ya tiene permisos
-      startRealtimeLocationTracking();
     }
   };
 
-  // ⭐ GPS EN TIEMPO REAL - ACTUALIZACIÓN CADA 1 SEGUNDO
   const startRealtimeLocationTracking = () => {
-    // Obtener ubicación inicial
+    setGpsEnabled(true);
+
     Geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude, speed } = position.coords;
-        setCurrentLocation({ 
-          latitude, 
-          longitude, 
-          speed: speed || 0 
+        setCurrentLocation({ latitude, longitude, speed: speed || 0 });
+        saveLastKnownLocation(latitude, longitude);
+
+        // Mover cámara a posición real
+        cameraRef.current?.setCamera({
+          centerCoordinate: [longitude, latitude],
+          zoomLevel: 14,
+          animationDuration: 1000,
         });
-        setLoading(false);
-        
-        mapRef.current?.animateToRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        });
+
+        fetchLocations(latitude, longitude);
       },
-      (error) => {
-        console.error('Error getting location:', error);
-        setLoading(false);
-      },
-      { 
-        enableHighAccuracy: true, 
-        timeout: 15000, 
-        maximumAge: 0 
-      }
+      (error) => console.error('Error getting location:', error),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
 
-    // ⚠️ CRÍTICO: Actualización cada 1 SEGUNDO
     watchId.current = Geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, speed } = position.coords;
-        setCurrentLocation({ 
-          latitude, 
-          longitude, 
-          speed: speed || 0 
-        });
+        setCurrentLocation({ latitude, longitude, speed: speed || 0 });
+
+        if (Math.random() < 0.033) {
+          saveLastKnownLocation(latitude, longitude);
+        }
       },
-      (error) => console.error('Watch position error:', error),
+      (error) => {
+        console.error('Watch position error:', error);
+        if (error.code === 2 || error.code === 3) {
+          setGpsEnabled(false);
+        }
+      },
       {
         enableHighAccuracy: true,
-        distanceFilter: 0, // Sin filtro = máxima precisión
-        interval: GPS_UPDATE_INTERVAL, // 1 segundo
-        fastestInterval: 500, // Mínimo 500ms
+        distanceFilter: 0,
+        interval: GPS_UPDATE_INTERVAL,
+        fastestInterval: 500,
         forceRequestLocation: true,
         showLocationDialog: true,
-      }
+      },
     );
 
-    // ⚠️ CRÍTICO: Verificar alertas cada 2 segundos
     checkIntervalId.current = BackgroundTimer.setInterval(() => {
       if (currentLocation && isNavigating) {
         checkForAlerts(currentLocation.latitude, currentLocation.longitude, currentLocation.speed);
@@ -258,7 +267,6 @@ const MapScreen = () => {
     }, CHECK_INTERVAL);
   };
 
-  // ⭐ SISTEMA DE ALERTAS MEJORADO
   const checkForAlerts = (lat: number, lng: number, speed: number) => {
     radars.forEach((radar) => {
       const distance = haversine(
@@ -266,17 +274,15 @@ const MapScreen = () => {
         { latitude: radar.latitude, longitude: radar.longitude }
       );
 
-      const radarKey = `${radar.id}-${distance < 100 ? 'close' : 'far'}`;
+      const radarKey1km = `${radar.id}-alert-1km`;
 
-      // ⚠️ ALERTA 1KM - RADARES
       if (radar.type === 'RADAR' && distance <= RADAR_ALERT_DISTANCE && distance > RADAR_REMINDER_DISTANCE) {
-        if (!alertedRadars.has(radarKey)) {
+        if (!alertedRadars.has(radarKey1km)) {
           sendRadarAlert(radar, distance, speed, '1km');
-          setAlertedRadars(prev => new Set(prev).add(radarKey));
+          setAlertedRadars(prev => new Set(prev).add(radarKey1km));
         }
       }
 
-      // ⚠️ RECORDATORIO 50M - RADARES
       if (radar.type === 'RADAR' && distance <= RADAR_REMINDER_DISTANCE && distance > 10) {
         const reminderKey = `${radar.id}-reminder`;
         if (!alertedRadars.has(reminderKey)) {
@@ -285,25 +291,21 @@ const MapScreen = () => {
         }
       }
 
-      // ⚠️ VERIFICACIÓN - AL PASAR
       if (distance <= 10 && !alertedRadars.has(`${radar.id}-passed`)) {
         setRadarToVerify(radar);
         setShowRadarVerification(true);
         setAlertedRadars(prev => new Set(prev).add(`${radar.id}-passed`));
       }
 
-      // ⚠️ ALERTA 5KM - CONTROLES (Autopista)
+      const controlKey5km = `${radar.id}-control-5km`;
       if (radar.type === 'CONTROL' && distance <= CONTROL_ALERT_DISTANCE && distance > CONTROL_REMINDER_DISTANCE) {
-        if (!alertedRadars.has(radarKey)) {
+        if (!alertedRadars.has(controlKey5km)) {
           sendControlAlert(radar, distance, '5km');
-          setAlertedRadars(prev => new Set(prev).add(radarKey));
-          
-          // Ofrecer ruta alternativa INMEDIATAMENTE
+          setAlertedRadars(prev => new Set(prev).add(controlKey5km));
           offerAlternativeRoute(lat, lng);
         }
       }
 
-      // ⚠️ RECORDATORIO 1KM - CONTROLES
       if (radar.type === 'CONTROL' && distance <= CONTROL_REMINDER_DISTANCE && distance > 100) {
         const reminderKey = `${radar.id}-control-reminder`;
         if (!alertedRadars.has(reminderKey)) {
@@ -314,59 +316,27 @@ const MapScreen = () => {
     });
   };
 
-  // ⭐ NOTIFICACIÓN RADAR (1km y 50m)
   const sendRadarAlert = (radar: Radar, distance: number, speed: number, stage: string) => {
-    const timeToRadar = speed > 0 ? (distance / (speed / 3.6)) : 0;
-    
-    PushNotification.localNotification({
-      channelId: 'alerts',
-      title: stage === '1km' ? '⚠️ RADAR A 1KM' : '🚨 RADAR 50 METROS',
-      message: `Límite: ${radar.speedLimit} km/h - Llegas en ${Math.round(timeToRadar)}s`,
-      playSound: true,
-      vibrate: true,
-      priority: 'high',
-      importance: 'high',
-    });
-
-    // Vibración diferente según distancia
-    if (Platform.OS === 'android') {
-      const pattern = stage === '1km' ? [0, 500, 200, 500] : [0, 200, 100, 200, 100, 200];
-      // @ts-ignore
-      Vibration.vibrate(pattern);
-    }
+    console.log(`RADAR ALERT: ${stage} - ${radar.speedLimit}km/h`);
   };
 
-  // ⭐ NOTIFICACIÓN CONTROL (5km y 1km + RECÁLCULO)
   const sendControlAlert = (radar: Radar, distance: number, stage: string) => {
     const distanceKm = (distance / 1000).toFixed(1);
-    
-    PushNotification.localNotification({
-      channelId: 'alerts',
-      title: stage === '5km' ? '🚔 CONTROL POLICIAL 5KM' : '🚨 CONTROL 1KM',
-      message: stage === '5km' 
-        ? `Control detectado a ${distanceKm}km - Tienes tiempo para salir`
-        : `Control a ${distanceKm}km - Última oportunidad`,
-      playSound: true,
-      vibrate: true,
-      priority: 'max',
-      importance: 'max',
-    });
+    console.log(`CONTROL ALERT: ${stage} - ${distanceKm}km`);
 
     Alert.alert(
       stage === '5km' ? '🚔 Control a 5km' : '🚨 Control a 1km',
       `Detectado a ${distanceKm}km. ¿Calcular ruta alternativa?`,
       [
         { text: 'No', style: 'cancel' },
-        { 
-          text: 'Sí, Recalcular', 
+        {
+          text: 'Sí, Recalcular',
           onPress: () => {
             if (currentLocation && selectedLocation) {
               calculateRoutes(
-                currentLocation.latitude,
-                currentLocation.longitude,
-                selectedLocation.latitude,
-                selectedLocation.longitude,
-                true // Evitar control
+                currentLocation.latitude, currentLocation.longitude,
+                selectedLocation.latitude, selectedLocation.longitude,
+                true
               );
             }
           }
@@ -375,44 +345,28 @@ const MapScreen = () => {
     );
   };
 
-  // ⭐ RECÁLCULO AUTOMÁTICO RUTA
   const offerAlternativeRoute = async (lat: number, lng: number) => {
     if (!selectedLocation) return;
-
-    await calculateRoutes(
-      lat,
-      lng,
-      selectedLocation.latitude,
-      selectedLocation.longitude,
-      true
-    );
-
+    const freshRoutes = await calculateRoutes(lat, lng, selectedLocation.latitude, selectedLocation.longitude, true);
     Alert.alert(
       'Ruta Alternativa Calculada',
       '¿Deseas tomar la ruta alternativa que evita el control?',
       [
         { text: 'No', style: 'cancel' },
-        { 
-          text: 'Sí, Cambiar', 
+        {
+          text: 'Sí, Cambiar',
           onPress: () => {
-            if (routes.length > 1) {
-              setSelectedRoute(routes[1]); // Ruta alternativa
-            }
+            if (freshRoutes.length > 1) setSelectedRoute(freshRoutes[1]);
           }
         }
       ]
     );
   };
 
-  // ⭐ CARGA DINÁMICA: Locations desde Supabase en radio de 50km
-  const lastFetchCenter = useRef<{lat: number; lng: number} | null>(null);
-
   const fetchLocations = async (lat?: number, lng?: number) => {
     try {
-      const centerLat = lat || currentLocation?.latitude || 40.4168;
-      const centerLng = lng || currentLocation?.longitude || -3.7038;
-
-      // Radio de 50km = ~0.45° lat, ~0.55° lon
+      const centerLat = lat || currentLocation?.latitude || 40.0;
+      const centerLng = lng || currentLocation?.longitude || -3.5;
       const latDelta = 0.45;
       const lngDelta = 0.55;
 
@@ -425,21 +379,15 @@ const MapScreen = () => {
         .lte('longitude', centerLng + lngDelta)
         .limit(500);
 
-      if (error) {
-        console.error('Error fetching locations:', error);
-        return;
-      }
-
+      if (error) { console.error('Error fetching locations:', error); return; }
       setLocations(data || []);
       lastFetchCenter.current = { lat: centerLat, lng: centerLng };
     } catch (error) {
       console.error('Error fetching locations:', error);
-      // Fallback vacío - sin datos hardcoded
       setLocations([]);
     }
   };
 
-  // Refetch dinámico: recargar cuando usuario se mueve >15km
   useEffect(() => {
     if (!currentLocation || !lastFetchCenter.current) return;
     const dist = haversine(
@@ -458,12 +406,8 @@ const MapScreen = () => {
         .select('id, latitude, longitude, type, speed_limit, verified, last_verified, active')
         .eq('active', true);
 
-      if (error) {
-        console.error('Error fetching radars:', error);
-        return;
-      }
+      if (error) { console.error('Error fetching radars:', error); return; }
 
-      // Mapear snake_case → camelCase
       const mapped = (data || []).map(r => ({
         id: r.id,
         latitude: r.latitude,
@@ -473,7 +417,6 @@ const MapScreen = () => {
         verified: r.verified || false,
         lastVerified: r.last_verified || undefined,
       }));
-
       setRadars(mapped);
     } catch (error) {
       console.error('Error fetching radars:', error);
@@ -481,50 +424,22 @@ const MapScreen = () => {
     }
   };
 
-  // ⭐ CALCULAR RUTAS (Principal + Alternativas)
   const calculateRoutes = async (
-    fromLat: number,
-    fromLng: number,
-    toLat: number,
-    toLng: number,
+    fromLat: number, fromLng: number,
+    toLat: number, toLng: number,
     avoidControls: boolean = false
-  ) => {
+  ): Promise<Route[]> => {
     try {
-      // Ruta principal (mas rapida)
-      const mainUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${fromLng},${fromLat};${toLng},${toLat}?geometries=geojson&overview=full&steps=true&access_token=${MAPBOX_ACCESS_TOKEN}`;
+      // Usar OSRM (gratuito, sin API key)
+      const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&alternatives=true`;
 
-      // Ruta alternativa
-      const altUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${fromLng},${fromLat};${toLng},${toLat}?geometries=geojson&overview=full&alternatives=true&steps=true&access_token=${MAPBOX_ACCESS_TOKEN}`;
-
-      const [mainResponse, altResponse] = await Promise.all([
-        fetch(mainUrl),
-        fetch(altUrl),
-      ]);
-
-      const mainData = await mainResponse.json();
-      const altData = await altResponse.json();
+      const response = await fetch(url);
+      const data = await response.json();
 
       const calculatedRoutes: Route[] = [];
 
-      // Procesar ruta principal
-      if (mainData.routes && mainData.routes.length > 0) {
-        const route = mainData.routes[0];
-        calculatedRoutes.push({
-          coordinates: route.geometry.coordinates.map((coord: number[]) => ({
-            latitude: coord[1],
-            longitude: coord[0],
-          })),
-          distance: route.distance,
-          duration: route.duration,
-          incidents: detectIncidents(route.geometry.coordinates),
-          type: 'fastest',
-        });
-      }
-
-      // Procesar rutas alternativas
-      if (altData.routes && altData.routes.length > 1) {
-        for (let i = 1; i < altData.routes.length; i++) {
-          const route = altData.routes[i];
+      if (data.routes && data.routes.length > 0) {
+        data.routes.forEach((route: any, idx: number) => {
           calculatedRoutes.push({
             coordinates: route.geometry.coordinates.map((coord: number[]) => ({
               latitude: coord[1],
@@ -533,32 +448,33 @@ const MapScreen = () => {
             distance: route.distance,
             duration: route.duration,
             incidents: detectIncidents(route.geometry.coordinates),
-            type: 'alternative',
+            type: idx === 0 ? 'fastest' : 'alternative',
           });
-        }
+        });
       }
 
       setRoutes(calculatedRoutes);
       setShowRouteSelector(true);
-
+      return calculatedRoutes;
     } catch (error) {
       console.error('Error calculating routes:', error);
       Alert.alert('Error', 'No se pudo calcular la ruta');
+      return [];
     }
   };
 
-  // Detectar incidentes en ruta
   const detectIncidents = (coordinates: number[][]): string[] => {
+    const seenRadarIds = new Set<string>();
     const incidents: string[] = [];
-    
     coordinates.forEach((coord) => {
       radars.forEach((radar) => {
+        if (seenRadarIds.has(radar.id)) return; // ya procesado
         const distance = haversine(
           { latitude: coord[1], longitude: coord[0] },
           { latitude: radar.latitude, longitude: radar.longitude }
         );
-        
         if (distance < 100) {
+          seenRadarIds.add(radar.id);
           if (radar.type === 'RADAR') {
             incidents.push(`⚠️ Radar ${radar.speedLimit} km/h`);
           } else {
@@ -567,28 +483,15 @@ const MapScreen = () => {
         }
       });
     });
-
-    return [...new Set(incidents)]; // Eliminar duplicados
+    return incidents;
   };
 
   const startNavigation = (route: Route) => {
     setSelectedRoute(route);
     setIsNavigating(true);
     setShowRouteSelector(false);
-    setAlertedRadars(new Set()); // Reset alertas
-
-    PushNotification.localNotification({
-      channelId: 'alerts',
-      title: '🚗 Navegación Iniciada',
-      message: `Destino: ${selectedLocation?.name}`,
-      ongoing: true,
-    });
-
-    // Ajustar mapa a ruta
-    mapRef.current?.fitToCoordinates(route.coordinates, {
-      edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
-      animated: true,
-    });
+    setAlertedRadars(new Set());
+    console.log(`NAV START: ${selectedLocation?.name}`);
   };
 
   const stopNavigation = () => {
@@ -597,165 +500,226 @@ const MapScreen = () => {
     setSelectedRoute(null);
     setRoutes([]);
     setAlertedRadars(new Set());
-
-    PushNotification.cancelAllLocalNotifications();
   };
 
   const verifyRadar = async (stillThere: boolean) => {
     if (!radarToVerify) return;
-
     try {
-      // Insertar reporte de verificación en Supabase
       await supabase.from('radar_reports').insert({
         radar_id: radarToVerify.id,
         report_type: stillThere ? 'confirmed' : 'removed',
         reported_at: new Date().toISOString(),
       });
-
-      // Actualizar radar si se confirma
       if (stillThere) {
-        await supabase
-          .from('radars')
-          .update({
-            last_verified: new Date().toISOString(),
-            verified: true,
-          })
-          .eq('id', radarToVerify.id);
+        await supabase.from('radars').update({
+          last_verified: new Date().toISOString(),
+          verified: true,
+        }).eq('id', radarToVerify.id);
       }
-
-      Alert.alert(
-        'Gracias',
-        stillThere
-          ? 'Radar confirmado y actualizado'
-          : 'Radar marcado como eliminado'
-      );
+      Alert.alert('Gracias', stillThere ? 'Radar confirmado y actualizado' : 'Radar marcado como eliminado');
     } catch (error) {
       console.error('Error verifying radar:', error);
     }
-
     setShowRadarVerification(false);
     setRadarToVerify(null);
   };
+
+  // Manejar movimiento del mapa para recargar locations
+  const handleRegionDidChange = useCallback(async (feature: any) => {
+    if (!isNavigating && lastFetchCenter.current) {
+      const center = feature?.geometry?.coordinates;
+      if (center) {
+        const dist = haversine(
+          { latitude: center[1], longitude: center[0] },
+          { latitude: lastFetchCenter.current.lat, longitude: lastFetchCenter.current.lng },
+        );
+        if (dist > 30000) {
+          fetchLocations(center[1], center[0]);
+        }
+      }
+    }
+  }, [isNavigating]);
+
+  // Generar GeoJSON para la ruta seleccionada
+  const routeGeoJSON = selectedRoute ? {
+    type: 'FeatureCollection' as const,
+    features: [{
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: selectedRoute.coordinates.map(c => [c.longitude, c.latitude]),
+      },
+      properties: {},
+    }],
+  } : null;
+
+  // GeoJSON para rutas alternativas
+  const altRoutesGeoJSON = routes.filter(r => r !== selectedRoute).length > 0 ? {
+    type: 'FeatureCollection' as const,
+    features: routes.filter(r => r !== selectedRoute).map(route => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: route.coordinates.map(c => [c.longitude, c.latitude]),
+      },
+      properties: {},
+    })),
+  } : null;
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2E7D32" />
-        <Text style={styles.loadingText}>Iniciando GPS en tiempo real...</Text>
+        <Text style={styles.loadingText}>Cargando mapa...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+      <MapLibreGL.MapView
         style={styles.map}
-        initialRegion={{
-          latitude: currentLocation?.latitude || 40.4168,
-          longitude: currentLocation?.longitude || -3.7038,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-        showsUserLocation={false} // Usamos marcador custom
-        showsMyLocationButton={false}
-        followsUserLocation={isNavigating}>
-        
-        {/* Usuario - Marcador custom */}
+        styleJSON={JSON.stringify(OSM_STYLE)}
+        logoEnabled={false}
+        attributionEnabled={false}
+        onRegionDidChange={handleRegionDidChange}>
+
+        <MapLibreGL.Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: cameraCenter,
+            zoomLevel: cameraZoom,
+          }}
+        />
+
+        {/* Usuario - marcador */}
         {currentLocation && (
-          <Marker
-            coordinate={currentLocation}
-            anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
-            rotation={0}>
+          <MapLibreGL.PointAnnotation
+            id="user-location"
+            coordinate={[currentLocation.longitude, currentLocation.latitude]}>
             <View style={styles.userMarker}>
-              <Icon name="navigation" size={30} color="#1976D2" />
+              <Icon name="navigation" size={24} color="#1976D2" />
             </View>
-          </Marker>
+          </MapLibreGL.PointAnnotation>
         )}
 
-        {/* Ubicaciones - con iconos y colores por categoría */}
+        {/* Ubicaciones */}
         {locations.map((location) => {
           const markerConfig = getMarkerConfig(location.category);
           return (
-            <Marker
+            <MapLibreGL.PointAnnotation
               key={location.id}
-              coordinate={{
-                latitude: location.latitude,
-                longitude: location.longitude,
-              }}
-              title={location.name}
-              description={location.description || location.address}
-              onPress={() => {
+              id={`loc-${location.id}`}
+              coordinate={[location.longitude, location.latitude]}
+              onSelected={() => {
                 setSelectedLocation(location);
                 if (currentLocation) {
                   calculateRoutes(
-                    currentLocation.latitude,
-                    currentLocation.longitude,
-                    location.latitude,
-                    location.longitude
+                    currentLocation.latitude, currentLocation.longitude,
+                    location.latitude, location.longitude
                   );
                 }
               }}>
-              <Icon name={markerConfig.icon} size={32} color={markerConfig.color} />
-            </Marker>
+              <View style={styles.markerContainer}>
+                <Icon name={markerConfig.icon} size={28} color={markerConfig.color} />
+              </View>
+              <MapLibreGL.Callout title={location.name}>
+                <View style={styles.callout}>
+                  <Text style={styles.calloutTitle}>{location.name}</Text>
+                  <Text style={styles.calloutDesc}>{location.description || location.address || ''}</Text>
+                </View>
+              </MapLibreGL.Callout>
+            </MapLibreGL.PointAnnotation>
           );
         })}
 
         {/* Radares */}
         {radars.map((radar) => (
-          <Marker
+          <MapLibreGL.PointAnnotation
             key={radar.id}
-            coordinate={{
-              latitude: radar.latitude,
-              longitude: radar.longitude,
-            }}
-            title={radar.type === 'RADAR' ? 'Radar' : 'Control'}
-            description={`${radar.speedLimit} km/h`}>
-            <Icon 
-              name={radar.type === 'RADAR' ? 'speedometer' : 'shield-alert'} 
-              size={30} 
-              color={radar.type === 'RADAR' ? '#D32F2F' : '#FF6F00'} 
-            />
-          </Marker>
+            id={`radar-${radar.id}`}
+            coordinate={[radar.longitude, radar.latitude]}>
+            <View style={styles.markerContainer}>
+              <Icon
+                name={radar.type === 'RADAR' ? 'speedometer' : 'shield-alert'}
+                size={26}
+                color={radar.type === 'RADAR' ? '#D32F2F' : '#FF6F00'}
+              />
+            </View>
+            <MapLibreGL.Callout title={radar.type === 'RADAR' ? 'Radar' : 'Control'}>
+              <View style={styles.callout}>
+                <Text style={styles.calloutTitle}>
+                  {radar.type === 'RADAR' ? 'Radar' : 'Control'} - {radar.speedLimit} km/h
+                </Text>
+              </View>
+            </MapLibreGL.Callout>
+          </MapLibreGL.PointAnnotation>
         ))}
 
-        {/* Rutas */}
-        {selectedRoute && (
-          <Polyline
-            coordinates={selectedRoute.coordinates}
-            strokeColor="#2196F3"
-            strokeWidth={5}
-          />
+        {/* Ruta seleccionada */}
+        {routeGeoJSON && (
+          <MapLibreGL.ShapeSource id="route-source" shape={routeGeoJSON}>
+            <MapLibreGL.LineLayer
+              id="route-line"
+              style={{
+                lineColor: '#2196F3',
+                lineWidth: 5,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          </MapLibreGL.ShapeSource>
         )}
 
-        {/* Rutas alternativas (grises) */}
-        {routes.filter(r => r !== selectedRoute).map((route, idx) => (
-          <Polyline
-            key={idx}
-            coordinates={route.coordinates}
-            strokeColor="#9E9E9E"
-            strokeWidth={3}
-            lineDashPattern={[5, 5]}
-          />
-        ))}
-      </MapView>
+        {/* Rutas alternativas */}
+        {altRoutesGeoJSON && (
+          <MapLibreGL.ShapeSource id="alt-routes-source" shape={altRoutesGeoJSON}>
+            <MapLibreGL.LineLayer
+              id="alt-routes-line"
+              style={{
+                lineColor: '#9E9E9E',
+                lineWidth: 3,
+                lineCap: 'round',
+                lineJoin: 'round',
+                lineDasharray: [5, 5],
+              }}
+            />
+          </MapLibreGL.ShapeSource>
+        )}
+      </MapLibreGL.MapView>
 
       {/* Botón centrar */}
       <TouchableOpacity
         style={styles.centerButton}
         onPress={() => {
-          if (currentLocation && mapRef.current) {
-            mapRef.current.animateToRegion({
-              ...currentLocation,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
+          if (currentLocation) {
+            cameraRef.current?.setCamera({
+              centerCoordinate: [currentLocation.longitude, currentLocation.latitude],
+              zoomLevel: 14,
+              animationDuration: 1000,
+            });
+          } else {
+            cameraRef.current?.setCamera({
+              centerCoordinate: DEFAULT_CENTER,
+              zoomLevel: DEFAULT_ZOOM,
+              animationDuration: 1000,
             });
           }
         }}>
-        <Icon name="crosshairs-gps" size={24} color="#2E7D32" />
+        <Icon
+          name={gpsEnabled ? 'crosshairs-gps' : 'crosshairs'}
+          size={24}
+          color={gpsEnabled ? '#2E7D32' : '#999'}
+        />
       </TouchableOpacity>
+
+      {/* Sin GPS banner */}
+      {!gpsEnabled && !loading && (
+        <View style={styles.noGpsBanner}>
+          <Icon name="map-marker-off" size={16} color="#FFF" />
+          <Text style={styles.noGpsText}>Sin GPS - Explora moviendo el mapa</Text>
+        </View>
+      )}
 
       {/* Panel navegación activa */}
       {isNavigating && selectedLocation && selectedRoute && (
@@ -781,21 +745,14 @@ const MapScreen = () => {
       )}
 
       {/* Modal selector de rutas */}
-      <Modal
-        visible={showRouteSelector}
-        transparent={true}
-        animationType="slide">
+      <Modal visible={showRouteSelector} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Selecciona tu ruta</Text>
-            
             {routes.map((route, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={[
-                  styles.routeOption,
-                  route.type === 'fastest' && styles.recommendedRoute
-                ]}
+                style={[styles.routeOption, route.type === 'fastest' && styles.recommendedRoute]}
                 onPress={() => startNavigation(route)}>
                 <View style={styles.routeHeader}>
                   <Text style={styles.routeType}>
@@ -805,7 +762,6 @@ const MapScreen = () => {
                     {(route.distance / 1000).toFixed(1)} km • {Math.round(route.duration / 60)} min
                   </Text>
                 </View>
-                
                 {route.incidents.length > 0 && (
                   <View style={styles.incidents}>
                     <Text style={styles.incidentsTitle}>En esta ruta:</Text>
@@ -816,10 +772,7 @@ const MapScreen = () => {
                 )}
               </TouchableOpacity>
             ))}
-
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => setShowRouteSelector(false)}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRouteSelector(false)}>
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -827,25 +780,16 @@ const MapScreen = () => {
       </Modal>
 
       {/* Modal verificación radar */}
-      <Modal
-        visible={showRadarVerification}
-        transparent={true}
-        animationType="fade">
+      <Modal visible={showRadarVerification} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.verifyModal}>
             <Text style={styles.verifyTitle}>¿El radar sigue aquí?</Text>
-            <Text style={styles.verifySubtitle}>
-              Ayúdanos a mantener la información actualizada
-            </Text>
+            <Text style={styles.verifySubtitle}>Ayúdanos a mantener la información actualizada</Text>
             <View style={styles.verifyButtons}>
-              <TouchableOpacity
-                style={[styles.verifyBtn, styles.verifyNo]}
-                onPress={() => verifyRadar(false)}>
+              <TouchableOpacity style={[styles.verifyBtn, styles.verifyNo]} onPress={() => verifyRadar(false)}>
                 <Text style={styles.verifyBtnText}>No, lo quitaron</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.verifyBtn, styles.verifyYes]}
-                onPress={() => verifyRadar(true)}>
+              <TouchableOpacity style={[styles.verifyBtn, styles.verifyYes]} onPress={() => verifyRadar(true)}>
                 <Text style={styles.verifyBtnText}>Sí, sigue</Text>
               </TouchableOpacity>
             </View>
@@ -865,11 +809,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFF',
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
-  },
+  loadingText: { marginTop: 10, fontSize: 16, color: '#666' },
   userMarker: {
     width: 40,
     height: 40,
@@ -879,6 +819,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#1976D2',
+  },
+  markerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  callout: {
+    padding: 8,
+    minWidth: 150,
+  },
+  calloutTitle: {
+    fontWeight: 'bold',
+    fontSize: 14,
+    color: '#000',
+  },
+  calloutDesc: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   centerButton: {
     position: 'absolute',
@@ -909,31 +867,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     elevation: 10,
   },
-  navInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  navText: {
-    marginLeft: 10,
-    flex: 1,
-  },
-  navTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  navStats: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  navSpeed: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2E7D32',
-    marginTop: 5,
-  },
+  navInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  navText: { marginLeft: 10, flex: 1 },
+  navTitle: { fontSize: 16, fontWeight: 'bold', color: '#000' },
+  navStats: { fontSize: 14, color: '#666', marginTop: 2 },
+  navSpeed: { fontSize: 20, fontWeight: 'bold', color: '#2E7D32', marginTop: 5 },
   stopBtn: {
     backgroundColor: '#D32F2F',
     width: 40,
@@ -954,12 +892,7 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '80%',
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   routeOption: {
     backgroundColor: '#F5F5F5',
     borderRadius: 10,
@@ -971,81 +904,40 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#2E7D32',
   },
-  routeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  routeType: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  routeStats: {
-    fontSize: 14,
-    color: '#666',
-  },
-  incidents: {
-    marginTop: 5,
-  },
-  incidentsTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#D32F2F',
-    marginBottom: 5,
-  },
-  incident: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 10,
-  },
-  cancelBtn: {
-    marginTop: 10,
-    padding: 15,
-    alignItems: 'center',
-  },
-  cancelText: {
-    fontSize: 16,
-    color: '#666',
-  },
+  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  routeType: { fontSize: 16, fontWeight: 'bold' },
+  routeStats: { fontSize: 14, color: '#666' },
+  incidents: { marginTop: 5 },
+  incidentsTitle: { fontSize: 12, fontWeight: 'bold', color: '#D32F2F', marginBottom: 5 },
+  incident: { fontSize: 12, color: '#666', marginLeft: 10 },
+  cancelBtn: { marginTop: 10, padding: 15, alignItems: 'center' },
+  cancelText: { fontSize: 16, color: '#666' },
   verifyModal: {
     backgroundColor: '#FFF',
     borderRadius: 20,
     padding: 25,
     margin: 20,
   },
-  verifyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  verifySubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  verifyButtons: {
+  verifyTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
+  verifySubtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 },
+  verifyButtons: { flexDirection: 'row', justifyContent: 'space-between' },
+  verifyBtn: { flex: 1, padding: 15, borderRadius: 10, marginHorizontal: 5 },
+  verifyNo: { backgroundColor: '#F44336' },
+  verifyYes: { backgroundColor: '#4CAF50' },
+  verifyBtnText: { color: '#FFF', fontWeight: 'bold', textAlign: 'center' },
+  noGpsBanner: {
+    position: 'absolute',
+    top: 50,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
   },
-  verifyBtn: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 10,
-    marginHorizontal: 5,
-  },
-  verifyNo: {
-    backgroundColor: '#F44336',
-  },
-  verifyYes: {
-    backgroundColor: '#4CAF50',
-  },
-  verifyBtnText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
+  noGpsText: { color: '#FFF', fontSize: 13, fontWeight: '500' },
 });
 
 export default MapScreen;
