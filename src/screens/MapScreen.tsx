@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  FlatList,
 } from 'react-native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import Geolocation from 'react-native-geolocation-service';
@@ -17,12 +18,13 @@ import BackgroundTimer from 'react-native-background-timer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import haversine from 'haversine-distance';
 import { supabase } from '../lib/supabase';
+import { FLATLIST_PERF_PROPS } from '../utils/performance';
 
 // Inicializar MapLibre (sin token - usa OSM gratuito)
 MapLibreGL.setAccessToken(null);
 
-// Tile server OpenStreetMap gratuito
-const OSM_STYLE = {
+// Memoizar constantes estáticas fuera del componente
+const OSM_STYLE = Object.freeze({
   version: 8 as const,
   sources: {
     osm: {
@@ -86,25 +88,35 @@ interface Route {
   type: 'fastest' | 'alternative';
 }
 
+// Memoizar configuración de marcadores - evita recreación en cada render
+const MARKER_CONFIG_CACHE: Record<string, { icon: string; color: string }> = {};
 const getMarkerConfig = (category: string): { icon: string; color: string } => {
-  switch (category) {
-    case 'CAMPING': return { icon: 'tent', color: '#2D5016' };
-    case 'PARKING_PERMITIDO': return { icon: 'parking', color: '#1976D2' };
-    case 'AREA_DESCANSO': return { icon: 'bench', color: '#E67E22' };
-    case 'AREA_SERVICIOS': return { icon: 'water-pump', color: '#8E44AD' };
-    case 'MIRADOR': return { icon: 'binoculars', color: '#27AE60' };
-    case 'PLAYA': return { icon: 'beach', color: '#3498DB' };
-    case 'MONTANA': return { icon: 'image-filter-hdr', color: '#795548' };
-    case 'LAGO': return { icon: 'waves', color: '#0097A7' };
-    case 'CASCADA': return { icon: 'waterfall', color: '#00BCD4' };
-    case 'LAVADERO_COCHES': return { icon: 'car-wash', color: '#607D8B' };
-    case 'GASOLINERA_GLP': return { icon: 'gas-station', color: '#F44336' };
-    case 'LAVANDERIA': return { icon: 'tshirt-crew', color: '#9C27B0' };
-    case 'SUPERMERCADO': return { icon: 'cart', color: '#4CAF50' };
-    case 'RESTAURANTE': return { icon: 'silverware-fork-knife', color: '#FF9800' };
-    case 'FARMACIA': return { icon: 'medical-bag', color: '#F44336' };
-    default: return { icon: 'map-marker', color: '#2E7D32' };
+  if (MARKER_CONFIG_CACHE[category]) {
+    return MARKER_CONFIG_CACHE[category];
   }
+  
+  let config: { icon: string; color: string };
+  switch (category) {
+    case 'CAMPING': config = { icon: 'tent', color: '#2D5016' }; break;
+    case 'PARKING_PERMITIDO': config = { icon: 'parking', color: '#1976D2' }; break;
+    case 'AREA_DESCANSO': config = { icon: 'bench', color: '#E67E22' }; break;
+    case 'AREA_SERVICIOS': config = { icon: 'water-pump', color: '#8E44AD' }; break;
+    case 'MIRADOR': config = { icon: 'binoculars', color: '#27AE60' }; break;
+    case 'PLAYA': config = { icon: 'beach', color: '#3498DB' }; break;
+    case 'MONTANA': config = { icon: 'image-filter-hdr', color: '#795548' }; break;
+    case 'LAGO': config = { icon: 'waves', color: '#0097A7' }; break;
+    case 'CASCADA': config = { icon: 'waterfall', color: '#00BCD4' }; break;
+    case 'LAVADERO_COCHES': config = { icon: 'car-wash', color: '#607D8B' }; break;
+    case 'GASOLINERA_GLP': config = { icon: 'gas-station', color: '#F44336' }; break;
+    case 'LAVANDERIA': config = { icon: 'tshirt-crew', color: '#9C27B0' }; break;
+    case 'SUPERMERCADO': config = { icon: 'cart', color: '#4CAF50' }; break;
+    case 'RESTAURANTE': config = { icon: 'silverware-fork-knife', color: '#FF9800' }; break;
+    case 'FARMACIA': config = { icon: 'medical-bag', color: '#F44336' }; break;
+    default: config = { icon: 'map-marker', color: '#2E7D32' };
+  }
+  
+  MARKER_CONFIG_CACHE[category] = config;
+  return config;
 };
 
 const MapScreen = () => {

@@ -3,7 +3,7 @@
  * CamperSites Pro - YRYS
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -209,7 +209,8 @@ export default function ExploreScreen() {
     );
   };
 
-  const renderLocationCard = ({ item }: { item: Location }) => {
+  // Memoizar renderLocationCard para evitar recreación en cada render de FlatList
+  const renderLocationCard = useCallback(({ item }: { item: Location }) => {
     const config = getCategoryConfig(item.category);
     return (
       <TouchableOpacity style={styles.card} activeOpacity={0.7}>
@@ -274,7 +275,7 @@ export default function ExploreScreen() {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, []);
 
   const renderCategoryGrid = () => (
     <View style={styles.categoryGridContainer}>
@@ -408,6 +409,11 @@ export default function ExploreScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={10}
+          windowSize={5}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

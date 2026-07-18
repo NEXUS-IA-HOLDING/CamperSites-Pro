@@ -1,4 +1,10 @@
 {
-  "name": "CamperSitesTemp",
-  "displayName": "CamperSites Pro"
+  "name": "CamperSitesPro",
+  "displayName": "CamperSites Pro",
+  "version": "1.0.0",
+  "description": "La app definitiva para autocaravanas - GPS, áreas, radares y más",
+  "author": "YRYS",
+  "license": "UNLICENSED",
+  "private": true,
+  "slug": "camper-sites-pro"
 }

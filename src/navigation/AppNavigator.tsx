@@ -1,10 +1,11 @@
 /**
- * AppNavigator - Navegacion principal con tabs + auth flow
+ * AppNavigator - Navegación principal con tabs + auth flow
  * CamperSites Pro - YRYS
+ * Diseño moderno, intuitivo y profesional
  */
 
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Platform, ActivityIndicator, View } from 'react-native';
+import { StyleSheet, Platform, ActivityIndicator, View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -19,11 +20,12 @@ import { CamperSitesTheme as theme } from '../theme';
 
 const Tab = createBottomTabNavigator();
 
-const TAB_ICONS: Record<string, { focused: string; unfocused: string }> = {
-  Mapa: { focused: 'map', unfocused: 'map-outline' },
-  Explorar: { focused: 'compass', unfocused: 'compass-outline' },
-  Favoritos: { focused: 'heart', unfocused: 'heart-outline' },
-  Perfil: { focused: 'account-circle', unfocused: 'account-circle-outline' },
+// Iconos dinámicos con animación visual
+const TAB_ICONS: Record<string, { focused: string; unfocused: string; label: string }> = {
+  Mapa: { focused: 'map', unfocused: 'map-outline', label: 'Mapa' },
+  Explorar: { focused: 'compass', unfocused: 'compass-outline', label: 'Explorar' },
+  Favoritos: { focused: 'heart', unfocused: 'heart-outline', label: 'Favoritos' },
+  Perfil: { focused: 'account-circle', unfocused: 'account-circle-outline', label: 'Perfil' },
 };
 
 function MainTabs() {
@@ -34,18 +36,43 @@ function MainTabs() {
         tabBarIcon: ({ focused, color, size }) => {
           const icons = TAB_ICONS[route.name];
           const iconName = focused ? icons.focused : icons.unfocused;
-          return <Icon name={iconName} size={size} color={color} />;
+          return (
+            <View style={styles.iconContainer}>
+              <Icon 
+                name={iconName} 
+                size={size} 
+                color={color} 
+                style={focused ? styles.iconFocused : styles.iconUnfocused}
+              />
+            </View>
+          );
         },
         tabBarActiveTintColor: theme.colors.primary.main,
         tabBarInactiveTintColor: theme.colors.text.hint,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarItemStyle: styles.tabBarItem,
+        tabBarHideOnKeyboard: true,
+        animationEnabled: true,
+        lazy: true,
       })}>
-      <Tab.Screen name="Mapa" component={MapScreen} />
-      <Tab.Screen name="Explorar" component={ExploreScreen} />
-      <Tab.Screen name="Favoritos" component={FavoritesScreen} />
-      <Tab.Screen name="Perfil" component={ProfileScreen} />
+      <Tab.Screen 
+        name="Mapa" 
+        component={MapScreen}
+        options={{ tabBarBadge: undefined }}
+      />
+      <Tab.Screen 
+        name="Explorar" 
+        component={ExploreScreen}
+      />
+      <Tab.Screen 
+        name="Favoritos" 
+        component={FavoritesScreen}
+      />
+      <Tab.Screen 
+        name="Perfil" 
+        component={ProfileScreen}
+      />
     </Tab.Navigator>
   );
 }
@@ -55,7 +82,7 @@ export default function AppNavigator() {
   const [showAuth, setShowAuth] = useState(true);
 
   useEffect(() => {
-    // Comprobar si hay sesion activa
+    // Comprobar si hay sesión activa
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setShowAuth(false);
@@ -63,7 +90,7 @@ export default function AppNavigator() {
       setIsReady(true);
     });
 
-    // Escuchar cambios de auth (login Y logout)
+    // Escuchar cambios de auth (login y logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setShowAuth(!session);
@@ -77,6 +104,7 @@ export default function AppNavigator() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary.main} />
+        <Text style={styles.loadingText}>Cargando CamperSites Pro...</Text>
       </View>
     );
   }
@@ -99,6 +127,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.colors.background.main,
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary.main,
+  },
   tabBar: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 0,
@@ -120,5 +154,15 @@ const styles = StyleSheet.create({
   },
   tabBarItem: {
     paddingVertical: 2,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconFocused: {
+    transform: [{ scale: 1.1 }],
+  },
+  iconUnfocused: {
+    opacity: 0.7,
   },
 });
