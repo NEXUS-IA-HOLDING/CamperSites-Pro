@@ -19,6 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import haversine from 'haversine-distance';
 import { supabase } from '../lib/supabase';
 import { FLATLIST_PERF_PROPS } from '../utils/performance';
+import { Logger } from '../utils/logger';
 
 // Inicializar MapLibre (sin token - usa OSM gratuito)
 MapLibreGL.setAccessToken(null);
@@ -156,7 +157,7 @@ const MapScreen = () => {
         timestamp: Date.now(),
       }));
     } catch (e) {
-      console.error('AsyncStorage setItem error:', e);
+      Logger.error('MapScreen', 'AsyncStorage setItem error', e);
     }
   }, []);
 
@@ -170,7 +171,7 @@ const MapScreen = () => {
         }
       }
     } catch (e) {
-      console.error('AsyncStorage getItem error:', e);
+      Logger.error('MapScreen', 'AsyncStorage getItem error', e);
     }
     return null;
   }, []);
@@ -221,7 +222,7 @@ const MapScreen = () => {
         }
       }
     } catch (error) {
-      console.error('Error requesting location permission:', error);
+      Logger.error('MapScreen', 'Error requesting location permission', error);
     }
   };
 
@@ -243,7 +244,7 @@ const MapScreen = () => {
 
         fetchLocations(latitude, longitude);
       },
-      (error) => console.error('Error getting location:', error),
+      (error) => Logger.error('MapScreen', 'Error getting location', error),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
 
@@ -257,7 +258,7 @@ const MapScreen = () => {
         }
       },
       (error) => {
-        console.error('Watch position error:', error);
+        Logger.error('MapScreen', 'Watch position error', error);
         if (error.code === 2 || error.code === 3) {
           setGpsEnabled(false);
         }
@@ -329,12 +330,12 @@ const MapScreen = () => {
   };
 
   const sendRadarAlert = (radar: Radar, distance: number, speed: number, stage: string) => {
-    console.log(`RADAR ALERT: ${stage} - ${radar.speedLimit}km/h`);
+    Logger.info('MapScreen', `RADAR ALERT: ${stage} - ${radar.speedLimit}km/h`);
   };
 
   const sendControlAlert = (radar: Radar, distance: number, stage: string) => {
     const distanceKm = (distance / 1000).toFixed(1);
-    console.log(`CONTROL ALERT: ${stage} - ${distanceKm}km`);
+    Logger.info('MapScreen', `CONTROL ALERT: ${stage} - ${distanceKm}km`);
 
     Alert.alert(
       stage === '5km' ? '🚔 Control a 5km' : '🚨 Control a 1km',
@@ -391,11 +392,14 @@ const MapScreen = () => {
         .lte('longitude', centerLng + lngDelta)
         .limit(500);
 
-      if (error) { console.error('Error fetching locations:', error); return; }
+      if (error) { 
+        Logger.error('MapScreen', 'Error fetching locations', error); 
+        return; 
+      }
       setLocations(data || []);
       lastFetchCenter.current = { lat: centerLat, lng: centerLng };
     } catch (error) {
-      console.error('Error fetching locations:', error);
+      Logger.error('MapScreen', 'Error fetching locations', error);
       setLocations([]);
     }
   };
@@ -418,7 +422,10 @@ const MapScreen = () => {
         .select('id, latitude, longitude, type, speed_limit, verified, last_verified, active')
         .eq('active', true);
 
-      if (error) { console.error('Error fetching radars:', error); return; }
+      if (error) { 
+        Logger.error('MapScreen', 'Error fetching radars', error); 
+        return; 
+      }
 
       const mapped = (data || []).map(r => ({
         id: r.id,
@@ -431,7 +438,7 @@ const MapScreen = () => {
       }));
       setRadars(mapped);
     } catch (error) {
-      console.error('Error fetching radars:', error);
+      Logger.error('MapScreen', 'Error fetching radars', error);
       setRadars([]);
     }
   };
@@ -469,7 +476,7 @@ const MapScreen = () => {
       setShowRouteSelector(true);
       return calculatedRoutes;
     } catch (error) {
-      console.error('Error calculating routes:', error);
+      Logger.error('MapScreen', 'Error calculating routes', error);
       Alert.alert('Error', 'No se pudo calcular la ruta');
       return [];
     }
@@ -503,7 +510,7 @@ const MapScreen = () => {
     setIsNavigating(true);
     setShowRouteSelector(false);
     setAlertedRadars(new Set());
-    console.log(`NAV START: ${selectedLocation?.name}`);
+    Logger.info('MapScreen', `NAV START: ${selectedLocation?.name}`);
   };
 
   const stopNavigation = () => {

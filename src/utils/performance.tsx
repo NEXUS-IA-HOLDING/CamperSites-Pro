@@ -8,6 +8,7 @@
 
 import { useCallback, useRef, useMemo } from 'react';
 import { FlatListProps } from 'react-native';
+import { Logger } from './logger';
 
 /**
  * Hook: debounce para búsquedas o callbacks costosos.
@@ -139,7 +140,12 @@ export const measureTime = <T,>(fn: () => T, label: string = 'Operation'): T => 
   const start = performance.now();
   const result = fn();
   const end = performance.now();
-  console.log(`[${label}] Tiempo: ${(end - start).toFixed(2)}ms`);
+  
+  // Usar Logger en lugar de console.log directo
+  Logger.debug('Performance', `${label} completado`, { 
+    duration: `${(end - start).toFixed(2)}ms` 
+  });
+  
   return result;
 };
 

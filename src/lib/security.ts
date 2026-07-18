@@ -14,6 +14,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { Logger } from '../utils/logger';
 
 // ============================================
 // 1. DEVICE FINGERPRINT (Anti-session-spoofing)
@@ -156,7 +157,7 @@ export function checkRateLimit(action: string): boolean {
   }
 
   if (entry.count >= config.maxPerWindow) {
-    console.warn(`[Security] Rate limit exceeded for: ${action}`);
+    Logger.warn('Security', `Rate limit exceeded for: ${action}`);
     return false; // BLOQUEADO
   }
 
@@ -200,7 +201,7 @@ export async function registerSession(): Promise<void> {
     });
   } catch (error) {
     // Silencioso - no romper la app si falla security logging
-    console.warn('[Security] Session registration failed:', error);
+    Logger.warn('Security', 'Session registration failed', error);
   }
 }
 
@@ -236,7 +237,7 @@ export async function invalidateAllSessions(): Promise<void> {
       .update({ is_valid: false })
       .eq('user_id', user.id);
   } catch (error) {
-    console.warn('[Security] Session invalidation failed:', error);
+    Logger.warn('Security', 'Session invalidation failed', error);
   }
 }
 
@@ -302,12 +303,29 @@ export function validateAlert(alert: {
 // ============================================
 // 6. SECURE STORAGE HELPERS
 // ============================================
+// NOTA: Para almacenamiento verdaderamente seguro en producción,
+// se recomienda usar expo-secure-store o react-native-keychain
+// que utilizan el Keychain (iOS) y Keystore (Android)
 
 const SECURE_PREFIX = '@cs_secure_';
 
+// Ofuscación simple para datos no críticos (NO es encriptación real)
+// Usar solo para datos de baja sensibilidad como preferencias
+function simpleObfuscate(value: string): string {
+  // XOR simple con rotación de caracteres
+  return value.split('').map((char, i) => {
+    const code = char.charCodeAt(0) ^ (i % 256);
+    return String.fromCharCode(code);
+  }).join('');
+}
+
 // Guardar dato sensible (con ofuscación básica)
+// ADVERTENCIA: Esto NO es encriptación segura. Para tokens, passwords, etc.
+// usar expo-secure-store o soluciones nativas de keychain/keystore
 export async function secureStore(key: string, value: string): Promise<void> {
-  const encoded = Buffer.from(value).toString('base64');
+  // Doble capa: ofuscación + base64
+  const obfuscated = simpleObfuscate(value);
+  const encoded = Buffer.from(obfuscated).toString('base64');
   await AsyncStorage.setItem(SECURE_PREFIX + key, encoded);
 }
 
@@ -315,7 +333,13 @@ export async function secureStore(key: string, value: string): Promise<void> {
 export async function secureRetrieve(key: string): Promise<string | null> {
   const encoded = await AsyncStorage.getItem(SECURE_PREFIX + key);
   if (!encoded) return null;
-  return Buffer.from(encoded, 'base64').toString('utf-8');
+  try {
+    const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
+    return simpleObfuscate(decoded); // La ofuscación XOR es reversible
+  } catch (error) {
+    Logger.warn('Security', 'Failed to retrieve secure data', error);
+    return null;
+  }
 }
 
 // Borrar dato sensible
@@ -323,9 +347,36 @@ export async function secureDelete(key: string): Promise<void> {
   await AsyncStorage.removeItem(SECURE_PREFIX + key);
 }
 
+// ============================================
+// 7. SERVER-SIDE RATE LIMITING VALIDATION
+// ============================================
+// El rate limiting del cliente es solo una primera línea de defensa.
+// La validación REAL debe hacerse en el servidor/database.
+// Esta función prepara los datos para validación server-side.
+
+export function prepareRateLimitHeaders(action: string): Record<string, string> {
+  const timestamp = Date.now().toString();
+  const fingerprint = getDeviceFingerprint();
+  
+  return {
+    'X-RateLimit-Action': action,
+    'X-RateLimit-Timestamp': timestamp,
+    'X-Device-Fingerprint': fingerprint || 'unknown',
+  };
+}
+
+// Validar respuesta del servidor sobre rate limiting
+export function handleRateLimitResponse(response: any): { allowed: boolean; retryAfter?: number } {
+  if (response?.rateLimited) {
+    const retryAfter = response?.retryAfter || 60000; // default 1 min
+    return { allowed: false, retryAfter };
+  }
+  return { allowed: true };
+}
+
 
 // ============================================
-// 7. SECURITY AUDIT LOG
+// 8. SECURITY AUDIT LOG
 // ============================================
 
 export async function logSecurityEvent(
