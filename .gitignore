@@ -1,98 +1,174 @@
-# ===========================================
-# CamperSites Pro - .gitignore
-# YRYS - Proteccion de datos sensibles
-# ===========================================
-
-# ============ DATOS SENSIBLES ============
-# CRITICO: Nunca subir credenciales al repositorio
+```
+# Environment variables
 .env
 .env.local
-.env.production
-.env.staging
-.env.development
 .env.*
-!.env.example
 
-# API Keys y tokens sueltos
-*.key
-*.pem
-*.p12
-*.p8
-*.mobileprovision
-*.provisionprofile
-secrets/
-credentials/
+# Logs
+*.log
 
-# Supabase
-supabase/.env
-supabase/.temp/
-
-# ============ DEPENDENCIAS ============
+# Dependencies
 node_modules/
-.pnp.*
 
-# ============ BUILDS ============
-ios/build/
-ios/Pods/
-ios/Podfile.lock
-android/app/build/
-android/build/
-android/.gradle/
-*.jsbundle
-*.hbc
+# Build outputs
+dist/
+build/
+target/
 
-# ============ METRO ============
-.metro-health-check*
-
-# ============ XCODE ============
-ios/*.xcworkspace
-!ios/*.xcworkspace/contents.xcworkspacedata
-ios/*.xcodeproj/xcuserdata/
-ios/*.xcodeproj/project.xcworkspace/xcshareddata/
-ios/DerivedData/
-*.pbxuser
-*.mode1v3
-*.mode2v3
-*.perspectivev3
-*.hmap
-*.ipa
-*.dSYM.zip
-*.dSYM
-
-# ============ ANDROID ============
-android/local.properties
-android/keystore/
-*.keystore
-*.jks
-!android/app/debug.keystore
-android/app/google-services.json
-
-# ============ REACT NATIVE ============
-.buckconfig
-.watchmanconfig
-
-# ============ IDE ============
-.idea/
-.vscode/
-.claude/
-*.swp
-*.swo
-*~
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
 .DS_Store
 Thumbs.db
 
-# ============ LOGS ============
-*.log
+# iOS
+Pods/
+*.xcworkspace
+xcuserdata/
+build/
+DerivedData/
+
+# Android
+android/build/
+android/.gradle/
+*.apk
+*.aar
+*.so
+
+# Expo
+.expo/
+web-build/
+
+# React Native
+*.jks
+*.keystore
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# ============ TESTING ============
-coverage/
-.jest/
-
-# ============ TEMPORAL ============
-tmp/
-temp/
-.cache/
-*.tmp
+ios/Pods/
+ios/build/
+android/build/
+android/app/build/
+*.mp3
+*.wav
+*.mov
+*.mp4
+*.avi
+*.wmv
+*.flv
+*.webm
+*.m4a
+*.m4v
+*.3gp
+*.3g2
+*.mxf
+*.roq
+*.tta
+*.w64
+*.wma
+*.wv
+*.adx
+*.aix
+*.dts
+*.dtshd
+*.mts
+*.m2ts
+*.ts
+*.f4v
+*.f4p
+*.f4a
+*.f4b
+*.m4r
+*.sdp
+*.mjpg
+*.spdif
+*.h3d
+*.caf
+*.sln
+*.suo
+*.ncb
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb-journal
+*.VC.VC.opendb-shm
+*.VC.VC.opendb-wal
+*.VC.VC.opendb......
+```
