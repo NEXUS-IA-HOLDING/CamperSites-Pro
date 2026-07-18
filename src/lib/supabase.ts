@@ -17,6 +17,7 @@ import 'react-native-url-polyfill/auto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@env';
+import { Logger } from '../utils/logger';
 
 // Configuración de reintentos y timeout
 const RETRY_ATTEMPTS = 3;
@@ -32,7 +33,7 @@ let supabaseInstance: SupabaseClient | null = null;
 function createSupabaseClient(): SupabaseClient {
   // Validación graceful - permite modo offline si faltan credenciales
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('demo')) {
-    console.warn('[CamperSites] Modo offline activado - Sin conexión a Supabase');
+    Logger.warn('Supabase', 'Modo offline activado - Sin conexión a Supabase');
     // Cliente mock para modo offline
     return {
       auth: {
@@ -73,7 +74,7 @@ export function getSupabase(): SupabaseClient {
     try {
       supabaseInstance = createSupabaseClient();
     } catch (error) {
-      console.error('[CamperSites] Error inicializando Supabase:', error);
+      Logger.error('Supabase', 'Error inicializando Supabase', error);
       supabaseInstance = createSupabaseClient();
     }
   }
@@ -96,7 +97,7 @@ export async function withRetry<T>(
     return await fn();
   } catch (error) {
     if (attempts > 1) {
-      console.log(`[CamperSites] Reintento (${attempts - 1}/${RETRY_ATTEMPTS})...`);
+      Logger.info('Supabase', `Reintento (${attempts - 1}/${RETRY_ATTEMPTS})...`);
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       return withRetry(fn, attempts - 1);
     }
