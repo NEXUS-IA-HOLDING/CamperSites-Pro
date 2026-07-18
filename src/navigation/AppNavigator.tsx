@@ -2,6 +2,9 @@
  * AppNavigator - Navegación principal con tabs + auth flow
  * CamperSites Pro - YRYS
  * Diseño moderno, intuitivo y profesional
+ * 
+ * Flujo de usuario:
+ * 1. Auth (Login/Registro) -> 2. Selección de Plan -> 3. Perfil de Vehículo (opcional) -> 4. App Principal
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,6 +15,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { supabase } from '../lib/supabase';
 
 import AuthScreen from '../screens/AuthScreen';
+import PlanSelectionScreen from '../screens/PlanSelectionScreen';
+import VehicleProfileScreen from '../screens/VehicleProfileScreen';
 import MapScreen from '../screens/MapScreen';
 import ExploreScreen from '../screens/ExploreScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
@@ -77,28 +82,79 @@ function MainTabs() {
   );
 }
 
+type OnboardingStep = 'auth' | 'plan' | 'vehicle' | 'complete';
+
 export default function AppNavigator() {
   const [isReady, setIsReady] = useState(false);
-  const [showAuth, setShowAuth] = useState(true);
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>('auth');
+  const [hasVehicleProfile, setHasVehicleProfile] = useState(false);
 
   useEffect(() => {
-    // Comprobar si hay sesión activa
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setShowAuth(false);
-      }
-      setIsReady(true);
-    });
-
-    // Escuchar cambios de auth (login y logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setShowAuth(!session);
-      },
-    );
-
-    return () => subscription.unsubscribe();
+    checkOnboardingState();
   }, []);
+
+  const checkOnboardingState = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setCurrentStep('auth');
+        setIsReady(true);
+        return;
+      }
+
+      // Verificar si ya seleccionó plan
+      const user = session.user;
+      const userPlan = user.user_metadata?.plan;
+      
+      if (!userPlan) {
+        setCurrentStep('plan');
+        setIsReady(true);
+        return;
+      }
+
+      // Verificar si tiene perfil de vehículo
+      const { data: vehicleProfile } = await supabase
+        .from('vehicle_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!vehicleProfile) {
+        setCurrentStep('vehicle');
+        setIsReady(true);
+        return;
+      }
+
+      // Onboarding completo
+      setCurrentStep('complete');
+      setIsReady(true);
+    } catch (error) {
+      console.error('Error checking onboarding state:', error);
+      setCurrentStep('auth');
+      setIsReady(true);
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    setCurrentStep('plan');
+  };
+
+  const handlePlanComplete = () => {
+    setCurrentStep('vehicle');
+  };
+
+  const handlePlanSkip = () => {
+    setCurrentStep('vehicle');
+  };
+
+  const handleVehicleComplete = () => {
+    setCurrentStep('complete');
+  };
+
+  const handleVehicleSkip = () => {
+    setCurrentStep('complete');
+  };
 
   if (!isReady) {
     return (
@@ -109,15 +165,37 @@ export default function AppNavigator() {
     );
   }
 
-  if (showAuth) {
-    return <AuthScreen onAuthSuccess={() => setShowAuth(false)} />;
+  // Renderizar pantalla según el paso del onboarding
+  switch (currentStep) {
+    case 'auth':
+      return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+    
+    case 'plan':
+      return (
+        <PlanSelectionScreen 
+          onComplete={handlePlanComplete}
+          onSkip={handlePlanSkip}
+        />
+      );
+    
+    case 'vehicle':
+      return (
+        <VehicleProfileScreen 
+          onComplete={handleVehicleComplete}
+          onSkip={handleVehicleSkip}
+        />
+      );
+    
+    case 'complete':
+      return (
+        <NavigationContainer>
+          <MainTabs />
+        </NavigationContainer>
+      );
+    
+    default:
+      return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
   }
-
-  return (
-    <NavigationContainer>
-      <MainTabs />
-    </NavigationContainer>
-  );
 }
 
 const styles = StyleSheet.create({
