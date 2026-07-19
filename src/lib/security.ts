@@ -141,6 +141,7 @@ const RATE_LIMITS: Record<string, { maxPerWindow: number; windowMs: number }> = 
   'fetch_locations': { maxPerWindow: 10, windowMs: 60000 },   // 10 fetches/min
   'login':           { maxPerWindow: 5,  windowMs: 300000 },  // 5 logins/5min
   'register':        { maxPerWindow: 3,  windowMs: 3600000 }, // 3 registros/hora
+  'admin_activation':{ maxPerWindow: 3,  windowMs: 3600000 }, // 3 intentos admin/hora
 };
 
 export function checkRateLimit(action: string): boolean {
