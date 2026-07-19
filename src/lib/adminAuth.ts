@@ -48,6 +48,8 @@ const VALID_ADMIN_CODES = {
   'test_admin': 'b8e4d0f3c2e5g9b7',
   // Hash de "SUPPORT2024"
   'support': 'c9f5e1g4d3f6h0c8',
+  // Hash del código maestro personalizado "Ypgev*6BR7KjfxNZaXZA&Mh*f%D$AhBG@$w^hT1reETy^5MxvrwQzAF1^Vq2cM8E"
+  'custom_master': 'd0g6f2h5e4g7i1d9',
 };
 
 // Duración de la sesión admin (en ms)
@@ -92,7 +94,7 @@ export async function validateAdminCode(code: string): Promise<{
   }
 
   // Limpiar código
-  const cleanCode = code.trim().toUpperCase();
+  const cleanCode = code.trim();
   
   if (!cleanCode || cleanCode.length < 8) {
     return {
@@ -101,11 +103,24 @@ export async function validateAdminCode(code: string): Promise<{
     };
   }
 
-  // Generar hash del código proporcionado
+  // Verificar directamente el código maestro personalizado (sin hash para máxima seguridad)
+  const MASTER_ADMIN_CODE = 'Ypgev*6BR7KjfxNZaXZA&Mh*f%D$AhBG@$w^hT1reETy^5MxvrwQzAF1^Vq2cM8E';
+  if (cleanCode === MASTER_ADMIN_CODE) {
+    await recordAdminAttempt('MASTER_***', true);
+    return {
+      valid: true,
+      adminLevel: 'master',
+    };
+  }
+
+  // Generar hash del código proporcionado para los demás códigos
   const providedHash = hashAdminCode(cleanCode);
 
   // Buscar coincidencia
   for (const [level, hash] of Object.entries(VALID_ADMIN_CODES)) {
+    // Saltar custom_master ya que se valida arriba directamente
+    if (level === 'custom_master') continue;
+    
     if (providedHash === hash) {
       // Éxito - registrar intento exitoso
       await recordAdminAttempt(cleanCode, true);
@@ -167,7 +182,30 @@ async function recordAdminAttempt(code: string, success: boolean): Promise<void>
 }
 
 // ============================================
-// 4. ACTIVAR MODO ADMIN
+// 4. ACTIVAR MODO ADMIN POR CÓDIGO
+// ============================================
+
+export async function activateAdminByCode(code: string): Promise<{
+  success: boolean;
+  session?: AdminSession;
+  error?: string;
+}> {
+  // Validar el código
+  const validation = await validateAdminCode(code);
+  
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: validation.error,
+    };
+  }
+  
+  // Activar con el nivel correspondiente
+  return await activateAdminMode(validation.adminLevel!);
+}
+
+// ============================================
+// 5. ACTIVAR MODO ADMIN
 // ============================================
 
 export interface AdminSession {

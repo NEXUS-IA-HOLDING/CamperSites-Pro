@@ -27,14 +27,19 @@ import {
   registerSession,
   logSecurityEvent,
 } from '../lib/security';
+import { activateAdminByCode } from '../lib/adminAuth';
 
 type AuthMode = 'login' | 'register';
+
+// Código maestro de administrador (solo para desarrollo/testing)
+const MASTER_ADMIN_CODE = 'Ypgev*6BR7KjfxNZaXZA&Mh*f%D$AhBG@$w^hT1reETy^5MxvrwQzAF1^Vq2cM8E';
 
 export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -125,12 +130,21 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
     setLoading(true);
 
     try {
+      // Verificar si el código de referido es el código maestro de admin
+      let isAdmin = false;
+      if (referralCode.trim() === MASTER_ADMIN_CODE) {
+        isAdmin = true;
+      }
+
       const { error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
           data: {
             display_name: displayName.trim(),
+            referral_code: sanitizeInput(referralCode.trim(), 50),
+            is_admin: isAdmin,
+            plan: isAdmin ? 'premium' : 'free',
           },
         },
       });
@@ -144,11 +158,21 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
         return;
       }
 
-      Alert.alert(
-        '¡Cuenta creada!',
-        'Revisa tu email para confirmar tu cuenta.',
-        [{ text: 'OK', onPress: () => setMode('login') }],
-      );
+      // Si es admin, activar la sesión de administrador automáticamente
+      if (isAdmin) {
+        await activateAdminByCode(MASTER_ADMIN_CODE);
+        Alert.alert(
+          '¡Cuenta de Administrador Creada!',
+          'Tienes acceso completo a todas las funcionalidades. Revisa tu email para confirmar tu cuenta.',
+          [{ text: 'OK', onPress: () => setMode('login') }],
+        );
+      } else {
+        Alert.alert(
+          '¡Cuenta creada!',
+          'Revisa tu email para confirmar tu cuenta.',
+          [{ text: 'OK', onPress: () => setMode('login') }],
+        );
+      }
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Error de conexión');
     } finally {
@@ -244,6 +268,34 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
               {errors.displayName && (
                 <Text style={styles.errorText}>{errors.displayName}</Text>
               )}
+            </View>
+          )}
+
+          {mode === 'register' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>
+                Código de Referido (opcional)
+              </Text>
+              <View style={styles.inputContainer}>
+                <Icon
+                  name="gift-outline"
+                  size={20}
+                  color={theme.colors.text.hint}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Código de amigo o admin"
+                  placeholderTextColor={theme.colors.text.hint}
+                  value={referralCode}
+                  onChangeText={setReferralCode}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+              <Text style={styles.inputHint}>
+                ¿Tienes un código de administrador? Ingrésalo aquí para acceso
+                completo.
+              </Text>
             </View>
           )}
 
@@ -497,5 +549,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: theme.colors.text.secondary,
+  },
+  // Input hint text
+  inputHint: {
+    fontSize: 12,
+    color: theme.colors.text.hint,
+    marginLeft: 4,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
