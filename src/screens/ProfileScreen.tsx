@@ -25,6 +25,7 @@ import {
   type UserTrustProfile,
   type TrustLevel,
 } from '../lib/communityAlerts';
+import AdminActivationPanel from '../components/AdminActivationPanel';
 import { CamperSitesTheme as theme } from '../theme';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
@@ -439,6 +440,9 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>⚙️ Cuenta</Text>
           <View style={styles.sectionCard}>
+            {/* Panel de activación de administrador */}
+            <AdminActivationPanel />
+            <View style={styles.separator} />
             <SettingRow icon="information" iconColor="#1976D2" title="Acerca de" subtitle="CamperSites Pro v1.0.0"
               onPress={() => Alert.alert('CamperSites Pro', 'Tu compañero de ruta.\n\nVersión 1.0.0\nYRYS')} />
             <View style={styles.separator} />
