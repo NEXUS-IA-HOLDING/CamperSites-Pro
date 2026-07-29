@@ -18,7 +18,8 @@
     "upload": "node scripts/setup-database.js",
     "check-migration": "node scripts/check-migration.js",
     "build:android": "cd android && ./gradlew assembleRelease",
-    "build:ios": "cd ios && xcodebuild -workspace CamperSites.xcworkspace -scheme CamperSites -configuration Release"
+    "build:ios": "cd ios && xcodebuild -workspace CamperSites.xcworkspace -scheme CamperSites -configuration Release",
+    "generate-admin-hash": "node scripts/generate-admin-hash.js"
   },
   "dependencies": {
     "@maplibre/maplibre-react-native": "10.4.2",

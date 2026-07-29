@@ -12,17 +12,14 @@
  * - Validación server-side para producción
  * - Modo offline compatible
  * 
- * USO EN DESARROLLO:
- * 1. Usa el código: ADMIN2024YRYS
- * 2. El código se valida contra una lista segura
- * 3. Una vez activado, tienes 24h de acceso total
- * 4. Puedes desactivar manualmente en Settings
- * 
  * SEGURIDAD:
- * - Los códigos no se almacenan en texto plano
+ * - Los códigos no se almacenan en texto plano en el repositorio
  * - Rate limiting estricto (3 intentos por hora)
  * - Auditoría completa de activaciones
  * - En producción, validar contra tabla de admins en DB
+ * 
+ * ⚠️ IMPORTANTE: Los códigos reales deben configurarse mediante variables de entorno
+ * o almacenarse de forma segura en Supabase. Este archivo solo contiene hashes.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,20 +33,17 @@ import { getDeviceFingerprint, checkRateLimit, logSecurityEvent } from './securi
 // ============================================
 
 const ADMIN_STORAGE_KEY = '@cs_admin_mode';
-const ADMIN_CODE_HASH_KEY = '@cs_admin_code_hash';
 const ADMIN_ATTEMPTS_KEY = '@cs_admin_attempts';
 
-// Códigos válidos para desarrollo (en producción usar DB)
-// Estos códigos están hasheados con un algoritmo simple
-const VALID_ADMIN_CODES = {
-  // Hash de "ADMIN2024YRYS"
-  'dev_master': 'a7f3c9e2b1d4f8a6',
-  // Hash de "TESTADMIN2024"
-  'test_admin': 'b8e4d0f3c2e5g9b7',
-  // Hash de "SUPPORT2024"
-  'support': 'c9f5e1g4d3f6h0c8',
-  // Hash del código maestro personalizado "Ypgev*6BR7KjfxNZaXZA&Mh*f%D$AhBG@$w^hT1reETy^5MxvrwQzAF1^Vq2cM8E"
-  'custom_master': 'd0g6f2h5e4g7i1d9',
+// Hashes pre-calculados de códigos admin (NO son los códigos reales)
+// Los códigos reales deben obtenerse de variables de entorno o DB
+const VALID_ADMIN_CODE_HASHES = {
+  // Hash calculado del código maestro (obtener de .env)
+  master: process.env.EXPO_PUBLIC_ADMIN_MASTER_HASH || '',
+  // Hash calculado del código test (obtener de .env)
+  test: process.env.EXPO_PUBLIC_ADMIN_TEST_HASH || '',
+  // Hash calculado del código support (obtener de .env)
+  support: process.env.EXPO_PUBLIC_ADMIN_SUPPORT_HASH || '',
 };
 
 // Duración de la sesión admin (en ms)
@@ -63,7 +57,7 @@ function hashAdminCode(code: string): string {
   // Hash simple para ofuscación (NO es criptográfico)
   // En producción usar bcrypt o similar en server-side
   let hash = 0;
-  const salt = 'YRYS_CAMPER_SITES_2024';
+  const salt = process.env.EXPO_PUBLIC_ADMIN_SALT || 'YRYS_CAMPER_SITES_2024';
   const saltedCode = code + salt;
   
   for (let i = 0; i < saltedCode.length; i++) {
@@ -103,37 +97,32 @@ export async function validateAdminCode(code: string): Promise<{
     };
   }
 
-  // Verificar directamente el código maestro personalizado (sin hash para máxima seguridad)
-  const MASTER_ADMIN_CODE = 'Ypgev*6BR7KjfxNZaXZA&Mh*f%D$AhBG@$w^hT1reETy^5MxvrwQzAF1^Vq2cM8E';
-  if (cleanCode === MASTER_ADMIN_CODE) {
+  // Generar hash del código proporcionado
+  const providedHash = hashAdminCode(cleanCode);
+
+  // Buscar coincidencia con los hashes configurados
+  if (VALID_ADMIN_CODE_HASHES.master && providedHash === VALID_ADMIN_CODE_HASHES.master) {
     await recordAdminAttempt('MASTER_***', true);
     return {
       valid: true,
       adminLevel: 'master',
     };
   }
-
-  // Generar hash del código proporcionado para los demás códigos
-  const providedHash = hashAdminCode(cleanCode);
-
-  // Buscar coincidencia
-  for (const [level, hash] of Object.entries(VALID_ADMIN_CODES)) {
-    // Saltar custom_master ya que se valida arriba directamente
-    if (level === 'custom_master') continue;
-    
-    if (providedHash === hash) {
-      // Éxito - registrar intento exitoso
-      await recordAdminAttempt(cleanCode, true);
-      
-      let adminLevel: 'master' | 'test' | 'support' = 'test';
-      if (level === 'dev_master') adminLevel = 'master';
-      if (level === 'support') adminLevel = 'support';
-      
-      return {
-        valid: true,
-        adminLevel,
-      };
-    }
+  
+  if (VALID_ADMIN_CODE_HASHES.test && providedHash === VALID_ADMIN_CODE_HASHES.test) {
+    await recordAdminAttempt('TEST_***', true);
+    return {
+      valid: true,
+      adminLevel: 'test',
+    };
+  }
+  
+  if (VALID_ADMIN_CODE_HASHES.support && providedHash === VALID_ADMIN_CODE_HASHES.support) {
+    await recordAdminAttempt('SUPPORT_***', true);
+    return {
+      valid: true,
+      adminLevel: 'support',
+    };
   }
 
   // Falló - registrar intento fallido
@@ -527,8 +516,15 @@ export async function validateAdminCodeServerSide(code: string): Promise<{
  *   }
  * }
  * 
- * CÓDIGOS VÁLIDOS PARA TESTING:
- * - ADMIN2024YRYS (Master - Acceso total)
- * - TESTADMIN2024 (Test - Testing completo)
- * - SUPPORT2024 (Support - Solo lectura)
+ * ⚠️ CONFIGURACIÓN DE CÓDIGOS SEGUROS:
+ * Los códigos admin NO deben estar en el código fuente.
+ * Configúralos en tu archivo .env:
+ * 
+ * EXPO_PUBLIC_ADMIN_MASTER_HASH=<hash-del-codigo-maestro>
+ * EXPO_PUBLIC_ADMIN_TEST_HASH=<hash-del-codigo-test>
+ * EXPO_PUBLIC_ADMIN_SUPPORT_HASH=<hash-del-codigo-support>
+ * EXPO_PUBLIC_ADMIN_SALT=<salt-unico-para-tu-proyecto>
+ * 
+ * Para generar los hashes, usa el script:
+ * npm run generate-admin-hash -- <tu-codigo-secreto>
  */
