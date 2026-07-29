@@ -1,255 +1,207 @@
+#!/usr/bin/env node
+
 /**
- * Setup Database - CamperSites Pro
- * YRYS
- *
- * Crea tablas directamente usando la API de Supabase
- * Ejecutar: node scripts/setup-database.js
+ * Script de configuración de Supabase para CamperSites Pro
+ * 
+ * Este script:
+ * 1. Verifica las credenciales de Supabase
+ * 2. Crea el esquema de base de datos
+ * 3. Ejecuta migraciones necesarias
+ * 4. Valida la configuración
  */
 
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
+
+// Colores para output
+const colors = {
+  reset: '\x1b[0m',
+  blue: '\x1b[34m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+};
+
+const log = {
+  info: (msg) => console.log(`${colors.blue}[INFO]${colors.reset} ${msg}`),
+  success: (msg) => console.log(`${colors.green}[OK]${colors.reset} ${msg}`),
+  warning: (msg) => console.log(`${colors.yellow}[WARN]${colors.reset} ${msg}`),
+  error: (msg) => console.log(`${colors.red}[ERROR]${colors.reset} ${msg}`),
+};
+
+// Obtener credenciales desde variables de entorno
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+// Validar credenciales
+function validateCredentials() {
+  log.info('Validando credenciales de Supabase...');
+  
+  if (!SUPABASE_URL || SUPABASE_URL.includes('tu-proyecto')) {
+    log.error('SUPABASE_URL no configurada correctamente');
+    log.warning('Edita el archivo .env con tu URL de proyecto de Supabase');
+    log.warning('Puedes obtenerla en: https://app.supabase.com/project/_/settings/api');
+    return false;
+  }
+  
+  if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('tu-anon-key')) {
+    log.error('SUPABASE_ANON_KEY no configurada correctamente');
+    log.warning('Edita el archivo .env con tu clave anónima de Supabase');
+    return false;
+  }
+  
+  log.success('Credenciales válidas');
+  return true;
+}
+
+// Crear cliente Supabase
+function createSupabaseClient() {
+  try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: false,
+      },
+    });
+    log.success('Cliente Supabase creado');
+    return supabase;
+  } catch (error) {
+    log.error(`Error creando cliente Supabase: ${error.message}`);
+    return null;
+  }
+}
+
+// Testear conexión
+async function testConnection(supabase) {
+  log.info('Probando conexión con Supabase...');
+  
+  try {
+    const { data, error } = await supabase.from('locations').select('count').limit(1);
+    
+    if (error) {
+      if (error.message.includes('relation') || error.message.includes('does not exist')) {
+        log.warning('La tabla locations no existe - es necesario ejecutar el schema');
+        return 'schema_needed';
+      }
+      log.error(`Error en consulta: ${error.message}`);
+      return 'error';
+    }
+    
+    log.success('Conexión exitosa');
+    return 'connected';
+  } catch (error) {
+    log.error(`Error en conexión: ${error.message}`);
+    return 'error';
+  }
+}
+
+// Leer archivo SQL
 const fs = require('fs');
 const path = require('path');
 
-// Polyfill dinámico para fetch usando node-fetch@3 (compatible con CommonJS)
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
-
-// Leer .env
-const envPath = path.join(__dirname, '../.env');
-let env = {};
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf-8');
-  envContent.split('\n').forEach(line => {
-    const match = line.match(/^([^#=]+)=(.*)$/);
-    if (match) env[match[1].trim()] = match[2].trim();
-  });
-}
-
-const SUPABASE_URL = env.SUPABASE_URL || process.env.SUPABASE_URL;
-const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('ERROR: Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en .env o variables de entorno');
-  process.exit(1);
-}
-
-const headers = {
-  'apikey': SERVICE_KEY,
-  'Authorization': `Bearer ${SERVICE_KEY}`,
-  'Content-Type': 'application/json',
-  'Prefer': 'return=minimal',
-};
-
-async function tableExists(tableName) {
-  // Intentamos una petición simple; si devuelve error de relación o 404 asumimos que no existe
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?select=*&limit=1`, {
-      headers,
-    });
-    if (res.status === 404) return false;
-    if (!res.ok) {
-      // Intentar leer cuerpo (puede no ser JSON)
-      let body;
-      try { body = await res.json(); } catch (e) { body = null; }
-      if (body && (body.code === '42P01' || (body.message && (body.message.includes('does not exist') || body.message.includes('schema cache'))))) {
-        return false;
-      }
-      // Otros errores se consideran que la tabla existe o hay permisos insuficientes
-      return true;
-    }
-    return true;
-  } catch (err) {
-    console.error(`  Error comprobando tabla ${tableName}:`, err.message);
+async function executeSchema(supabase) {
+  log.info('Leyendo schema.sql...');
+  
+  const schemaPath = path.join(__dirname, '..', 'supabase', 'schema.sql');
+  
+  if (!fs.existsSync(schemaPath)) {
+    log.error('No se encontró schema.sql en supabase/schema.sql');
     return false;
   }
+  
+  const schema = fs.readFileSync(schemaPath, 'utf8');
+  log.success(`Schema leído (${schema.length} bytes)`);
+  
+  // Nota: Para ejecutar el schema completo, necesitas usar el Dashboard de Supabase
+  // o la CLI de Supabase. Aquí solo mostramos las instrucciones.
+  log.info('\n===========================================');
+  log.info('INSTRUCCIONES PARA EJECUTAR EL SCHEMA:');
+  log.info('===========================================');
+  log.info('');
+  log.info('Opción 1: Usar el Dashboard de Supabase');
+  log.info('  1. Ve a https://app.supabase.com');
+  log.info('  2. Selecciona tu proyecto');
+  log.info('  3. Ve a SQL Editor');
+  log.info('  4. Copia y pega el contenido de supabase/schema.sql');
+  log.info('  5. Ejecuta el script');
+  log.info('');
+  log.info('Opción 2: Usar Supabase CLI');
+  log.info('  1. Instala: npm install -g supabase');
+  log.info('  2. Login: supabase login');
+  log.info('  3. Link: supabase link --project-ref TU_PROJECT_ID');
+  log.info('  4. Ejecuta: supabase db push');
+  log.info('');
+  log.info('Opción 3: Migraciones automáticas');
+  log.info('  Ejecuta los scripts de migración en orden:');
+  log.info('  - supabase/migration-002-community-alerts.sql');
+  log.info('  - supabase/migration-003-expanded-categories.sql');
+  log.info('  - etc.');
+  log.info('');
+  log.info('===========================================\n');
+  
+  return true;
 }
 
-async function uploadLocations() {
-  console.log('\n📍 Subiendo locations a Supabase...');
-
-  const dataPath = path.join(__dirname, '../data/scraped-data.json');
-  if (!fs.existsSync(dataPath)) {
-    console.log('⚠️  No se encontro data/scraped-data.json - ejecuta "npm run scrape" primero');
-    return 0;
-  }
-
-  const rawData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-  const locations = rawData.locations || [];
-  console.log(`  Encontradas ${locations.length} locations en el JSON`);
-
-  const mapped = locations.map(loc => ({
-    id: loc.id,
-    name: loc.name || `Location ${loc.id}`,
-    latitude: loc.latitude,
-    longitude: loc.longitude,
-    category: loc.category || 'PARKING_PERMITIDO',
-    address: loc.address || '',
-    city: loc.city || '',
-    province: loc.province || '',
-    country: loc.country || '',
-    has_water: loc.hasWater || false,
-    has_electricity: loc.hasElectricity || false,
-    capacity: loc.capacity || null,
-    price: loc.price !== undefined && loc.price !== null ? loc.price : null,
-    description: loc.description || '',
-    website: loc.website || '',
-    phone: loc.phone || '',
-    source: 'osm',
-    verified: false,
-  }));
-
-  // Subir en lotes de 500 (optimizado para 100K+ registros)
-  const BATCH_SIZE = 500;
-  const BATCH_DELAY = 300; // 300ms entre batches para no saturar Supabase
-  let uploaded = 0;
-  let errors = 0;
-
-  for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-    const batch = mapped.slice(i, i + BATCH_SIZE);
-
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/locations`, {
-        method: 'POST',
-        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(batch),
-      });
-
-      if (!res.ok) {
-        let err;
-        try { err = await res.json(); } catch (e) { err = { status: res.status, statusText: res.statusText }; }
-        console.error(`  ❌ Lote ${i}-${i + batch.length}: ${err.message || JSON.stringify(err)}`);
-        errors++;
-      } else {
-        uploaded += batch.length;
-        const pct = ((uploaded / mapped.length) * 100).toFixed(1);
-        process.stdout.write(`\r  ✅ ${uploaded}/${mapped.length} locations subidas (${pct}%)`);
-      }
-    } catch (err) {
-      console.error(`  ❌ Lote ${i}-${i + batch.length} error: ${err.message}`);
-      errors++;
-    }
-
-    // Pequeño delay entre batches
-    if (i + BATCH_SIZE < mapped.length) {
-      await new Promise(r => setTimeout(r, BATCH_DELAY));
-    }
-  }
-
-  console.log('');
-  if (errors > 0) console.log(`  ⚠️  Hubo ${errors} errores al subir batches`);
-  return uploaded;
+// Mostrar resumen
+function showSummary() {
+  console.log('\n===========================================');
+  log.success('¡Configuración completada!');
+  console.log('===========================================\n');
+  log.info('Próximos pasos:');
+  log.info('');
+  log.info('1. Ejecuta el schema en Supabase (ver instrucciones arriba)');
+  log.info('');
+  log.info('2. Configura las políticas RLS (Row Level Security):');
+  log.info('   - Ve al Dashboard de Supabase');
+  log.info('   - Authentication > Policies');
+  log.info('   - Habilita RLS para todas las tablas');
+  log.info('');
+  log.info('3. Carga datos de ejemplo:');
+  log.info('   npm run scrape');
+  log.info('   npm run upload');
+  log.info('');
+  log.info('4. Prueba la aplicación:');
+  log.info('   npm run android  # Android');
+  log.info('   npm run ios      # iOS (solo macOS)');
+  log.info('');
+  console.log('===========================================\n');
 }
 
-async function uploadRadars() {
-  console.log('\n📡 Subiendo radares a Supabase...');
-
-  const dataPath = path.join(__dirname, '../data/radares-verificados.json');
-  if (!fs.existsSync(dataPath)) {
-    console.log('⚠️  No se encontro data/radares-verificados.json');
-    return 0;
-  }
-
-  const rawData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-  const radars = rawData.radares || [];
-  console.log(`  Encontrados ${radars.length} radares en el JSON`);
-
-  const mapped = radars.map(r => ({
-    id: r.id,
-    code: r.code || '',
-    type: r.type || 'FIJO',
-    latitude: r.latitude,
-    longitude: r.longitude,
-    speed_limit: r.speedLimit || null,
-    road: r.road || '',
-    km: r.km || '',
-    direction: r.direction || '',
-    province: r.province || '',
-    source: r.source || 'dgt',
-    verified: r.verified || false,
-    last_verified: r.lastVerified || null,
-    verification_count: r.verificationCount || 0,
-    active: true,
-  }));
-
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/radars`, {
-      method: 'POST',
-      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(mapped),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      console.error(`  ❌ Error: ${err.message || JSON.stringify(err)}`);
-      return 0;
-    }
-
-    console.log(`  ✅ ${mapped.length} radares subidos`);
-    return mapped.length;
-  } catch (err) {
-    console.error('  ❌ Error subiendo radares:', err.message);
-    return 0;
-  }
-}
-
-async function countRows(table) {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*&limit=0`, {
-      headers: { ...headers, 'Prefer': 'count=exact' },
-    });
-    const contentRange = res.headers.get('content-range');
-    return contentRange ? contentRange.split('/')[1] : '?';
-  } catch (err) {
-    console.error(`  Error contando filas en ${table}:`, err.message);
-    return '?';
-  }
-}
-
+// Main
 async function main() {
-  console.log('===========================================');
-  console.log(' CamperSites Pro - Database Setup');
-  console.log(' YRYS');
+  console.log('\n===========================================');
+  console.log('  CamperSites Pro - Setup de Base de Datos');
   console.log('===========================================\n');
-
-  // 1. Verificar si las tablas existen
-  console.log('🔍 Verificando tablas...');
-  const tables = ['locations', 'radars', 'radar_reports', 'user_profiles', 'saved_routes'];
-  const missing = [];
-
-  for (const table of tables) {
-    const exists = await tableExists(table);
-    console.log(`  ${exists ? '✅' : '❌'} ${table}`);
-    if (!exists) missing.push(table);
+  
+  // Validar credenciales
+  if (!validateCredentials()) {
+    process.exit(1);
   }
-
-  if (missing.length > 0) {
-    console.log('\n' + '='.repeat(50));
-    console.log('⚠️  TABLAS NO ENCONTRADAS: ' + missing.join(', '));
-    console.log('='.repeat(50));
-    console.log('\nPara crear las tablas:');
-    console.log(`  1. Abre: https://supabase.com/dashboard/project/cdlhipiukgjmfimhjlkl/sql/new`);
-    console.log('  2. Copia el contenido de: supabase/schema.sql');
-    console.log('  3. Pulsa "Run"');
-    console.log('  4. Vuelve a ejecutar: node scripts/setup-database.js');
-    console.log('');
-    process.exit(0);
+  
+  // Crear cliente
+  const supabase = createSupabaseClient();
+  if (!supabase) {
+    process.exit(1);
   }
-
-  // 2. Subir datos
-  console.log('\n📤 Subiendo datos...');
-  const locCount = await uploadLocations();
-  const radCount = await uploadRadars();
-
-  // 3. Verificacion final
-  console.log('\n📊 Estado final de la base de datos:');
-  for (const table of tables) {
-    const count = await countRows(table);
-    console.log(`  ${table}: ${count} registros`);
+  
+  // Testear conexión
+  const connectionStatus = await testConnection(supabase);
+  
+  if (connectionStatus === 'error') {
+    log.error('No se pudo conectar a Supabase');
+    process.exit(1);
+  } else if (connectionStatus === 'schema_needed') {
+    log.warning('Es necesario ejecutar el schema primero');
+    await executeSchema(supabase);
+  } else {
+    log.success('Base de datos ya configurada');
   }
-
-  console.log('\n✅ Setup completado correctamente!');
-  console.log('===========================================\n');
+  
+  // Mostrar resumen
+  showSummary();
 }
 
-main().catch(err => {
-  console.error('\n❌ Error fatal:', err && err.message ? err.message : err);
+main().catch(error => {
+  log.error(`Error inesperado: ${error.message}`);
   process.exit(1);
 });

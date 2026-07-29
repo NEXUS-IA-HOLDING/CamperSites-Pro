@@ -8,6 +8,8 @@
     "start": "react-native start",
     "test": "jest",
     "lint": "eslint .",
+    "setup": "./setup.sh",
+    "setup-database": "node scripts/setup-database.js",
     "scrape": "node scripts/scrape-data.js",
     "scrape:europe": "node scripts/scrape-europe-full.js",
     "scrape:dgt": "node scripts/scrape-dgt.js",

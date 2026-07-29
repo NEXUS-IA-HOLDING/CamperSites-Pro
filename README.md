@@ -81,37 +81,56 @@
 
 ---
 
-## 🚀 INSTALACIÓN RÁPIDA
+## 🚀 INSTALACIÓN AUTOMÁTICA (Recomendado)
 
-### Requisitos:
-- Node.js 18+
-- React Native CLI
-- Android Studio / Xcode
-
-### Pasos:
+### Método Rápido - 1 Solo Comando
 
 ```bash
-# 1. Extraer proyecto
-unzip CamperSites-Pro-DEFINITIVO.zip
+# Clonar o descargar el repositorio
+git clone <URL_DEL_REPOSITORIO>
+cd CamperSites-Pro
+
+# Ejecutar script de instalación automática
+./setup.sh
+```
+
+**El script detecta automáticamente tu sistema operativo** (macOS, Linux, Windows) e instala:
+- ✅ Node.js 18+ (si es necesario)
+- ✅ Java JDK 17 (para Android)
+- ✅ CocoaPods (para iOS en macOS)
+- ✅ Todas las dependencias de la app
+- ✅ Configura variables de entorno
+
+---
+
+## 📋 INSTALACIÓN MANUAL
+
+### Requisitos Previos:
+- Node.js 18+ ([Descargar](https://nodejs.org))
+- npm 9+ (incluido con Node.js)
+- Para Android: Android Studio ([Descargar](https://developer.android.com/studio))
+- Para iOS (solo macOS): Xcode ([App Store](https://apps.apple.com/app/xcode))
+
+### Pasos Manuales:
+
+```bash
+# 1. Clonar repositorio
+git clone <URL_DEL_REPOSITORIO>
 cd CamperSites-Pro
 
 # 2. Instalar dependencias
 npm install
 
-# 3. iOS (solo Mac)
-cd ios && pod install && cd ..
+# 3. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus credenciales de Supabase
 
-# 4. Configurar Mapbox Token
-# Editar: src/screens/MapScreen.tsx línea 380
-# Obtener token: https://account.mapbox.com/
+# 4. iOS (solo macOS)
+cd ios && pod install && cd ..
 
 # 5. Ejecutar
 npm run android  # Android
-npm run ios      # iOS
-
-# 6. Obtener datos reales
-npm run scrape
-npm run verify-radares
+npm run ios      # iOS (solo macOS)
 ```
 
 ---
