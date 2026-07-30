@@ -31,8 +31,9 @@ import { activateAdminByCode } from '../lib/adminAuth';
 
 type AuthMode = 'login' | 'register';
 
-// Código maestro de administrador (solo para desarrollo/testing)
-const MASTER_ADMIN_CODE = 'Ypgev*6BR7KjfxNZaXZA&Mh*f%D$AhBG@$w^hT1reETy^5MxvrwQzAF1^Vq2cM8E';
+// ⚠️ IMPORTANTE: El código maestro debe configurarse vía variable de entorno
+// NO poner códigos reales en el código fuente
+const MASTER_ADMIN_CODE = process.env.EXPO_PUBLIC_MASTER_ADMIN_CODE || '';
 
 export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   const [mode, setMode] = useState<AuthMode>('login');
