@@ -87,7 +87,7 @@
 
 ```bash
 # Clonar o descargar el repositorio
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/elkalivpn/CamperSites-Pro.git
 cd CamperSites-Pro
 
 # Ejecutar script de instalación automática
