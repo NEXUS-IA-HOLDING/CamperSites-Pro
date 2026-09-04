@@ -9,9 +9,18 @@
  */
 
 const crypto = require('crypto');
+try {
+  require('dotenv').config();
+} catch {
+  // dotenv opcional; se puede pasar ADMIN_SALT por el entorno
+}
 
-// Salt por defecto (cambiar en producción)
-const DEFAULT_SALT = process.env.EXPO_PUBLIC_ADMIN_SALT || 'YRYS_CAMPER_SITES_2024_DEV_ONLY';
+const DEFAULT_SALT = process.env.ADMIN_SALT || process.env.EXPO_PUBLIC_ADMIN_SALT;
+
+if (!DEFAULT_SALT) {
+  console.log('\n❌ Error: define ADMIN_SALT en tu .env local antes de generar hashes.\n');
+  process.exit(1);
+}
 
 function hashAdminCode(code, salt = DEFAULT_SALT) {
   // Hash simple para ofuscación (NO es criptográfico para producción)
@@ -38,7 +47,7 @@ function main() {
     console.log('Ejemplo:');
     console.log('  npm run generate-admin-hash -- MiCodigoSecreto123\n');
     console.log('Variables de entorno opcionales:');
-    console.log('  EXPO_PUBLIC_ADMIN_SALT=<salt-personalizado>\n');
+    console.log('  ADMIN_SALT=<salt-personalizado> (obligatorio)\n');
     process.exit(1);
   }
   

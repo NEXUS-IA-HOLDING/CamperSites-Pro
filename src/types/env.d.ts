@@ -1,10 +1,14 @@
 /**
- * Declaracion de tipos para variables de entorno
- * Cargadas desde .env via react-native-dotenv
+ * Variables cargadas desde .env vía react-native-dotenv (@env).
+ * Todas son opcionales en runtime: la app degrada a modo local si faltan.
  */
 declare module '@env' {
-  export const SUPABASE_URL: string;
-  export const SUPABASE_ANON_KEY: string;
-  export const MAPBOX_ACCESS_TOKEN: string;
-  export const OPEN_STREET_VIEW_KEY: string;
+  export const SUPABASE_URL: string | undefined;
+  export const SUPABASE_ANON_KEY: string | undefined;
+  export const MAPBOX_ACCESS_TOKEN: string | undefined;
+  export const OPEN_STREET_VIEW_KEY: string | undefined;
+  export const ADMIN_MASTER_HASH: string | undefined;
+  export const ADMIN_TEST_HASH: string | undefined;
+  export const ADMIN_SUPPORT_HASH: string | undefined;
+  export const ADMIN_SALT: string | undefined;
 }

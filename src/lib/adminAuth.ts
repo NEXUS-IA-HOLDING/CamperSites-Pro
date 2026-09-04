@@ -27,6 +27,12 @@ import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { Logger } from '../utils/logger';
 import { getDeviceFingerprint, checkRateLimit, logSecurityEvent } from './security';
+import {
+  ADMIN_MASTER_HASH,
+  ADMIN_TEST_HASH,
+  ADMIN_SUPPORT_HASH,
+  ADMIN_SALT,
+} from '@env';
 
 // ============================================
 // CONFIGURACIÓN
@@ -38,12 +44,9 @@ const ADMIN_ATTEMPTS_KEY = '@cs_admin_attempts';
 // Hashes pre-calculados de códigos admin (NO son los códigos reales)
 // Los códigos reales deben obtenerse de variables de entorno o DB
 const VALID_ADMIN_CODE_HASHES = {
-  // Hash calculado del código maestro (obtener de .env)
-  master: process.env.EXPO_PUBLIC_ADMIN_MASTER_HASH || '',
-  // Hash calculado del código test (obtener de .env)
-  test: process.env.EXPO_PUBLIC_ADMIN_TEST_HASH || '',
-  // Hash calculado del código support (obtener de .env)
-  support: process.env.EXPO_PUBLIC_ADMIN_SUPPORT_HASH || '',
+  master: ADMIN_MASTER_HASH || '',
+  test: ADMIN_TEST_HASH || '',
+  support: ADMIN_SUPPORT_HASH || '',
 };
 
 // Duración de la sesión admin (en ms)
@@ -54,10 +57,11 @@ const ADMIN_SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 horas
 // ============================================
 
 function hashAdminCode(code: string): string {
-  // Hash simple para ofuscación (NO es criptográfico)
-  // En producción usar bcrypt o similar en server-side
+  const salt = ADMIN_SALT;
+  if (!salt) {
+    return '';
+  }
   let hash = 0;
-  const salt = process.env.EXPO_PUBLIC_ADMIN_SALT || 'YRYS_CAMPER_SITES_2024';
   const saltedCode = code + salt;
   
   for (let i = 0; i < saltedCode.length; i++) {
@@ -97,8 +101,14 @@ export async function validateAdminCode(code: string): Promise<{
     };
   }
 
-  // Generar hash del código proporcionado
   const providedHash = hashAdminCode(cleanCode);
+  if (!providedHash || (!VALID_ADMIN_CODE_HASHES.master && !VALID_ADMIN_CODE_HASHES.test && !VALID_ADMIN_CODE_HASHES.support)) {
+    await recordAdminAttempt(cleanCode, false);
+    return {
+      valid: false,
+      error: 'Modo admin no configurado en este entorno.',
+    };
+  }
 
   // Buscar coincidencia con los hashes configurados
   if (VALID_ADMIN_CODE_HASHES.master && providedHash === VALID_ADMIN_CODE_HASHES.master) {
@@ -520,10 +530,10 @@ export async function validateAdminCodeServerSide(code: string): Promise<{
  * Los códigos admin NO deben estar en el código fuente.
  * Configúralos en tu archivo .env:
  * 
- * EXPO_PUBLIC_ADMIN_MASTER_HASH=<hash-del-codigo-maestro>
- * EXPO_PUBLIC_ADMIN_TEST_HASH=<hash-del-codigo-test>
- * EXPO_PUBLIC_ADMIN_SUPPORT_HASH=<hash-del-codigo-support>
- * EXPO_PUBLIC_ADMIN_SALT=<salt-unico-para-tu-proyecto>
+ * ADMIN_MASTER_HASH=<hash-del-codigo-maestro>
+ * ADMIN_TEST_HASH=<hash-del-codigo-test>
+ * ADMIN_SUPPORT_HASH=<hash-del-codigo-support>
+ * ADMIN_SALT=<salt-unico-para-tu-proyecto>
  * 
  * Para generar los hashes, usa el script:
  * npm run generate-admin-hash -- <tu-codigo-secreto>

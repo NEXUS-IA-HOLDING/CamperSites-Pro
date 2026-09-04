@@ -1,51 +1,67 @@
-```
-# Environment variables
-.env.local
-.env.*
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
 
-# Dependencies
+# Dependencies — never commit
 node_modules/
 
-# Build artifacts
-dist/
-build/
-target/
-
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Secrets — never commit real env files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.staging
+!.env.example
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Temporary files
+# Temp / coverage
 *.tmp
 *.swp
 *.swo
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Coverage reports
 coverage/
-htmlcov/
-.coverage
-
-# IDE specific
-.vscode/
-.idea/
-
-# Distribution / packaging
-*.tar
-*.tar.gz
-*.zip
-*.gz
-
-# Testing
 .nyc_output/
-coverage/
-junit.xml
-```
+htmlcov/
+.cache/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Metro / RN
+.metro-health-check*
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/app/release/
+*.hprof
+*.jks
+*.keystore
+!android/app/debug.keystore
+
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+*.xcuserstate
+xcuserdata/
+ios/.xcode.env.local
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
