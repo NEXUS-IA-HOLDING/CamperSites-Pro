@@ -1,12 +1,12 @@
 {
-  "name": "campersites-native",
+  "name": "camper-sites-pro",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "start": "react-native start",
-    "test": "jest",
+    "test": "jest --no-watchman",
     "lint": "eslint .",
     "setup": "./setup.sh",
     "setup-database": "node scripts/setup-database.js",
@@ -18,7 +18,7 @@
     "upload": "node scripts/setup-database.js",
     "check-migration": "node scripts/check-migration.js",
     "build:android": "cd android && ./gradlew assembleRelease",
-    "build:ios": "cd ios && xcodebuild -workspace CamperSites.xcworkspace -scheme CamperSites -configuration Release",
+    "build:ios": "cd ios && xcodebuild -workspace CamperSitesTemp.xcworkspace -scheme CamperSitesTemp -configuration Release",
     "generate-admin-hash": "node scripts/generate-admin-hash.js"
   },
   "dependencies": {

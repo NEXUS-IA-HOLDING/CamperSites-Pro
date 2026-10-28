@@ -355,9 +355,9 @@ export async function secureDelete(key: string): Promise<void> {
 // La validación REAL debe hacerse en el servidor/database.
 // Esta función prepara los datos para validación server-side.
 
-export function prepareRateLimitHeaders(action: string): Record<string, string> {
+export async function prepareRateLimitHeaders(action: string): Promise<Record<string, string>> {
   const timestamp = Date.now().toString();
-  const fingerprint = getDeviceFingerprint();
+  const fingerprint = await getDeviceFingerprint();
   
   return {
     'X-RateLimit-Action': action,

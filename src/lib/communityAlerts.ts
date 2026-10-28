@@ -18,7 +18,13 @@ export type AlertType =
   | 'VEHICULO_PARADO'
   | 'OBRAS'
   | 'ANIMAL_VIA'
-  | 'CONDICIONES_METEOROLOGICAS';
+  | 'CONDICIONES_METEOROLOGICAS'
+  | 'TRAFICO_DENSO'
+  | 'NIEBLA'
+  | 'LLUVIA_INTENSA'
+  | 'ATASCO'
+  | 'OBJETO_CALZADA'
+  | 'CARRETERA_MAL_ESTADO';
 
 export type AlertSeverity = 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA';
 export type AlertStatus = 'ACTIVE' | 'EXPIRED' | 'FAKE' | 'CONFIRMED';
@@ -39,6 +45,7 @@ export interface CommunityAlert {
   confirmations: number;
   denials: number;
   confidence_score: number;
+  radius_meters?: number;
   expires_at: string;
   created_at: string;
 }
@@ -135,6 +142,54 @@ export const ALERT_CONFIG: Record<AlertType, {
     defaultSeverity: 'MEDIA',
     expiresMinutes: 240,
     alertDistanceKm: 5,
+  },
+  TRAFICO_DENSO: {
+    icon: 'car-multiple',
+    color: '#FFB300',
+    label: 'Tráfico Denso',
+    defaultSeverity: 'MEDIA',
+    expiresMinutes: 60,
+    alertDistanceKm: 2,
+  },
+  NIEBLA: {
+    icon: 'weather-fog',
+    color: '#90A4AE',
+    label: 'Niebla',
+    defaultSeverity: 'ALTA',
+    expiresMinutes: 120,
+    alertDistanceKm: 3,
+  },
+  LLUVIA_INTENSA: {
+    icon: 'weather-pouring',
+    color: '#0288D1',
+    label: 'Lluvia Intensa',
+    defaultSeverity: 'MEDIA',
+    expiresMinutes: 90,
+    alertDistanceKm: 3,
+  },
+  ATASCO: {
+    icon: 'traffic-light',
+    color: '#E64A19',
+    label: 'Atasco',
+    defaultSeverity: 'ALTA',
+    expiresMinutes: 45,
+    alertDistanceKm: 2,
+  },
+  OBJETO_CALZADA: {
+    icon: 'alert-box',
+    color: '#F57C00',
+    label: 'Objeto en Calzada',
+    defaultSeverity: 'ALTA',
+    expiresMinutes: 45,
+    alertDistanceKm: 1,
+  },
+  CARRETERA_MAL_ESTADO: {
+    icon: 'road-variant',
+    color: '#795548',
+    label: 'Carretera Mal Estado',
+    defaultSeverity: 'MEDIA',
+    expiresMinutes: 720,
+    alertDistanceKm: 2,
   },
 };
 

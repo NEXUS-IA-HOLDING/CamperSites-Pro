@@ -20,45 +20,107 @@ import haversine from 'haversine-distance';
 import { supabase } from '../lib/supabase';
 import { FLATLIST_PERF_PROPS } from '../utils/performance';
 import { Logger } from '../utils/logger';
+import ReportAlertButton from '../components/ReportAlertButton';
+import { DrivingHUD } from '../components/DrivingHUD';
+import { LocationReviewsModal } from '../components/LocationReviewsModal';
+import { RouteModeSelector } from '../components/RouteModeSelector';
+import { SpeedGaugesHUD } from '../components/SpeedGaugesHUD';
+import { MapControlDock } from '../components/MapControlDock';
+import {
+  AudioAlertMode,
+  ClearanceHazard,
+  DrivingPreferences,
+  MapStyleType,
+  TachographStatus,
+  VehicleProfileMode,
+} from '../types/assistant';
+import { VehicleRoutingService } from '../services/VehicleRoutingService';
 
-// Inicializar MapLibre (sin token - usa OSM gratuito)
+// Inicializar MapLibre (sin token - usa raster gratuito)
 MapLibreGL.setAccessToken(null);
 
-// Memoizar constantes estáticas fuera del componente
-const OSM_STYLE = Object.freeze({
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-      maxzoom: 19,
+// 4 Estilos de Mapa Conmutables de Alta Definición
+const MAP_STYLES: Record<MapStyleType, any> = {
+  satellite: Object.freeze({
+    version: 8 as const,
+    sources: {
+      satellite: {
+        type: 'raster' as const,
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: '© Esri',
+        maxzoom: 19,
+      },
     },
-  },
-  layers: [
-    {
-      id: 'osm',
-      type: 'raster' as const,
-      source: 'osm',
-      minzoom: 0,
-      maxzoom: 19,
+    layers: [{ id: 'satellite-layer', type: 'raster' as const, source: 'satellite', minzoom: 0, maxzoom: 19 }],
+  }),
+  dark: Object.freeze({
+    version: 8 as const,
+    sources: {
+      dark: {
+        type: 'raster' as const,
+        tiles: ['https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© CartoDB',
+        maxzoom: 19,
+      },
     },
-  ],
+    layers: [{ id: 'dark-layer', type: 'raster' as const, source: 'dark', minzoom: 0, maxzoom: 19 }],
+  }),
+  topo: Object.freeze({
+    version: 8 as const,
+    sources: {
+      topo: {
+        type: 'raster' as const,
+        tiles: ['https://tile.opentopomap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenTopoMap',
+        maxzoom: 17,
+      },
+    },
+    layers: [{ id: 'topo-layer', type: 'raster' as const, source: 'topo', minzoom: 0, maxzoom: 17 }],
+  }),
+  day: Object.freeze({
+    version: 8 as const,
+    sources: {
+      osm: {
+        type: 'raster' as const,
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenStreetMap',
+        maxzoom: 19,
+      },
+    },
+    layers: [{ id: 'osm-layer', type: 'raster' as const, source: 'osm', minzoom: 0, maxzoom: 19 }],
+  }),
 };
 
 // Centro de España (fallback)
-const DEFAULT_CENTER: [number, number] = [-3.5, 40.0]; // [lng, lat] - MapLibre usa [lng, lat]
+const DEFAULT_CENTER: [number, number] = [-3.5, 40.0]; // [lng, lat]
 const DEFAULT_ZOOM = 5;
 
 const LAST_LOCATION_KEY = '@camper_last_known_location';
+const PREFERENCES_STORAGE_KEY = '@camper_driving_preferences';
+const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
-// Configuración GPS
+const DEFAULT_DRIVING_PREFS: DrivingPreferences = {
+  radarAlertDistance: 1000,
+  controlAlertDistance: 5000,
+  clearanceAlertDistance: 1000,
+  audioMode: 'multimedia',
+  hapticFeedback: true,
+  tachographWarningsEnabled: true,
+};
+
+// Base de datos de puentes bajos y gálibos críticos para avisos en tiempo real
+const KNOWN_CLEARANCE_HAZARDS: ClearanceHazard[] = [
+  { id: 'haz-1', latitude: 40.4168, longitude: -3.7038, maxAllowedHeight: 2.80, description: 'Paso subterráneo gálibo 2.80m', roadName: 'M-30 enlace' },
+  { id: 'haz-2', latitude: 41.3851, longitude: 2.1734, maxAllowedHeight: 3.10, description: 'Puente ferroviario bajo 3.10m', roadName: 'Acceso Costero' },
+  { id: 'haz-3', latitude: 37.3891, longitude: -5.9845, maxAllowedHeight: 2.90, description: 'Arco monumental gálibo 2.90m', roadName: 'Centro Histórico' },
+  { id: 'haz-4', latitude: 43.3619, longitude: -8.4116, maxAllowedHeight: 3.00, description: 'Túnel urbano limitado 3.00m', roadName: 'Ronda Norte' },
+];
+
 const GPS_UPDATE_INTERVAL = 1000;
-const RADAR_ALERT_DISTANCE = 1000;
-const RADAR_REMINDER_DISTANCE = 50;
-const CONTROL_ALERT_DISTANCE = 5000;
-const CONTROL_REMINDER_DISTANCE = 1000;
 const CHECK_INTERVAL = 2000;
 
 interface Location {
@@ -143,6 +205,20 @@ const MapScreen = () => {
   const [showRouteSelector, setShowRouteSelector] = useState(false);
   const [showRadarVerification, setShowRadarVerification] = useState(false);
   const [radarToVerify, setRadarToVerify] = useState<Radar | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Estados del Asistente Inteligente (Pilar 1, 2, 3, 4, 5)
+  const [currentMapStyle, setCurrentMapStyle] = useState<MapStyleType>('satellite');
+  const [profileMode, setProfileMode] = useState<VehicleProfileMode>('camper');
+  const [drivingPrefs, setDrivingPrefs] = useState<DrivingPreferences>(DEFAULT_DRIVING_PREFS);
+  const [vehicleHeight, setVehicleHeight] = useState<number>(2.80);
+  const [tachographStatus, setTachographStatus] = useState<TachographStatus | null>(null);
+  const [activeClearanceHazard, setActiveClearanceHazard] = useState<{ hazard: ClearanceHazard; distanceMeters: number } | null>(null);
+  const [navStartTime, setNavStartTime] = useState<number>(0);
+  const [reviewsModalVisible, setReviewsModalVisible] = useState(false);
+  const [reviewsLocation, setReviewsLocation] = useState<Location | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [currentSpeedLimit, setCurrentSpeedLimit] = useState(90);
 
   const cameraRef = useRef<any>(null);
   const watchId = useRef<number | null>(null);
@@ -178,6 +254,22 @@ const MapScreen = () => {
 
   useEffect(() => {
     const initMap = async () => {
+      // Cargar configuración de vehículo y preferencias de conducción
+      try {
+        const savedPrefs = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
+        if (savedPrefs) {
+          setDrivingPrefs({ ...DEFAULT_DRIVING_PREFS, ...JSON.parse(savedPrefs) });
+        }
+        const savedVehicle = await AsyncStorage.getItem(VEHICLE_STORAGE_KEY);
+        if (savedVehicle) {
+          const parsedV = JSON.parse(savedVehicle);
+          if (parsedV.height) setVehicleHeight(parseFloat(parsedV.height));
+          if (parsedV.type === 'truck' || parsedV.type === 'camion') setProfileMode('truck');
+        }
+      } catch (e) {
+        Logger.error('MapScreen', 'Error loading vehicle or prefs', e);
+      }
+
       const lastLoc = await getLastKnownLocation();
       if (lastLoc) {
         setCameraCenter([lastLoc.longitude, lastLoc.latitude]);
@@ -190,11 +282,23 @@ const MapScreen = () => {
       fetchRadars();
       setLoading(false);
       requestLocationPermission();
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsLoggedIn(!!session);
+      } catch (e) {
+        // Modo offline
+      }
     };
 
     initMap();
 
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
     return () => {
+      authListener?.subscription?.unsubscribe();
       if (watchId.current !== null) {
         Geolocation.clearWatch(watchId.current);
       }
@@ -281,22 +385,24 @@ const MapScreen = () => {
   };
 
   const checkForAlerts = (lat: number, lng: number, speed: number) => {
+    const radarDist = drivingPrefs.radarAlertDistance || 1000;
+    const controlDist = drivingPrefs.controlAlertDistance || 5000;
+
     radars.forEach((radar) => {
       const distance = haversine(
         { latitude: lat, longitude: lng },
         { latitude: radar.latitude, longitude: radar.longitude }
       );
 
-      const radarKey1km = `${radar.id}-alert-1km`;
-
-      if (radar.type === 'RADAR' && distance <= RADAR_ALERT_DISTANCE && distance > RADAR_REMINDER_DISTANCE) {
-        if (!alertedRadars.has(radarKey1km)) {
-          sendRadarAlert(radar, distance, speed, '1km');
-          setAlertedRadars(prev => new Set(prev).add(radarKey1km));
+      const radarKey = `${radar.id}-alert-${radarDist}m`;
+      if (radar.type === 'RADAR' && distance <= radarDist && distance > 50) {
+        if (!alertedRadars.has(radarKey)) {
+          sendRadarAlert(radar, distance, speed, `${radarDist}m`);
+          setAlertedRadars(prev => new Set(prev).add(radarKey));
         }
       }
 
-      if (radar.type === 'RADAR' && distance <= RADAR_REMINDER_DISTANCE && distance > 10) {
+      if (radar.type === 'RADAR' && distance <= 50 && distance > 10) {
         const reminderKey = `${radar.id}-reminder`;
         if (!alertedRadars.has(reminderKey)) {
           sendRadarAlert(radar, distance, speed, '50m');
@@ -310,16 +416,16 @@ const MapScreen = () => {
         setAlertedRadars(prev => new Set(prev).add(`${radar.id}-passed`));
       }
 
-      const controlKey5km = `${radar.id}-control-5km`;
-      if (radar.type === 'CONTROL' && distance <= CONTROL_ALERT_DISTANCE && distance > CONTROL_REMINDER_DISTANCE) {
-        if (!alertedRadars.has(controlKey5km)) {
-          sendControlAlert(radar, distance, '5km');
-          setAlertedRadars(prev => new Set(prev).add(controlKey5km));
+      const controlKey = `${radar.id}-control-${controlDist}m`;
+      if (radar.type === 'CONTROL' && distance <= controlDist && distance > 1000) {
+        if (!alertedRadars.has(controlKey)) {
+          sendControlAlert(radar, distance, `${(controlDist / 1000).toFixed(0)}km`);
+          setAlertedRadars(prev => new Set(prev).add(controlKey));
           offerAlternativeRoute(lat, lng);
         }
       }
 
-      if (radar.type === 'CONTROL' && distance <= CONTROL_REMINDER_DISTANCE && distance > 100) {
+      if (radar.type === 'CONTROL' && distance <= 1000 && distance > 100) {
         const reminderKey = `${radar.id}-control-reminder`;
         if (!alertedRadars.has(reminderKey)) {
           sendControlAlert(radar, distance, '1km');
@@ -327,6 +433,27 @@ const MapScreen = () => {
         }
       }
     });
+
+    // Detección en tiempo real de puentes bajos y gálibos según la altura del vehículo
+    if (selectedRoute && selectedRoute.coordinates.length > 0) {
+      const clearanceConflicts = VehicleRoutingService.checkClearanceHazards(
+        selectedRoute.coordinates,
+        KNOWN_CLEARANCE_HAZARDS,
+        vehicleHeight,
+        drivingPrefs.clearanceAlertDistance || 1000
+      );
+      if (clearanceConflicts.length > 0) {
+        setActiveClearanceHazard(clearanceConflicts[0]);
+      } else {
+        setActiveClearanceHazard(null);
+      }
+    }
+
+    // Actualización de tacógrafo si está en modo Camión
+    if (profileMode === 'truck' && navStartTime > 0) {
+      const status = VehicleRoutingService.calculateTachographStatus(navStartTime);
+      setTachographStatus(status);
+    }
   };
 
   const sendRadarAlert = (radar: Radar, distance: number, speed: number, stage: string) => {
@@ -510,6 +637,11 @@ const MapScreen = () => {
     setIsNavigating(true);
     setShowRouteSelector(false);
     setAlertedRadars(new Set());
+    const startTime = Date.now();
+    setNavStartTime(startTime);
+    if (profileMode === 'truck') {
+      setTachographStatus(VehicleRoutingService.calculateTachographStatus(startTime));
+    }
     Logger.info('MapScreen', `NAV START: ${selectedLocation?.name}`);
   };
 
@@ -519,6 +651,9 @@ const MapScreen = () => {
     setSelectedRoute(null);
     setRoutes([]);
     setAlertedRadars(new Set());
+    setActiveClearanceHazard(null);
+    setTachographStatus(null);
+    setNavStartTime(0);
   };
 
   const verifyRadar = async (stillThere: boolean) => {
@@ -635,6 +770,13 @@ const MapScreen = () => {
     })),
   } : null;
 
+  // Filtrar ubicaciones según el perfil de vehículo activo
+  const filteredLocations = useMemo(() => {
+    const allowed = VehicleRoutingService.getCategoriesForMode(profileMode);
+    if (!allowed || allowed.length === 0) return locations;
+    return locations.filter(loc => allowed.includes(loc.category));
+  }, [locations, profileMode]);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -646,9 +788,19 @@ const MapScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* Selector de modo y estilo de mapa (Pilar 1 & 3) */}
+      {!isNavigating && (
+        <RouteModeSelector
+          currentMode={profileMode}
+          currentMapStyle={currentMapStyle}
+          onSelectMode={setProfileMode}
+          onSelectMapStyle={setCurrentMapStyle}
+        />
+      )}
+
       <MapLibreGL.MapView
         style={styles.map}
-        mapStyle={OSM_STYLE}
+        mapStyle={MAP_STYLES[currentMapStyle] || MAP_STYLES.satellite}
         logoEnabled={false}
         attributionEnabled={false}
         onRegionDidChange={handleRegionDidChange}>
@@ -672,8 +824,8 @@ const MapScreen = () => {
           </MapLibreGL.PointAnnotation>
         )}
 
-        {/* Ubicaciones */}
-        {locations.map((location) => {
+        {/* Ubicaciones filtradas por perfil */}
+        {filteredLocations.map((location) => {
           const markerConfig = getMarkerConfig(location.category);
           return (
             <MapLibreGL.PointAnnotation
@@ -757,10 +909,18 @@ const MapScreen = () => {
         )}
       </MapLibreGL.MapView>
 
-      {/* Botón centrar */}
-      <TouchableOpacity
-        style={styles.centerButton}
-        onPress={() => {
+      {/* Indicadores automotrices en el lado izquierdo: Señal redonda DGT + Velocímetro digital */}
+      <SpeedGaugesHUD
+        currentSpeedKmH={currentLocation ? (currentLocation.speed * 3.6) : 0}
+        speedLimit={currentSpeedLimit}
+      />
+
+      {/* Dock agrupado en el lado inferior derecho: Capas desplegables + Recentrador GPS + Reporte sutil */}
+      <MapControlDock
+        currentMapStyle={currentMapStyle}
+        gpsEnabled={gpsEnabled}
+        onSelectMapStyle={setCurrentMapStyle}
+        onRecenterGPS={() => {
           if (currentLocation) {
             cameraRef.current?.setCamera({
               centerCoordinate: [currentLocation.longitude, currentLocation.latitude],
@@ -774,13 +934,22 @@ const MapScreen = () => {
               animationDuration: 1000,
             });
           }
-        }}>
-        <Icon
-          name={gpsEnabled ? 'crosshairs-gps' : 'crosshairs'}
-          size={24}
-          color={gpsEnabled ? '#2E7D32' : '#999'}
-        />
-      </TouchableOpacity>
+        }}
+        onOpenReportIncident={() => setIsReportModalOpen(true)}
+      />
+
+      {/* Modal ergonómico de reporte de incidencias con margen automático de 100m */}
+      <ReportAlertButton
+        userLatitude={currentLocation?.latitude || DEFAULT_CENTER[1]}
+        userLongitude={currentLocation?.longitude || DEFAULT_CENTER[0]}
+        isLoggedIn={isLoggedIn}
+        isEmbedded={true}
+        isOpenExternal={isReportModalOpen}
+        onCloseExternal={() => setIsReportModalOpen(false)}
+        onAlertCreated={() => {
+          fetchRadars();
+        }}
+      />
 
       {/* Sin GPS banner */}
       {!gpsEnabled && !loading && (
@@ -790,28 +959,103 @@ const MapScreen = () => {
         </View>
       )}
 
-      {/* Panel navegación activa */}
+      {/* Head-Up Display (HUD) de Conducción Futurista (Pilar 1, 2, 3) */}
       {isNavigating && selectedLocation && selectedRoute && (
-        <View style={styles.navPanel}>
-          <View style={styles.navInfo}>
-            <Icon name="navigation" size={24} color="#2E7D32" />
-            <View style={styles.navText}>
-              <Text style={styles.navTitle}>{selectedLocation.name}</Text>
-              <Text style={styles.navStats}>
-                {(selectedRoute.distance / 1000).toFixed(1)} km • {Math.round(selectedRoute.duration / 60)} min
+        <DrivingHUD
+          currentSpeedKmH={currentLocation ? (currentLocation.speed * 3.6) : 0}
+          speedLimit={90}
+          destinationName={selectedLocation.name}
+          remainingDistanceKm={selectedRoute.distance / 1000}
+          remainingDurationMinutes={Math.round(selectedRoute.duration / 60)}
+          profileMode={profileMode}
+          audioMode={drivingPrefs.audioMode}
+          vehicleHeightMeters={vehicleHeight}
+          activeClearanceHazard={activeClearanceHazard}
+          tachographStatus={tachographStatus}
+          onStopNavigation={stopNavigation}
+          onToggleAudioMode={() => {
+            const nextMode: AudioAlertMode =
+              drivingPrefs.audioMode === 'multimedia'
+                ? 'bluetooth_hfp'
+                : drivingPrefs.audioMode === 'bluetooth_hfp'
+                ? 'silent_visual'
+                : 'multimedia';
+            const updated = { ...drivingPrefs, audioMode: nextMode };
+            setDrivingPrefs(updated);
+            AsyncStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(updated));
+          }}
+          onOpenClearanceDetails={() => {
+            if (activeClearanceHazard) {
+              Alert.alert(
+                'Aviso de Gálibo Crítico',
+                `Paso bajo detectado en ruta: ${activeClearanceHazard.hazard.description}.\nAltura permitida: ${activeClearanceHazard.hazard.maxAllowedHeight.toFixed(2)}m.\nTu vehículo mide: ${vehicleHeight.toFixed(2)}m.\n\nSe recomienda tomar desvío seguro.`
+              );
+            }
+          }}
+          onOpenTachographDetails={() => {
+            if (tachographStatus) {
+              Alert.alert(
+                'Tacógrafo Digital (Reglamento UE)',
+                `Conducción continua: ${VehicleRoutingService.formatTachographTime(tachographStatus.drivingMinutes)}\nLímite legal: 4h 30m.\n\n${
+                  tachographStatus.isWarningActive
+                    ? '⚠️ ¡Atención! Te quedan menos de 45 minutos. Debes estacionar en un área de servicio para camiones.'
+                    : 'Estado normal de conducción.'
+                }`
+              );
+            }
+          }}
+        />
+      )}
+
+      {/* Tarjeta Glassmorphic de Ubicación Seleccionada con Acceso a Reseñas */}
+      {selectedLocation && !isNavigating && (
+        <View style={styles.locationQuickCard}>
+          <View style={styles.locationQuickHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.quickCardTitle} numberOfLines={1}>{selectedLocation.name}</Text>
+              <Text style={styles.quickCardCategory}>
+                {selectedLocation.category.replace(/_/g, ' ')} {selectedLocation.address ? `• ${selectedLocation.address}` : ''}
               </Text>
-              {currentLocation && (
-                <Text style={styles.navSpeed}>
-                  {Math.round(currentLocation.speed * 3.6)} km/h
-                </Text>
-              )}
             </View>
+            <TouchableOpacity onPress={() => setSelectedLocation(null)} style={styles.quickCardClose}>
+              <Icon name="close" size={20} color="#94A3B8" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.stopBtn} onPress={stopNavigation}>
-            <Icon name="close" size={24} color="#FFF" />
-          </TouchableOpacity>
+          <View style={styles.quickCardActions}>
+            <TouchableOpacity
+              style={styles.quickRouteBtn}
+              onPress={() => {
+                if (currentLocation) {
+                  calculateRoutes(
+                    currentLocation.latitude, currentLocation.longitude,
+                    selectedLocation.latitude, selectedLocation.longitude
+                  );
+                }
+              }}>
+              <Icon name="navigation" size={18} color="#FFFFFF" />
+              <Text style={styles.quickRouteBtnText}>Ruta Inteligente</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickReviewsBtn}
+              onPress={() => {
+                setReviewsLocation(selectedLocation);
+                setReviewsModalVisible(true);
+              }}>
+              <Icon name="star-outline" size={18} color="#0F172A" />
+              <Text style={styles.quickReviewsBtnText}>Reseñas</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
+
+      {/* Modal de Reseñas de la Comunidad (Pilar 4) */}
+      <LocationReviewsModal
+        visible={reviewsModalVisible}
+        locationId={reviewsLocation?.id || ''}
+        locationName={reviewsLocation?.name || ''}
+        onClose={() => setReviewsModalVisible(false)}
+      />
 
       {/* Modal selector de rutas */}
       <Modal visible={showRouteSelector} transparent={true} animationType="slide">
@@ -909,7 +1153,7 @@ const styles = StyleSheet.create({
   },
   centerButton: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 115,
     right: 20,
     backgroundColor: '#FFF',
     width: 50,
@@ -917,11 +1161,84 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowRadius: 5,
+  },
+  locationQuickCard: {
+    position: 'absolute',
+    bottom: 100,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  locationQuickHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  quickCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  quickCardCategory: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
+  quickCardClose: {
+    padding: 4,
+  },
+  quickCardActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quickRouteBtn: {
+    flex: 1.4,
+    backgroundColor: '#2E7D32',
+    borderRadius: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  quickRouteBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  quickReviewsBtn: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickReviewsBtnText: {
+    color: '#0F172A',
+    fontWeight: '700',
+    fontSize: 13,
   },
   navPanel: {
     position: 'absolute',

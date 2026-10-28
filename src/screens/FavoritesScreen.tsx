@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { CamperSitesTheme as theme } from '../theme';
+import { AdvancedFavorites } from '../features/premium';
 
 const FAVORITES_KEY = '@campersites_favorites';
 
@@ -56,6 +57,7 @@ export default function FavoritesScreen() {
   const [favorites, setFavorites] = useState<Location[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'folders'>('list');
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -164,14 +166,36 @@ export default function FavoritesScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Favoritos</Text>
-        <View style={styles.countBadge}>
-          <Icon name="heart" size={16} color="#FFFFFF" />
-          <Text style={styles.countText}>{favorites.length}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={styles.headerTitle}>Favoritos</Text>
+          <View style={styles.countBadge}>
+            <Icon name="heart" size={16} color="#FFFFFF" />
+            <Text style={styles.countText}>{favorites.length}</Text>
+          </View>
+        </View>
+
+        {/* View Mode Toggle */}
+        <View style={{ flexDirection: 'row', backgroundColor: '#E8F5E9', borderRadius: 8, padding: 2 }}>
+          <TouchableOpacity
+            style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }, viewMode === 'list' && { backgroundColor: theme.colors.primary.main }]}
+            onPress={() => setViewMode('list')}>
+            <Text style={[{ fontSize: 12, fontWeight: '600', color: theme.colors.primary.main }, viewMode === 'list' && { color: '#FFFFFF' }]}>
+              Lista
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }, viewMode === 'folders' && { backgroundColor: theme.colors.primary.main }]}
+            onPress={() => setViewMode('folders')}>
+            <Text style={[{ fontSize: 12, fontWeight: '600', color: theme.colors.primary.main }, viewMode === 'folders' && { color: '#FFFFFF' }]}>
+              Carpetas Pro
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {loading ? (
+      {viewMode === 'folders' ? (
+        <AdvancedFavorites />
+      ) : loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary.main} />
         </View>

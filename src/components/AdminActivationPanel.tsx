@@ -180,25 +180,25 @@ export default function AdminActivationPanel() {
               <>
                 {permissions.canAccessAllPlans && (
                   <View style={styles.permissionItem}>
-                    <Icon name="check-circle" size={14} color={theme.colors.success} />
+                    <Icon name="check-circle" size={14} color={theme.colors.success.main} />
                     <Text style={styles.permissionText}>Acceso a todos los planes</Text>
                   </View>
                 )}
                 {permissions.canModifySettings && (
                   <View style={styles.permissionItem}>
-                    <Icon name="check-circle" size={14} color={theme.colors.success} />
+                    <Icon name="check-circle" size={14} color={theme.colors.success.main} />
                     <Text style={styles.permissionText}>Modificar configuración</Text>
                   </View>
                 )}
                 {permissions.canBypassLimits && (
                   <View style={styles.permissionItem}>
-                    <Icon name="check-circle" size={14} color={theme.colors.success} />
+                    <Icon name="check-circle" size={14} color={theme.colors.success.main} />
                     <Text style={styles.permissionText}>Omitir límites</Text>
                   </View>
                 )}
                 {permissions.canAccessDebugTools && (
                   <View style={styles.permissionItem}>
-                    <Icon name="check-circle" size={14} color={theme.colors.success} />
+                    <Icon name="check-circle" size={14} color={theme.colors.success.main} />
                     <Text style={styles.permissionText}>Herramientas de debug</Text>
                   </View>
                 )}
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   },
   permissionsList: {
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.border.main,
     paddingTop: 12,
   },
   permissionsTitle: {
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 2,
     borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.border.main,
   },
   modalFooter: {
     flexDirection: 'row',
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.border.main,
   },
   helpTextContent: {
     fontSize: 12,

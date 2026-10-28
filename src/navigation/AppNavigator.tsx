@@ -36,6 +36,7 @@ const TAB_ICONS: Record<string, { focused: string; unfocused: string; label: str
 function MainTabs() {
   return (
     <Tab.Navigator
+      id="main-tabs"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
@@ -58,7 +59,6 @@ function MainTabs() {
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarItemStyle: styles.tabBarItem,
         tabBarHideOnKeyboard: true,
-        animationEnabled: true,
         lazy: true,
       })}>
       <Tab.Screen 
@@ -212,23 +212,29 @@ const styles = StyleSheet.create({
     color: theme.colors.primary.main,
   },
   tabBar: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 0,
-    height: Platform.OS === 'ios' ? 88 : 64,
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 24 : 16,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    borderTopWidth: 1.5,
+    height: Platform.OS === 'ios' ? 68 : 64,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-    ...{
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      elevation: 10,
-    },
+    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 16,
   },
   tabBarLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
+    letterSpacing: 0.2,
   },
   tabBarItem: {
     paddingVertical: 2,
@@ -238,9 +244,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconFocused: {
-    transform: [{ scale: 1.1 }],
+    transform: [{ scale: 1.15 }],
   },
   iconUnfocused: {
-    opacity: 0.7,
+    opacity: 0.65,
   },
 });

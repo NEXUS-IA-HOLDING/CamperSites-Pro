@@ -23,6 +23,20 @@ export const CamperSitesTheme = {
       ocean: '#0277BD',     // Azul océano
       sunset: '#F57C00',    // Naranja sunset
       mountain: '#5D4037',  // Marrón montaña
+      gold: '#FFB300',      // Oro / Estrella Premium
+    },
+    white: '#FFFFFF',
+    black: '#000000',
+    gray: '#9E9E9E',
+    border: {
+      main: '#E0E0E0',
+      light: '#F0F0F0',
+      dark: '#BDBDBD',
+    },
+    success: {
+      main: '#388E3C',
+      light: '#4CAF50',
+      dark: '#2E7D32',
     },
     alerts: {
       radar: '#D32F2F',     // Rojo radar
@@ -42,6 +56,24 @@ export const CamperSitesTheme = {
       secondary: '#757575', // Gris texto
       disabled: '#BDBDBD',  // Gris deshabilitado
       hint: '#9E9E9E',      // Gris hint
+    },
+    // Glassmorphism & Modern UI
+    glass: {
+      light: 'rgba(255, 255, 255, 0.88)',
+      dark: 'rgba(15, 23, 42, 0.88)',
+      borderLight: 'rgba(255, 255, 255, 0.65)',
+      borderDark: 'rgba(255, 255, 255, 0.15)',
+      cardBg: 'rgba(255, 255, 255, 0.92)',
+    },
+    // HUD Conducción Futurista
+    hud: {
+      tacticalBg: '#0F172A',
+      speedNormal: '#10B981',   // Verde esmeralda digital
+      speedWarning: '#F59E0B',  // Ámbar alerta
+      speedOver: '#EF4444',     // Rojo exceso
+      cyanNeon: '#06B6D4',      // Neón cian
+      tachoWarning: '#F97316',  // Naranja tacógrafo
+      clearanceDanger: '#DC2626', // Rojo gálibo
     },
   },
 

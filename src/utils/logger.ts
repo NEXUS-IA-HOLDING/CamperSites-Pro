@@ -7,7 +7,7 @@
  */
 
 // Determinar si estamos en modo desarrollo
-const isDevelopment = __DEV__;
+const isDevelopment = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
 /**
  * Logger seguro que solo muestra logs detallados en desarrollo

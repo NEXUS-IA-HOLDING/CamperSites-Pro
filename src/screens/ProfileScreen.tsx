@@ -27,6 +27,12 @@ import {
 } from '../lib/communityAlerts';
 import AdminActivationPanel from '../components/AdminActivationPanel';
 import { CamperSitesTheme as theme } from '../theme';
+import {
+  OfflineManager,
+  StatsAndAchievements,
+  TripPlanner,
+  MultiDestinationRoute,
+} from '../features/premium';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
@@ -38,17 +44,28 @@ const VEHICLE_TYPES = [
   { key: 'autocaravana_m', label: 'Autocaravana 6-7m', emoji: '🚌', maxHeight: 3.2, maxWidth: 2.3, maxLength: 7.0 },
   { key: 'autocaravana_l', label: 'Autocaravana >7m', emoji: '🚍', maxHeight: 3.5, maxWidth: 2.5, maxLength: 9.0 },
   { key: 'caravana', label: 'Coche + Caravana', emoji: '🏠', maxHeight: 2.8, maxWidth: 2.3, maxLength: 10.0 },
+  { key: 'camion_rigido', label: 'Camión Rígido / Pesado', emoji: '🚚', maxHeight: 3.8, maxWidth: 2.5, maxLength: 10.0 },
+  { key: 'camion_trailer', label: 'Tráiler / Articulado', emoji: '🚛', maxHeight: 4.0, maxWidth: 2.55, maxLength: 16.5 },
+  { key: 'furgon_reparto', label: 'Reparto Última Milla', emoji: '📦', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
   { key: 'custom', label: 'Personalizado', emoji: '📐', maxHeight: 0, maxWidth: 0, maxLength: 0 },
 ];
 
-interface VehicleConfig {
+export interface VehicleConfig {
   type: string;
   height: string; // metros
-  width: string;
-  length: string;
-  weight: string; // kg
+  width: string;  // metros
+  length: string; // metros
+  weight: string; // kg / MMA
+  axles: string;  // número de ejes (2, 3, 4+)
+  fuelType: string; // diesel, diesel_plus, gasolina, glp, gnc, electrico, hibrido
+  rangeKm: string;  // km
+  tankCapacity: string; // L o kWh
+  avgConsumption: string; // L/100km o kWh/100km
+  environmentalBadge: string; // 0, ECO, C, B, SIN_DISTINTIVO
   name: string; // nombre personalizado
 }
+
+const PREFERENCES_STORAGE_KEY = '@camper_driving_preferences';
 
 // ============================================
 // SETTING ROW
@@ -147,19 +164,32 @@ export default function ProfileScreen() {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [trustProfile, setTrustProfile] = useState<UserTrustProfile | null>(null);
+  const [activePremiumTool, setActivePremiumTool] = useState<'offline' | 'stats' | 'trips' | 'multidest' | null>(null);
 
-  // Vehículo
+  // Preferencias de Conducción Granulares (Pilar 5)
+  const [radarDistance, setRadarDistance] = useState<number>(1000);
+  const [controlDistance, setControlDistance] = useState<number>(5000);
+  const [clearanceDistance, setClearanceDistance] = useState<number>(1000);
+  const [audioAlertMode, setAudioAlertMode] = useState<'multimedia' | 'bluetooth_hfp' | 'silent_visual'>('multimedia');
+  const [tachographEnabled, setTachographEnabled] = useState<boolean>(true);
+
+  // Vehículo y Ficha Técnica (Pilar 2)
   const [vehicleConfig, setVehicleConfig] = useState<VehicleConfig>({
-    type: '', height: '', width: '', length: '', weight: '', name: '',
+    type: '', height: '', width: '', length: '', weight: '', axles: '2',
+    fuelType: 'diesel', rangeKm: '', tankCapacity: '', avgConsumption: '',
+    environmentalBadge: 'C', name: '',
   });
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [tempVehicle, setTempVehicle] = useState<VehicleConfig>({
-    type: '', height: '', width: '', length: '', weight: '', name: '',
+    type: '', height: '', width: '', length: '', weight: '', axles: '2',
+    fuelType: 'diesel', rangeKm: '', tankCapacity: '', avgConsumption: '',
+    environmentalBadge: 'C', name: '',
   });
 
   useEffect(() => {
     checkAuth();
     loadVehicleConfig();
+    loadDrivingPreferences();
   }, []);
 
   const checkAuth = async () => {
@@ -175,6 +205,29 @@ export default function ProfileScreen() {
   const loadTrustProfile = async () => {
     const profile = await getUserTrustProfile();
     if (profile) setTrustProfile(profile);
+  };
+
+  const loadDrivingPreferences = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (p.radarAlertDistance) setRadarDistance(p.radarAlertDistance);
+        if (p.controlAlertDistance) setControlDistance(p.controlAlertDistance);
+        if (p.clearanceAlertDistance) setClearanceDistance(p.clearanceAlertDistance);
+        if (p.audioMode) setAudioAlertMode(p.audioMode);
+        if (p.tachographWarningsEnabled !== undefined) setTachographEnabled(p.tachographWarningsEnabled);
+      }
+    } catch (e) {}
+  };
+
+  const updatePreference = async (key: string, value: any) => {
+    try {
+      const saved = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
+      const current = saved ? JSON.parse(saved) : {};
+      const updated = { ...current, [key]: value };
+      await AsyncStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
   };
 
   const loadVehicleConfig = async () => {
@@ -199,11 +252,15 @@ export default function ProfileScreen() {
       setTempVehicle({ ...tempVehicle, type: 'custom' });
     } else {
       setTempVehicle({
+        ...tempVehicle,
         type: type.key,
-        height: type.maxHeight.toString(),
-        width: type.maxWidth.toString(),
-        length: type.maxLength.toString(),
-        weight: '',
+        height: type.maxHeight > 0 ? type.maxHeight.toString() : tempVehicle.height,
+        width: type.maxWidth > 0 ? type.maxWidth.toString() : tempVehicle.width,
+        length: type.maxLength > 0 ? type.maxLength.toString() : tempVehicle.length,
+        weight: type.key.includes('camion') ? '18000' : '3500',
+        axles: type.key === 'camion_trailer' ? '5' : type.key === 'camion_rigido' ? '3' : '2',
+        fuelType: tempVehicle.fuelType || 'diesel',
+        environmentalBadge: tempVehicle.environmentalBadge || 'C',
         name: type.label,
       });
     }
@@ -333,6 +390,30 @@ export default function ProfileScreen() {
                   <Text style={styles.dimText}>{vehicleConfig.weight}kg</Text>
                 </View>
               ) : null}
+              {vehicleConfig.axles ? (
+                <View style={styles.dimBadge}>
+                  <Text style={styles.dimIcon}>🛣️</Text>
+                  <Text style={styles.dimText}>{vehicleConfig.axles} ejes</Text>
+                </View>
+              ) : null}
+              {vehicleConfig.fuelType ? (
+                <View style={styles.dimBadge}>
+                  <Text style={styles.dimIcon}>⛽</Text>
+                  <Text style={styles.dimText}>{vehicleConfig.fuelType.toUpperCase()}</Text>
+                </View>
+              ) : null}
+              {vehicleConfig.environmentalBadge ? (
+                <View style={styles.dimBadge}>
+                  <Text style={styles.dimIcon}>🏷️</Text>
+                  <Text style={styles.dimText}>ZBE: {vehicleConfig.environmentalBadge}</Text>
+                </View>
+              ) : null}
+              {vehicleConfig.rangeKm ? (
+                <View style={styles.dimBadge}>
+                  <Text style={styles.dimIcon}>🔋</Text>
+                  <Text style={styles.dimText}>{vehicleConfig.rangeKm}km</Text>
+                </View>
+              ) : null}
             </View>
           )}
           <Text style={styles.vehicleHint}>
@@ -415,25 +496,200 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Settings */}
+        {/* Herramientas Premium */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔔 Alertas</Text>
+          <Text style={styles.sectionTitle}>⭐ Herramientas Premium</Text>
           <View style={styles.sectionCard}>
-            <SettingRow icon="bell" iconColor="#FF6F00" title="Notificaciones"
+            <SettingRow
+              icon="map-down"
+              iconColor="#1976D2"
+              title="Mapas Offline"
+              subtitle="Descarga regiones para navegar sin cobertura"
+              onPress={() => setActivePremiumTool('offline')}
+            />
+            <View style={styles.separator} />
+            <SettingRow
+              icon="trophy"
+              iconColor="#FFB300"
+              title="Estadísticas y Logros"
+              subtitle="Tus viajes, kilómetros y medallas"
+              onPress={() => setActivePremiumTool('stats')}
+            />
+            <View style={styles.separator} />
+            <SettingRow
+              icon="calendar-clock"
+              iconColor="#2E7D32"
+              title="Planificador de Viajes"
+              subtitle="Itinerarios multi-día y exportación .ICS"
+              onPress={() => setActivePremiumTool('trips')}
+            />
+            <View style={styles.separator} />
+            <SettingRow
+              icon="routes"
+              iconColor="#E65100"
+              title="Ruta Multi-Destino"
+              subtitle="Optimización de paradas (algoritmo TSP)"
+              onPress={() => setActivePremiumTool('multidest')}
+            />
+          </View>
+        </View>
+
+        {/* Preferencias de Conducción y Alertas Granulares (Pilar 5) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🔔 Preferencias de Conducción y Alertas</Text>
+          <View style={styles.sectionCard}>
+            <SettingRow
+              icon="bell"
+              iconColor="#FF6F00"
+              title="Notificaciones en Ruta"
               subtitle="Alertas de radares, controles y peligros"
               rightElement={
-                <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled}
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={v => {
+                    setNotificationsEnabled(v);
+                    updatePreference('notificationsEnabled', v);
+                  }}
                   trackColor={{ false: '#DDD', true: theme.colors.primary.light }}
-                  thumbColor={notificationsEnabled ? theme.colors.primary.main : '#f4f3f4'} />
-              } />
+                  thumbColor={notificationsEnabled ? theme.colors.primary.main : '#f4f3f4'}
+                />
+              }
+            />
+
+            {/* Distancia de Preaviso para Radares */}
+            <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginBottom: 6 }}>
+                ⚠️ Distancia de Preaviso - Radares:
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[500, 1000, 2000].map(dist => (
+                  <TouchableOpacity
+                    key={dist}
+                    style={[
+                      { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' },
+                      radarDistance === dist && { borderColor: theme.colors.primary.main, backgroundColor: theme.colors.primary.main + '15' },
+                    ]}
+                    onPress={() => {
+                      setRadarDistance(dist);
+                      updatePreference('radarAlertDistance', dist);
+                    }}>
+                    <Text style={[{ fontSize: 12, fontWeight: '600', color: '#666' }, radarDistance === dist && { color: theme.colors.primary.main, fontWeight: '800' }]}>
+                      {dist >= 1000 ? `${dist / 1000} km` : `${dist} m`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             <View style={styles.separator} />
-            <SettingRow icon="volume-high" iconColor="#1976D2" title="Sonido"
-              subtitle="Alertas sonoras al acercarse"
+
+            {/* Distancia de Preaviso para Controles */}
+            <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginBottom: 6 }}>
+                🚔 Distancia de Preaviso - Controles Policiales:
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[2000, 5000, 10000].map(dist => (
+                  <TouchableOpacity
+                    key={dist}
+                    style={[
+                      { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' },
+                      controlDistance === dist && { borderColor: '#FF6F00', backgroundColor: '#FFF3E0' },
+                    ]}
+                    onPress={() => {
+                      setControlDistance(dist);
+                      updatePreference('controlAlertDistance', dist);
+                    }}>
+                    <Text style={[{ fontSize: 12, fontWeight: '600', color: '#666' }, controlDistance === dist && { color: '#FF6F00', fontWeight: '800' }]}>
+                      {dist / 1000} km
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.separator} />
+
+            {/* Distancia de Preaviso para Gálibos / Puentes Bajos */}
+            <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginBottom: 6 }}>
+                🌉 Distancia de Preaviso - Gálibo / Puentes Bajos:
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[500, 1000].map(dist => (
+                  <TouchableOpacity
+                    key={dist}
+                    style={[
+                      { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' },
+                      clearanceDistance === dist && { borderColor: '#D32F2F', backgroundColor: '#FFEBEE' },
+                    ]}
+                    onPress={() => {
+                      setClearanceDistance(dist);
+                      updatePreference('clearanceAlertDistance', dist);
+                    }}>
+                    <Text style={[{ fontSize: 12, fontWeight: '600', color: '#666' }, clearanceDistance === dist && { color: '#D32F2F', fontWeight: '800' }]}>
+                      {dist >= 1000 ? `${dist / 1000} km` : `${dist} m`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.separator} />
+
+            {/* Canal de Audio / Salida Sonora */}
+            <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginBottom: 6 }}>
+                🔊 Modo de Aviso de Audio:
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {[
+                  { mode: 'multimedia', label: 'Altavoz / Media', icon: 'volume-high' },
+                  { mode: 'bluetooth_hfp', label: 'Bluetooth HFP', icon: 'bluetooth-audio' },
+                  { mode: 'silent_visual', label: 'Solo Visual', icon: 'volume-off' },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.mode}
+                    style={[
+                      { flex: 1, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 8, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' },
+                      audioAlertMode === opt.mode && { borderColor: '#1976D2', backgroundColor: '#E3F2FD' },
+                    ]}
+                    onPress={() => {
+                      setAudioAlertMode(opt.mode as any);
+                      updatePreference('audioMode', opt.mode);
+                    }}>
+                    <Icon name={opt.icon} size={16} color={audioAlertMode === opt.mode ? '#1976D2' : '#666'} />
+                    <Text style={[{ fontSize: 10, fontWeight: '600', color: '#666', marginTop: 2, textAlign: 'center' }, audioAlertMode === opt.mode && { color: '#1976D2', fontWeight: '800' }]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                * Bluetooth HFP simula una llamada telefónica para pausar la radio del coche al alertar.
+              </Text>
+            </View>
+
+            <View style={styles.separator} />
+
+            {/* Tacógrafo inteligente */}
+            <SettingRow
+              icon="clock-digital"
+              iconColor="#10B981"
+              title="Alarma Tacógrafo (Camiones)"
+              subtitle="Alarma inteligente a las 3h 45m para buscar área de descanso antes de las 4h 30m reglamentarias"
               rightElement={
-                <Switch value={soundEnabled} onValueChange={setSoundEnabled}
+                <Switch
+                  value={tachographEnabled}
+                  onValueChange={v => {
+                    setTachographEnabled(v);
+                    updatePreference('tachographWarningsEnabled', v);
+                  }}
                   trackColor={{ false: '#DDD', true: theme.colors.primary.light }}
-                  thumbColor={soundEnabled ? theme.colors.primary.main : '#f4f3f4'} />
-              } />
+                  thumbColor={tachographEnabled ? theme.colors.primary.main : '#f4f3f4'}
+                />
+              }
+            />
           </View>
         </View>
 
@@ -555,6 +811,108 @@ export default function ProfileScreen() {
                       />
                     </View>
                   </View>
+
+                  {/* Número de Ejes y MMA */}
+                  <View style={styles.dimInputsRow}>
+                    <View style={styles.dimInputGroup}>
+                      <Text style={styles.dimInputLabel}>🛣️ Número de Ejes</Text>
+                      <TextInput
+                        style={styles.dimInput}
+                        keyboardType="number-pad"
+                        placeholder="2"
+                        placeholderTextColor="#BBB"
+                        value={tempVehicle.axles}
+                        onChangeText={t => setTempVehicle({ ...tempVehicle, axles: t })}
+                      />
+                    </View>
+                    <View style={styles.dimInputGroup}>
+                      <Text style={styles.dimInputLabel}>🔋 Autonomía (km)</Text>
+                      <TextInput
+                        style={styles.dimInput}
+                        keyboardType="number-pad"
+                        placeholder="650"
+                        placeholderTextColor="#BBB"
+                        value={tempVehicle.rangeKm}
+                        onChangeText={t => setTempVehicle({ ...tempVehicle, rangeKm: t })}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Consumo y Capacidad */}
+                  <View style={styles.dimInputsRow}>
+                    <View style={styles.dimInputGroup}>
+                      <Text style={styles.dimInputLabel}>⛽ Depósito/Batería (L/kWh)</Text>
+                      <TextInput
+                        style={styles.dimInput}
+                        keyboardType="decimal-pad"
+                        placeholder="80"
+                        placeholderTextColor="#BBB"
+                        value={tempVehicle.tankCapacity}
+                        onChangeText={t => setTempVehicle({ ...tempVehicle, tankCapacity: t })}
+                      />
+                    </View>
+                    <View style={styles.dimInputGroup}>
+                      <Text style={styles.dimInputLabel}>📊 Consumo medio (L/100km)</Text>
+                      <TextInput
+                        style={styles.dimInput}
+                        keyboardType="decimal-pad"
+                        placeholder="9.5"
+                        placeholderTextColor="#BBB"
+                        value={tempVehicle.avgConsumption}
+                        onChangeText={t => setTempVehicle({ ...tempVehicle, avgConsumption: t })}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Distintivo Ambiental ZBE */}
+                  <Text style={styles.modalLabel}>Distintivo Ambiental DGT / ZBE</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    {[
+                      { key: '0', label: '🔵 0 Emisiones' },
+                      { key: 'ECO', label: '🟢 ECO' },
+                      { key: 'C', label: '🟡 Etiqueta C' },
+                      { key: 'B', label: '🟠 Etiqueta B' },
+                      { key: 'SIN_DISTINTIVO', label: '❌ Sin Distintivo' },
+                    ].map(badge => (
+                      <TouchableOpacity
+                        key={badge.key}
+                        style={[
+                          { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1.5, borderColor: '#DDD', backgroundColor: '#FFF' },
+                          tempVehicle.environmentalBadge === badge.key && { borderColor: theme.colors.primary.main, backgroundColor: theme.colors.primary.main + '15' },
+                        ]}
+                        onPress={() => setTempVehicle({ ...tempVehicle, environmentalBadge: badge.key })}>
+                        <Text style={[{ fontSize: 11, fontWeight: '600', color: '#666' }, tempVehicle.environmentalBadge === badge.key && { color: theme.colors.primary.main, fontWeight: '800' }]}>
+                          {badge.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Tipo de Combustible */}
+                  <Text style={styles.modalLabel}>Tipo de Carburante / Propulsión</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                    {[
+                      { key: 'diesel', label: 'Diésel' },
+                      { key: 'diesel_plus', label: 'Diésel Plus' },
+                      { key: 'gasolina', label: 'Gasolina' },
+                      { key: 'glp', label: 'GLP Autogás' },
+                      { key: 'gnc', label: 'GNC' },
+                      { key: 'electrico', label: '100% Eléctrico' },
+                      { key: 'hibrido', label: 'Híbrido' },
+                    ].map(fuel => (
+                      <TouchableOpacity
+                        key={fuel.key}
+                        style={[
+                          { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1.5, borderColor: '#DDD', backgroundColor: '#FFF' },
+                          tempVehicle.fuelType === fuel.key && { borderColor: '#1976D2', backgroundColor: '#E3F2FD' },
+                        ]}
+                        onPress={() => setTempVehicle({ ...tempVehicle, fuelType: fuel.key })}>
+                        <Text style={[{ fontSize: 11, fontWeight: '600', color: '#666' }, tempVehicle.fuelType === fuel.key && { color: '#1976D2', fontWeight: '800' }]}>
+                          {fuel.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </>
               )}
             </ScrollView>
@@ -572,6 +930,30 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+      {/* ============================================ */}
+      {/* MODAL HERRAMIENTAS PREMIUM */}
+      {/* ============================================ */}
+      <Modal visible={!!activePremiumTool} animationType="slide" onRequestClose={() => setActivePremiumTool(null)}>
+        <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 48, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#EEEEEE' }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.colors.text.primary }}>
+              {activePremiumTool === 'offline' && '🗺️ Mapas Offline'}
+              {activePremiumTool === 'stats' && '🏆 Estadísticas y Logros'}
+              {activePremiumTool === 'trips' && '🗓️ Planificador de Viajes'}
+              {activePremiumTool === 'multidest' && '📍 Ruta Multi-Destino'}
+            </Text>
+            <TouchableOpacity onPress={() => setActivePremiumTool(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flex: 1 }}>
+            {activePremiumTool === 'offline' && <OfflineManager />}
+            {activePremiumTool === 'stats' && <StatsAndAchievements />}
+            {activePremiumTool === 'trips' && <TripPlanner />}
+            {activePremiumTool === 'multidest' && <MultiDestinationRoute />}
+          </ScrollView>
         </View>
       </Modal>
     </View>

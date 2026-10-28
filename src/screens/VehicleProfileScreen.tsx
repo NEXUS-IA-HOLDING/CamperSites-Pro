@@ -18,10 +18,11 @@ import {
   TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CamperSitesTheme as theme } from '../theme';
 import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../lib/security';
-import { Logger } from '../utils/Logger';
+import { Logger } from '../utils/logger';
 import { profileAssistantService, VehicleProfileData, ConversationStep } from '../services/ProfileAssistantService';
 
 interface VehicleProfileScreenProps {
@@ -62,6 +63,13 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
     if (currentStep.type === 'number' || currentStep.type === 'text') {
       if (!inputValue.trim()) {
         Alert.alert('Campo requerido', 'Por favor, responde a la pregunta para continuar.');
+        return;
+      }
+
+      // Validación de seguridad IA contra inyección de prompt
+      const securityCheck = profileAssistantService.validateInput(inputValue);
+      if (!securityCheck.valid) {
+        Alert.alert('Seguridad', securityCheck.error || 'Entrada no permitida.');
         return;
       }
 
@@ -128,10 +136,17 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
       // Datos por defecto para campos opcionales no completados
       const completeProfile: VehicleProfileData = {
         vehicleType: profileData.vehicleType || 'unknown',
+        profileMode: profileData.profileMode || (profileData.vehicleType === 'truck' ? 'truck' : profileData.vehicleType === 'delivery' ? 'delivery' : 'camper'),
         height: profileData.height || 2.6,
         width: profileData.width || 2.1,
         length: profileData.length || 6.0,
         weight: profileData.weight || 3500,
+        axles: profileData.axles || 2,
+        fuelType: profileData.fuelType || 'diesel',
+        rangeKm: profileData.rangeKm || 650,
+        tankCapacity: profileData.tankCapacity || 80,
+        avgConsumption: profileData.avgConsumption || 9.5,
+        environmentalBadge: profileData.environmentalBadge || 'C',
         engineYear: profileData.engineYear || 2010,
         engineCC: profileData.engineCC || 2000,
         drivingStyle: profileData.drivingStyle || 'balanced',
@@ -141,6 +156,22 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
       };
 
       const sanitizedData = profileAssistantService.sanitizeProfileData(completeProfile);
+
+      // Guardar también en almacenamiento local para navegación inmediata y offline
+      try {
+        await AsyncStorage.setItem('@camper_vehicle_config', JSON.stringify({
+          type: sanitizedData.vehicleType,
+          height: sanitizedData.height?.toString() || '2.6',
+          width: sanitizedData.width?.toString() || '2.1',
+          length: sanitizedData.length?.toString() || '6.0',
+          weight: sanitizedData.weight?.toString() || '3500',
+          axles: sanitizedData.axles?.toString() || '2',
+          fuelType: sanitizedData.fuelType || 'diesel',
+          rangeKm: sanitizedData.rangeKm?.toString() || '650',
+          environmentalBadge: sanitizedData.environmentalBadge || 'C',
+          name: sanitizedData.vehicleType === 'truck' ? 'Mi Camión Pesado' : 'Mi Vehículo',
+        }));
+      } catch (e) {}
 
       // Insertar o actualizar perfil en Supabase
       const { error } = await supabase
@@ -152,6 +183,12 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
           width: sanitizedData.width,
           length: sanitizedData.length,
           weight: sanitizedData.weight,
+          axles: sanitizedData.axles,
+          fuel_type: sanitizedData.fuelType,
+          range_km: sanitizedData.rangeKm,
+          tank_capacity: sanitizedData.tankCapacity,
+          avg_consumption: sanitizedData.avgConsumption,
+          environmental_badge: sanitizedData.environmentalBadge,
           engine_year: sanitizedData.engineYear,
           engine_cc: sanitizedData.engineCC,
           driving_style: sanitizedData.drivingStyle,
@@ -165,7 +202,7 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
 
       if (error) throw error;
 
-      Logger.info('Perfil de vehículo guardado exitosamente');
+      Logger.info('VehicleProfile', 'Perfil de vehículo guardado exitosamente');
       
       Alert.alert(
         '¡Perfil Completado!',

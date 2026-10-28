@@ -26,13 +26,13 @@ const PROMPT_INJECTION_PATTERNS: RegExp[] = [
   
   // Sobrescribir sistema
   /\b(you\s+are\s+(now|actually|really))\b/i,
-  /\b(new\s+instruction:|new\s+rule:|system\s+instruction:)\b/i,
+  /\b(new\s+instruction|new\s+rule|system\s+instruction)\s*:/i,
   /\b(important:\s*(remember|note|understand))\b/i,
   
   // Exfiltración de datos/prompt
   /\b(print|output|show|reveal|display)\s+(your\s+)?(prompt|instructions|system\s+message|configuration)\b/i,
   /\b(what\s+(is|are)\s+your\s+(instructions|rules|guidelines|prompt))\b/i,
-  /\b(copy\s+and\s+paste\s+(your\s+)?(prompt|instructions)\b/i,
+  /\b(copy\s+and\s+paste\s+(your\s+)?(prompt|instructions))\b/i,
   
   // Ejecución de código/comandos
   /\b(execute|run|eval|interpret)\s+(this\s+)?(code|command|script|function)\b/i,
@@ -88,7 +88,7 @@ export function analyzePromptForInjection(input: string): PromptAnalysisResult {
   PROMPT_INJECTION_PATTERNS.forEach((pattern, index) => {
     if (pattern.test(normalizedInput)) {
       detectedPatterns.push(`Pattern_${index}: ${pattern.source}`);
-      riskScore += 15;
+      riskScore += 50;
     }
   });
   
@@ -346,7 +346,7 @@ export function validateAIOutput(output: string): OutputValidationResult {
   
   // 2. Detectar URLs sospechosas (phishing/malware)
   const urlPattern = /https?:\/\/[^\s<'"]+/gi;
-  const urls = output.match(urlPattern) || [];
+  const urls: string[] = output.match(urlPattern) || [];
   urls.forEach(url => {
     // Verificar dominios sospechosos
     const suspiciousDomains = ['bit.ly', 'tinyurl', 'pastebin', 'raw.githubusercontent'];
@@ -631,7 +631,7 @@ export async function executeInSandbox<T>(
 // ============================================
 
 export interface SecurityAuditEvent {
-  timestamp: string;
+  timestamp?: string;
   eventType: 'prompt_injection' | 'command_blocked' | 'output_sanitized' | 'anomaly_detected' | 'context_isolation';
   userId?: string;
   details: Record<string, any>;
@@ -709,6 +709,7 @@ export class AISecurityWrapper {
       
       if (analysis.isMalicious && this.config.blockOnHighRisk) {
         logSecurityEvent({
+          timestamp: new Date().toISOString(),
           eventType: 'prompt_injection',
           userId: this.userId,
           details: { detectedPatterns: analysis.detectedPatterns },

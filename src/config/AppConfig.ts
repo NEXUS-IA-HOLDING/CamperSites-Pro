@@ -40,6 +40,7 @@ export const AppConfig = {
       id: 'free',
       name: 'Gratuito',
       price: 0,
+      currency: 'EUR',
       features: [
         'Rutas básicas',
         'Límite de 5 rutas/día',

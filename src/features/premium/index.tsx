@@ -17,6 +17,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MAPBOX_ACCESS_TOKEN } from '@env';
+import { VehicleRoutingService } from '../../services/VehicleRoutingService';
+import { DeliveryStop, TSPOptimizationResult } from '../../types/assistant';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -126,70 +128,188 @@ const REGIONS: Region[] = [
   { id: 'galicia', name: 'Galicia', bounds: { minLat: 41.8, maxLat: 43.8, minLng: -9.3, maxLng: -6.7 } },
 ];
 
-// ─── 1. RUTAS MULTI-DESTINO ──────────────────────────────────────────────────
-
+// ─── 1. RUTAS MULTI-DESTINO Y REPARTO TSP (HASTA 50 PARADAS) ────────────────
 export const MultiDestinationRoute = () => {
-  const [waypoints, setWaypoints] = useState<Location[]>([]);
-  const [optimizedRoute, setOptimizedRoute] = useState<{ distance: number; duration: number } | null>(null);
+  const [stops, setStops] = useState<DeliveryStop[]>([
+    { id: '1', address: 'Almacén Central (Origen)', latitude: 40.4168, longitude: -3.7038, estimatedUnloadMinutes: 0 },
+    { id: '2', address: 'Calle Alcalá, 142 (Cliente A)', latitude: 40.4243, longitude: -3.6766, estimatedUnloadMinutes: 4 },
+    { id: '3', address: 'Paseo de la Castellana, 89 (Cliente B)', latitude: 40.4439, longitude: -3.6923, estimatedUnloadMinutes: 5 },
+    { id: '4', address: 'Gran Vía, 32 (Cliente C)', latitude: 40.4203, longitude: -3.7047, estimatedUnloadMinutes: 3 },
+  ]);
+  const [newStopAddress, setNewStopAddress] = useState('');
+  const [isExpressMode, setIsExpressMode] = useState(false);
+  const [tspResult, setTspResult] = useState<TSPOptimizationResult | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const addWaypoint = (location: Location) => {
-    setWaypoints(prev => [...prev, location]);
-  };
-
-  const removeWaypoint = (idx: number) => {
-    setWaypoints(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const optimizeRoute = async () => {
-    if (waypoints.length < 2) return;
-    setLoading(true);
-    try {
-      const coordinates = waypoints.map(w => `${w.longitude},${w.latitude}`).join(';');
-      const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coordinates}?roundtrip=false&source=first&destination=last&access_token=${MAPBOX_ACCESS_TOKEN}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.trips && data.trips.length > 0) {
-        setOptimizedRoute(data.trips[0]);
-      } else {
-        Alert.alert('Sin resultados', 'No se pudo calcular la ruta optimizada.');
-      }
-    } catch (e) {
-      console.error('optimizeRoute error:', e);
-      Alert.alert('Error', 'No se pudo conectar con el servicio de rutas.');
-    } finally {
-      setLoading(false);
+  const addStop = () => {
+    if (!newStopAddress.trim()) return;
+    if (stops.length >= 50) {
+      Alert.alert('Límite alcanzado', 'El asistente TSP soporta un máximo de 50 paradas por ruta.');
+      return;
     }
+    const origin = stops[0];
+    // Offset sintético leve para simular geocodificación si no se dispone de conexión
+    const latOffset = (Math.random() - 0.5) * 0.08;
+    const lngOffset = (Math.random() - 0.5) * 0.08;
+    const newStop: DeliveryStop = {
+      id: `stop-${Date.now()}-${stops.length}`,
+      address: newStopAddress.trim(),
+      latitude: origin.latitude + latOffset,
+      longitude: origin.longitude + lngOffset,
+      estimatedUnloadMinutes: isExpressMode ? 2 : 4,
+    };
+    setStops(prev => [...prev, newStop]);
+    setNewStopAddress('');
+    setTspResult(null);
+  };
+
+  const removeStop = (id: string) => {
+    if (stops.length <= 1) {
+      Alert.alert('Aviso', 'Debes mantener al menos el punto de origen.');
+      return;
+    }
+    setStops(prev => prev.filter(s => s.id !== id));
+    setTspResult(null);
+  };
+
+  const addBulkDemoStops = (count: number) => {
+    const origin = stops[0];
+    const newBatch: DeliveryStop[] = [];
+    const currentCount = stops.length;
+    for (let i = 1; i <= count && currentCount + i <= 50; i++) {
+      const latOffset = (Math.random() - 0.5) * 0.12;
+      const lngOffset = (Math.random() - 0.5) * 0.12;
+      newBatch.push({
+        id: `batch-${Date.now()}-${i}`,
+        address: `Entrega #${currentCount + i} (Paquete Express)`,
+        latitude: origin.latitude + latOffset,
+        longitude: origin.longitude + lngOffset,
+        estimatedUnloadMinutes: isExpressMode ? 2 : 4,
+      });
+    }
+    setStops(prev => [...prev, ...newBatch]);
+    setTspResult(null);
+  };
+
+  const optimizeRoute = () => {
+    if (stops.length < 2) return;
+    setLoading(true);
+    const origin = { latitude: stops[0].latitude, longitude: stops[0].longitude };
+    const deliveryWaypoints = stops.slice(1);
+
+    const speed = isExpressMode ? 42 : 36;
+    const result = VehicleRoutingService.optimizeDeliveryStops(origin, deliveryWaypoints, speed);
+    setTspResult(result);
+    setLoading(false);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Ruta Multi-Destino</Text>
-      {waypoints.map((wp, idx) => (
-        <View key={idx} style={styles.waypoint}>
-          <Text style={styles.waypointText}>{idx + 1}. {wp.name}</Text>
-          <TouchableOpacity onPress={() => removeWaypoint(idx)}>
-            <Icon name="close" size={20} color="#D32F2F" />
-          </TouchableOpacity>
-        </View>
-      ))}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <Text style={styles.title}>Optimización de Ruta TSP ({stops.length}/50)</Text>
+        <TouchableOpacity
+          style={{
+            backgroundColor: isExpressMode ? '#F97316' : '#E2E8F0',
+            paddingVertical: 5,
+            paddingHorizontal: 10,
+            borderRadius: 12,
+          }}
+          onPress={() => setIsExpressMode(!isExpressMode)}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: isExpressMode ? '#FFF' : '#334155' }}>
+            {isExpressMode ? '🚀 Modo Express (2m)' : '⏱️ Modo Estándar (4m)'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-      {waypoints.length >= 2 && (
+      {/* Input para añadir parada */}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+        <TextInput
+          style={{
+            flex: 1,
+            backgroundColor: '#F1F5F9',
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            fontSize: 13,
+            color: '#0F172A',
+          }}
+          placeholder="Añadir dirección o cliente..."
+          placeholderTextColor="#94A3B8"
+          value={newStopAddress}
+          onChangeText={setNewStopAddress}
+        />
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#2E7D32',
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            justifyContent: 'center',
+          }}
+          onPress={addStop}>
+          <Text style={{ color: '#FFF', fontWeight: '700' }}>+ Añadir</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Botón rápido para demo de 20 paradas */}
+      {stops.length < 30 && (
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#F8FAFC',
+            borderWidth: 1,
+            borderColor: '#CBD5E1',
+            borderRadius: 8,
+            paddingVertical: 6,
+            alignItems: 'center',
+            marginBottom: 10,
+          }}
+          onPress={() => addBulkDemoStops(15)}>
+          <Text style={{ fontSize: 11, color: '#0284C7', fontWeight: '600' }}>
+            ⚡ Simular lote de 15 entregas de reparto (hasta 50 paradas)
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Listado de paradas (o ruta optimizada) */}
+      <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
+        {(tspResult ? tspResult.orderedStops : stops.slice(1)).map((s, idx) => (
+          <View key={s.id} style={styles.waypoint}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.waypointText}>
+                {s.sequenceOrder ? `#${s.sequenceOrder} ` : `${idx + 1}. `}
+                {s.address}
+              </Text>
+              {s.estimatedArrival && (
+                <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '600', marginTop: 2 }}>
+                  🕒 Llegada: {s.estimatedArrival} • Descarga: ~{s.estimatedUnloadMinutes} min
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity onPress={() => removeStop(s.id)}>
+              <Icon name="close" size={20} color="#D32F2F" />
+            </TouchableOpacity>
+          </View>
+        ))}
+      </ScrollView>
+
+      {stops.length >= 2 && (
         <TouchableOpacity
           style={[styles.optimizeBtn, loading && styles.btnDisabled]}
           onPress={optimizeRoute}
           disabled={loading}>
           <Text style={styles.optimizeBtnText}>
-            {loading ? 'Calculando...' : 'Optimizar Ruta'}
+            {loading ? 'Optimizando TSP...' : `Optimizar Secuencia (${stops.length - 1} paradas)`}
           </Text>
         </TouchableOpacity>
       )}
 
-      {optimizedRoute && (
+      {tspResult && (
         <View style={styles.routeInfo}>
-          <Text style={styles.routeInfoText}>Distancia: {(optimizedRoute.distance / 1000).toFixed(1)} km</Text>
-          <Text style={styles.routeInfoText}>Tiempo: {Math.round(optimizedRoute.duration / 60)} min</Text>
-          <Text style={styles.routeInfoText}>Paradas: {waypoints.length}</Text>
+          <Text style={styles.routeInfoText}>Distancia de conducción: {tspResult.totalDistanceKm} km</Text>
+          <Text style={styles.routeInfoText}>Tiempo al volante: {tspResult.totalDriveDurationMin} min</Text>
+          <Text style={styles.routeInfoText}>Tiempo en descargas: {tspResult.totalServiceDurationMin} min</Text>
+          <Text style={[styles.routeInfoText, { fontWeight: '800', color: '#16A34A', marginTop: 4 }]}>
+            Jornada total estimada: {Math.floor(tspResult.totalDurationMin / 60)}h {tspResult.totalDurationMin % 60}m
+          </Text>
         </View>
       )}
     </View>

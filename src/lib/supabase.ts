@@ -28,27 +28,59 @@ const CONNECTION_TIMEOUT = 10000; // ms
 let supabaseInstance: SupabaseClient | null = null;
 
 /**
+ * Crea una consulta mock encadenable para modo offline seguro
+ */
+function createChainableMockQuery() {
+  const queryObj: any = {
+    then(resolve: any, reject?: any) {
+      return Promise.resolve({ data: [], error: null }).then(resolve, reject);
+    },
+    catch(reject: any) {
+      return Promise.resolve({ data: [], error: null }).catch(reject);
+    },
+  };
+
+  const methods = [
+    'select', 'insert', 'update', 'delete', 'upsert',
+    'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike',
+    'is', 'in', 'contains', 'order', 'limit', 'range', 'single', 'maybeSingle', 'filter'
+  ];
+
+  methods.forEach(method => {
+    queryObj[method] = () => queryObj;
+  });
+
+  return queryObj;
+}
+
+/**
  * Crea cliente Supabase con configuración optimizada
  */
 function createSupabaseClient(): SupabaseClient {
+  const isInvalidUrl = !SUPABASE_URL ||
+    SUPABASE_URL.includes('demo') ||
+    SUPABASE_URL.includes('tu-proyecto') ||
+    !SUPABASE_URL.startsWith('https://');
+
+  const isInvalidKey = !SUPABASE_ANON_KEY ||
+    SUPABASE_ANON_KEY.includes('tu-anon-key') ||
+    SUPABASE_ANON_KEY === 'anon-key-aqui';
+
   // Validación graceful - permite modo offline si faltan credenciales
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('demo')) {
-    Logger.warn('Supabase', 'Modo offline activado - Sin conexión a Supabase');
-    // Cliente mock para modo offline
+  if (isInvalidUrl || isInvalidKey) {
+    Logger.warn('Supabase', 'Modo offline activado - Credenciales Supabase no configuradas o plantilla por defecto');
+    // Cliente mock completo y encadenable para modo offline
     return {
       auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
         getSession: async () => ({ data: { session: null }, error: null }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
         signInWithPassword: async () => ({ data: { user: null, session: null }, error: null }),
         signUp: async () => ({ data: { user: null, session: null }, error: null }),
         signOut: async () => ({ error: null }),
       },
-      from: () => ({
-        select: async () => ({ data: [], error: null }),
-        insert: async () => ({ data: null, error: null }),
-        update: async () => ({ data: null, error: null }),
-        delete: async () => ({ data: null, error: null }),
-      }),
+      from: () => createChainableMockQuery(),
+      rpc: async () => ({ data: { ok: true }, error: null }),
     } as unknown as SupabaseClient;
   }
 

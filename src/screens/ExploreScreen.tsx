@@ -19,6 +19,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { supabase } from '../lib/supabase';
 import { CamperSitesTheme as theme } from '../theme';
+import { LocationReviewsModal } from '../components/LocationReviewsModal';
 
 interface Location {
   id: string;
@@ -102,6 +103,7 @@ export default function ExploreScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showCategoryGrid, setShowCategoryGrid] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedLocationForReviews, setSelectedLocationForReviews] = useState<Location | null>(null);
 
   // Ref para evitar race conditions en búsqueda
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -213,7 +215,10 @@ export default function ExploreScreen() {
   const renderLocationCard = useCallback(({ item }: { item: Location }) => {
     const config = getCategoryConfig(item.category);
     return (
-      <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.75}
+        onPress={() => setSelectedLocationForReviews(item)}>
         {/* Barra de color superior */}
         <View style={[styles.cardColorBar, { backgroundColor: config.color }]} />
 
@@ -252,25 +257,32 @@ export default function ExploreScreen() {
             </View>
           ) : null}
 
-          <View style={styles.amenities}>
-            {item.has_water && (
-              <View style={styles.amenityBadge}>
-                <Text style={styles.amenityEmoji}>💧</Text>
-                <Text style={styles.amenityText}>Agua</Text>
-              </View>
-            )}
-            {item.has_electricity && (
-              <View style={[styles.amenityBadge, styles.amenityElectric]}>
-                <Text style={styles.amenityEmoji}>⚡</Text>
-                <Text style={styles.amenityText}>Luz</Text>
-              </View>
-            )}
-            {item.description && item.description.toLowerCase().includes('wifi') && (
-              <View style={[styles.amenityBadge, styles.amenityWifi]}>
-                <Text style={styles.amenityEmoji}>📶</Text>
-                <Text style={styles.amenityText}>WiFi</Text>
-              </View>
-            )}
+          <View style={[styles.amenities, { justifyContent: 'space-between', alignItems: 'center' }]}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {item.has_water && (
+                <View style={styles.amenityBadge}>
+                  <Text style={styles.amenityEmoji}>💧</Text>
+                  <Text style={styles.amenityText}>Agua</Text>
+                </View>
+              )}
+              {item.has_electricity && (
+                <View style={[styles.amenityBadge, styles.amenityElectric]}>
+                  <Text style={styles.amenityEmoji}>⚡</Text>
+                  <Text style={styles.amenityText}>Luz</Text>
+                </View>
+              )}
+              {item.description && item.description.toLowerCase().includes('wifi') && (
+                <View style={[styles.amenityBadge, styles.amenityWifi]}>
+                  <Text style={styles.amenityEmoji}>📶</Text>
+                  <Text style={styles.amenityText}>WiFi</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+              <Icon name="star" size={14} color="#F59E0B" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>Opiniones</Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -435,6 +447,14 @@ export default function ExploreScreen() {
           }
         />
       )}
+
+      {/* Modal de Reseñas de la Comunidad (Pilar 4) */}
+      <LocationReviewsModal
+        visible={!!selectedLocationForReviews}
+        locationId={selectedLocationForReviews?.id || ''}
+        locationName={selectedLocationForReviews?.name || ''}
+        onClose={() => setSelectedLocationForReviews(null)}
+      />
     </View>
   );
 }
