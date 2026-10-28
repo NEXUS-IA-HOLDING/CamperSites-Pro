@@ -25,9 +25,10 @@ jest.mock('../src/lib/supabase', () => ({
 
 import { VehicleRoutingService, TACHO_MAX_CONTINUOUS_MINUTES, TACHO_WARNING_MINUTES } from '../src/services/VehicleRoutingService';
 import { ReviewService } from '../src/services/ReviewService';
-import { ClearanceHazard, DeliveryStop, LocationReview } from '../src/types/assistant';
+import { ClearanceHazard, DeliveryStop, LocationReview, VEHICLE_CURSORS } from '../src/types/assistant';
 import { CamperSitesTheme } from '../src/theme';
 import { ALERT_CONFIG, AlertType } from '../src/lib/communityAlerts';
+import { AudioAlertService } from '../src/services/AudioAlertService';
 
 describe('Smart Assistant Features for Special Vehicles (Camper, Truck, Delivery)', () => {
 
@@ -290,6 +291,49 @@ describe('Smart Assistant Features for Special Vehicles (Camper, Truck, Delivery
       expect(ALERT_CONFIG.OBJETO_CALZADA.defaultSeverity).toBe('ALTA');
       expect(ALERT_CONFIG.NIEBLA.defaultSeverity).toBe('ALTA');
       expect(ALERT_CONFIG.ATASCO.defaultSeverity).toBe('ALTA');
+    });
+  });
+
+  // ============================================
+  // 8. AVISOS SONOROS Y PERSONALIZACIÓN DE VEHÍCULO
+  // ============================================
+  describe('Audio Alerts & Vehicle Cursor Customization', () => {
+    it('should configure all vehicle map cursor types with valid metadata', () => {
+      const expectedCursors = [
+        'arrow',
+        'camper_arca',
+        'camper_van',
+        'truck_hgv',
+        'delivery_van',
+        'overland_4x4',
+        'car_sport',
+      ];
+
+      for (const cursorKey of expectedCursors) {
+        const cursor = VEHICLE_CURSORS[cursorKey as keyof typeof VEHICLE_CURSORS];
+        expect(cursor).toBeDefined();
+        expect(cursor.label).toBeDefined();
+        expect(cursor.icon).toBeDefined();
+        expect(cursor.color).toBeDefined();
+        expect(cursor.haloColor).toBeDefined();
+      }
+    });
+
+    it('should manage audio alert cooldowns and modes correctly', () => {
+      AudioAlertService.setAudioMode('multimedia');
+      expect(AudioAlertService.getAudioMode()).toBe('multimedia');
+
+      // Primer aviso debe pasar
+      const shouldPlayFirst = AudioAlertService.shouldPlayAlert('test_radar_1', 10000);
+      expect(shouldPlayFirst).toBe(true);
+
+      // Inmediatamente después debe estar en cooldown
+      const shouldPlayImmediate = AudioAlertService.shouldPlayAlert('test_radar_1', 10000);
+      expect(shouldPlayImmediate).toBe(false);
+
+      // Modo silencioso
+      AudioAlertService.setAudioMode('silent_visual');
+      expect(AudioAlertService.getAudioMode()).toBe('silent_visual');
     });
   });
 });

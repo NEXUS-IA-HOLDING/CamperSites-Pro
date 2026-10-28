@@ -26,12 +26,16 @@ import { LocationReviewsModal } from '../components/LocationReviewsModal';
 import { RouteModeSelector } from '../components/RouteModeSelector';
 import { SpeedGaugesHUD } from '../components/SpeedGaugesHUD';
 import { MapControlDock } from '../components/MapControlDock';
+import { VehicleMapCursor } from '../components/VehicleMapCursor';
+import { VehicleCursorSelectorModal } from '../components/VehicleCursorSelectorModal';
+import { AudioAlertService } from '../services/AudioAlertService';
 import {
   AudioAlertMode,
   ClearanceHazard,
   DrivingPreferences,
   MapStyleType,
   TachographStatus,
+  VehicleCursorType,
   VehicleProfileMode,
 } from '../types/assistant';
 import { VehicleRoutingService } from '../services/VehicleRoutingService';
@@ -187,6 +191,7 @@ const MapScreen = () => {
     latitude: number;
     longitude: number;
     speed: number;
+    heading?: number;
   } | null>(null);
 
   const [locations, setLocations] = useState<Location[]>([]);
@@ -219,6 +224,8 @@ const MapScreen = () => {
   const [reviewsLocation, setReviewsLocation] = useState<Location | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [currentSpeedLimit, setCurrentSpeedLimit] = useState(90);
+  const [selectedCursor, setSelectedCursor] = useState<VehicleCursorType>('camper_arca');
+  const [showCursorModal, setShowCursorModal] = useState(false);
 
   const cameraRef = useRef<any>(null);
   const watchId = useRef<number | null>(null);
@@ -258,7 +265,13 @@ const MapScreen = () => {
       try {
         const savedPrefs = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
         if (savedPrefs) {
-          setDrivingPrefs({ ...DEFAULT_DRIVING_PREFS, ...JSON.parse(savedPrefs) });
+          const parsedPrefs = { ...DEFAULT_DRIVING_PREFS, ...JSON.parse(savedPrefs) };
+          setDrivingPrefs(parsedPrefs);
+          AudioAlertService.setAudioMode(parsedPrefs.audioMode);
+        }
+        const savedCursor = await AsyncStorage.getItem('@camper_cursor_type');
+        if (savedCursor) {
+          setSelectedCursor(savedCursor as VehicleCursorType);
         }
         const savedVehicle = await AsyncStorage.getItem(VEHICLE_STORAGE_KEY);
         if (savedVehicle) {
@@ -354,8 +367,19 @@ const MapScreen = () => {
 
     watchId.current = Geolocation.watchPosition(
       (position) => {
-        const { latitude, longitude, speed } = position.coords;
-        setCurrentLocation({ latitude, longitude, speed: speed || 0 });
+        const { latitude, longitude, speed, heading } = position.coords;
+        const currentSpeedKmH = (speed || 0) * 3.6;
+        setCurrentLocation({
+          latitude,
+          longitude,
+          speed: speed || 0,
+          heading: heading || 0,
+        });
+
+        // 1. Alerta sonora inmediata de exceso de velocidad
+        if (currentSpeedKmH > currentSpeedLimit) {
+          AudioAlertService.playSpeedExceededAlert(currentSpeedKmH, currentSpeedLimit);
+        }
 
         if (Math.random() < 0.033) {
           saveLastKnownLocation(latitude, longitude);
@@ -444,6 +468,7 @@ const MapScreen = () => {
       );
       if (clearanceConflicts.length > 0) {
         setActiveClearanceHazard(clearanceConflicts[0]);
+        AudioAlertService.playClearanceDangerAlert(clearanceConflicts[0].hazard.maxAllowedHeight, vehicleHeight);
       } else {
         setActiveClearanceHazard(null);
       }
@@ -453,16 +478,21 @@ const MapScreen = () => {
     if (profileMode === 'truck' && navStartTime > 0) {
       const status = VehicleRoutingService.calculateTachographStatus(navStartTime);
       setTachographStatus(status);
+      if (status.isWarningActive) {
+        AudioAlertService.playTachographRestAlert(status.maxContinuousMinutes - status.drivingMinutes);
+      }
     }
   };
 
   const sendRadarAlert = (radar: Radar, distance: number, speed: number, stage: string) => {
     Logger.info('MapScreen', `RADAR ALERT: ${stage} - ${radar.speedLimit}km/h`);
+    AudioAlertService.playRadarApproachingAlert(radar.id, radar.speedLimit, distance);
   };
 
   const sendControlAlert = (radar: Radar, distance: number, stage: string) => {
     const distanceKm = (distance / 1000).toFixed(1);
     Logger.info('MapScreen', `CONTROL ALERT: ${stage} - ${distanceKm}km`);
+    AudioAlertService.playIncidentAlert(radar.id, 'Control policial', distance);
 
     Alert.alert(
       stage === '5km' ? '🚔 Control a 5km' : '🚨 Control a 1km',
@@ -813,14 +843,20 @@ const MapScreen = () => {
           }}
         />
 
-        {/* Usuario - marcador */}
+        {/* Usuario - marcador con vehículo personalizado y orientación 360° */}
         {currentLocation && (
           <MapLibreGL.PointAnnotation
             id="user-location"
             coordinate={[currentLocation.longitude, currentLocation.latitude]}>
-            <View style={styles.userMarker}>
-              <Icon name="navigation" size={24} color="#1976D2" />
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowCursorModal(true)}>
+              <VehicleMapCursor
+                cursorType={selectedCursor}
+                heading={currentLocation.heading || 0}
+                isMoving={(currentLocation.speed || 0) > 1}
+              />
+            </TouchableOpacity>
           </MapLibreGL.PointAnnotation>
         )}
 
@@ -1109,6 +1145,17 @@ const MapScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de personalización de icono de vehículo en el mapa */}
+      <VehicleCursorSelectorModal
+        visible={showCursorModal}
+        selectedCursor={selectedCursor}
+        onSelectCursor={(cursor) => {
+          setSelectedCursor(cursor);
+          AsyncStorage.setItem('@camper_cursor_type', cursor);
+        }}
+        onClose={() => setShowCursorModal(false)}
+      />
     </View>
   );
 };
