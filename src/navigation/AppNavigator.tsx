@@ -20,6 +20,7 @@ import VehicleProfileScreen from '../screens/VehicleProfileScreen';
 import MapScreen from '../screens/MapScreen';
 import ExploreScreen from '../screens/ExploreScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
+import ConfigScreen from '../screens/ConfigScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { CamperSitesTheme as theme } from '../theme';
 
@@ -30,6 +31,7 @@ const TAB_ICONS: Record<string, { focused: string; unfocused: string; label: str
   Mapa: { focused: 'map', unfocused: 'map-outline', label: 'Mapa' },
   Explorar: { focused: 'compass', unfocused: 'compass-outline', label: 'Explorar' },
   Favoritos: { focused: 'heart', unfocused: 'heart-outline', label: 'Favoritos' },
+  Config: { focused: 'cog', unfocused: 'cog-outline', label: 'Config' },
   Perfil: { focused: 'account-circle', unfocused: 'account-circle-outline', label: 'Perfil' },
 };
 
@@ -73,6 +75,10 @@ function MainTabs() {
       <Tab.Screen 
         name="Favoritos" 
         component={FavoritesScreen}
+      />
+      <Tab.Screen 
+        name="Config" 
+        component={ConfigScreen}
       />
       <Tab.Screen 
         name="Perfil" 
@@ -214,14 +220,14 @@ const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 24 : 16,
-    left: 20,
-    right: 20,
+    left: 12,
+    right: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.94)',
     borderRadius: 26,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.9)',
     borderTopWidth: 1.5,
-    height: Platform.OS === 'ios' ? 68 : 64,
+    height: Platform.OS === 'ios' ? 70 : 66,
     paddingTop: 8,
     paddingBottom: Platform.OS === 'ios' ? 12 : 8,
     shadowColor: '#0F172A',
@@ -231,10 +237,10 @@ const styles = StyleSheet.create({
     elevation: 16,
   },
   tabBarLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     marginTop: 2,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   tabBarItem: {
     paddingVertical: 2,
