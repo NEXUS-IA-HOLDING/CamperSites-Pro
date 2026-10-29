@@ -284,14 +284,26 @@ export class VehicleRoutingService {
           'GASOLINERA_GLP',
           'LAGO',
           'CASCADA',
+          'RESTAURANTE',
+          'BAR',
+          'BAR_CAFETERIA',
+          'HOTEL',
+          'SUPERMERCADO',
+          'LAVANDERIA',
+          'FARMACIA',
         ];
       case 'truck':
         return [
           'AREA_DESCANSO',
           'AREA_SERVICIOS',
           'RESTAURANTE', // Menú del día y parking camiones
+          'BAR',
+          'BAR_CAFETERIA',
+          'HOTEL',
+          'GASOLINERA_GLP',
           'PARKING_PERMITIDO',
           'LAVADERO_COCHES',
+          'SUPERMERCADO',
         ];
       case 'delivery':
         return [
@@ -299,6 +311,9 @@ export class VehicleRoutingService {
           'AREA_DESCANSO',
           'GASOLINERA_GLP',
           'SUPERMERCADO',
+          'BAR',
+          'BAR_CAFETERIA',
+          'RESTAURANTE',
         ];
       default:
         return [];

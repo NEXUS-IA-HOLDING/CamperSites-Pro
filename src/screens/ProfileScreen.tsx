@@ -14,6 +14,7 @@ import {
   Alert,
   TextInput,
   Modal,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,6 +34,7 @@ import {
   TripPlanner,
   MultiDestinationRoute,
 } from '../features/premium';
+import { VEHICLE_CURSORS, VehicleCursorType } from '../types/assistant';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
@@ -186,11 +188,22 @@ export default function ProfileScreen() {
     environmentalBadge: 'C', name: '',
   });
 
+  // Cursor del Vehículo en Ruta (Pilar 3)
+  const [selectedCursor, setSelectedCursor] = useState<VehicleCursorType>('camper_arca');
+
   useEffect(() => {
     checkAuth();
     loadVehicleConfig();
     loadDrivingPreferences();
+    loadVehicleCursor();
   }, []);
+
+  const loadVehicleCursor = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('@camper_cursor_type');
+      if (saved) setSelectedCursor(saved as VehicleCursorType);
+    } catch (e) {}
+  };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -301,9 +314,19 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header con Logo Oficial de la App */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Perfil</Text>
+        <View style={styles.headerRow}>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={styles.headerLogo}
+            resizeMode="cover"
+          />
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>CamperSites Pro</Text>
+            <Text style={styles.headerSubtitle}>Asistente Inteligente de Ruta</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -419,6 +442,53 @@ export default function ProfileScreen() {
           <Text style={styles.vehicleHint}>
             Las rutas se adaptarán a las dimensiones de tu vehículo
           </Text>
+        </View>
+
+        {/* ============================================ */}
+        {/* ICONO DEL VEHÍCULO EN EL MAPA (Pilar 3) */}
+        {/* ============================================ */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🎯 Icono del Vehículo en Ruta</Text>
+          <Text style={styles.vehicleHint}>
+            Personaliza el vehículo que marca tu posición en el mapa y rota 360° en tiempo real
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.cursorScrollContent}
+            style={styles.cursorScrollView}>
+            {(Object.keys(VEHICLE_CURSORS) as VehicleCursorType[]).map((cKey) => {
+              const cur = VEHICLE_CURSORS[cKey];
+              const isSelected = selectedCursor === cKey;
+              return (
+                <TouchableOpacity
+                  key={cKey}
+                  activeOpacity={0.8}
+                  onPress={async () => {
+                    setSelectedCursor(cKey);
+                    await AsyncStorage.setItem('@camper_cursor_type', cKey);
+                  }}
+                  style={[
+                    styles.cursorChoiceCard,
+                    isSelected && styles.cursorChoiceCardActive,
+                  ]}>
+                  <View style={[styles.cursorBadgeIcon, isSelected && { backgroundColor: cur.color + '22' }]}>
+                    <Text style={{ fontSize: 26 }}>{cur.badge}</Text>
+                  </View>
+                  <Text
+                    style={[styles.cursorChoiceLabel, isSelected && { color: cur.color, fontWeight: '800' }]}
+                    numberOfLines={1}>
+                    {cur.label}
+                  </Text>
+                  {isSelected && (
+                    <View style={styles.cursorSelectedBadge}>
+                      <Icon name="check-circle" size={16} color={cur.color} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Premium */}
@@ -973,7 +1043,76 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
-  headerTitle: { fontSize: 30, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    marginRight: 14,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  cursorScrollView: {
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  cursorScrollContent: {
+    paddingRight: 10,
+    gap: 10,
+  },
+  cursorChoiceCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    width: 108,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  cursorChoiceCardActive: {
+    borderColor: '#10B981',
+    backgroundColor: '#F0FDF4',
+  },
+  cursorBadgeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  cursorChoiceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+    textAlign: 'center',
+  },
+  cursorSelectedBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+  },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
 

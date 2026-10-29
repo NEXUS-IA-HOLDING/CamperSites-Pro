@@ -178,6 +178,9 @@ const getMarkerConfig = (category: string): { icon: string; color: string } => {
     case 'LAVANDERIA': config = { icon: 'tshirt-crew', color: '#9C27B0' }; break;
     case 'SUPERMERCADO': config = { icon: 'cart', color: '#4CAF50' }; break;
     case 'RESTAURANTE': config = { icon: 'silverware-fork-knife', color: '#FF9800' }; break;
+    case 'BAR':
+    case 'BAR_CAFETERIA': config = { icon: 'glass-cocktail', color: '#D97706' }; break;
+    case 'HOTEL': config = { icon: 'bed', color: '#6366F1' }; break;
     case 'FARMACIA': config = { icon: 'medical-bag', color: '#F44336' }; break;
     default: config = { icon: 'map-marker', color: '#2E7D32' };
   }
@@ -227,10 +230,12 @@ const MapScreen = () => {
   const [selectedCursor, setSelectedCursor] = useState<VehicleCursorType>('camper_arca');
   const [showCursorModal, setShowCursorModal] = useState(false);
 
+  const mapRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
   const watchId = useRef<number | null>(null);
   const checkIntervalId = useRef<any>(null);
   const lastFetchCenter = useRef<{lat: number; lng: number} | null>(null);
+  const lastBoundsFetch = useRef<string>('');
 
   const saveLastKnownLocation = useCallback(async (lat: number, lng: number) => {
     try {
@@ -561,6 +566,41 @@ const MapScreen = () => {
     }
   };
 
+  const fetchLocationsInBounds = async (
+    minLat: number,
+    maxLat: number,
+    minLng: number,
+    maxLng: number,
+  ) => {
+    try {
+      const boundsKey = `${minLat.toFixed(2)}_${maxLat.toFixed(2)}_${minLng.toFixed(2)}_${maxLng.toFixed(2)}`;
+      if (lastBoundsFetch.current === boundsKey) return;
+      lastBoundsFetch.current = boundsKey;
+
+      const { data, error } = await supabase
+        .from('locations')
+        .select('id, name, latitude, longitude, category, description, address')
+        .gte('latitude', minLat)
+        .lte('latitude', maxLat)
+        .gte('longitude', minLng)
+        .lte('longitude', maxLng)
+        .limit(600);
+
+      if (error) {
+        Logger.error('MapScreen', 'Error fetching locations in bounds', error);
+        return;
+      }
+      if (data && data.length > 0) {
+        setLocations(data);
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLng = (minLng + maxLng) / 2;
+        lastFetchCenter.current = { lat: centerLat, lng: centerLng };
+      }
+    } catch (error) {
+      Logger.error('MapScreen', 'Error fetching locations in bounds', error);
+    }
+  };
+
   useEffect(() => {
     if (!currentLocation || !lastFetchCenter.current) return;
     const dist = haversine(
@@ -758,16 +798,44 @@ const MapScreen = () => {
     setRadarToVerify(null);
   };
 
-  // Manejar movimiento del mapa para recargar locations
+  // Manejar movimiento del mapa para recargar locations según el encuadre (viewport)
   const handleRegionDidChange = useCallback(async (feature: any) => {
-    if (!isNavigating && lastFetchCenter.current) {
+    if (isNavigating) return;
+
+    try {
+      let bounds = feature?.properties?.visibleBounds;
+      if (!bounds && mapRef.current?.getVisibleBounds) {
+        bounds = await mapRef.current.getVisibleBounds();
+      }
+
+      if (bounds && Array.isArray(bounds) && bounds.length === 2) {
+        const lng1 = bounds[0][0];
+        const lat1 = bounds[0][1];
+        const lng2 = bounds[1][0];
+        const lat2 = bounds[1][1];
+        const minLat = Math.min(lat1, lat2);
+        const maxLat = Math.max(lat1, lat2);
+        const minLng = Math.min(lng1, lng2);
+        const maxLng = Math.max(lng1, lng2);
+
+        // Limitar consulta si el zoom es razonable (<= 6.0 grados de amplitud)
+        if (maxLat - minLat <= 6.0 && maxLng - minLng <= 7.0) {
+          fetchLocationsInBounds(minLat, maxLat, minLng, maxLng);
+          return;
+        }
+      }
+    } catch (e) {
+      // Ignorar y usar fallback por distancia
+    }
+
+    if (lastFetchCenter.current) {
       const center = feature?.geometry?.coordinates;
       if (center) {
         const dist = haversine(
           { latitude: center[1], longitude: center[0] },
           { latitude: lastFetchCenter.current.lat, longitude: lastFetchCenter.current.lng },
         );
-        if (dist > 30000) {
+        if (dist > 15000) {
           fetchLocations(center[1], center[0]);
         }
       }
@@ -829,6 +897,7 @@ const MapScreen = () => {
       )}
 
       <MapLibreGL.MapView
+        ref={mapRef}
         style={styles.map}
         mapStyle={MAP_STYLES[currentMapStyle] || MAP_STYLES.satellite}
         logoEnabled={false}
