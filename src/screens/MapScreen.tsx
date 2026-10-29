@@ -28,6 +28,9 @@ import { SpeedGaugesHUD } from '../components/SpeedGaugesHUD';
 import { MapControlDock } from '../components/MapControlDock';
 import { VehicleMapCursor } from '../components/VehicleMapCursor';
 import { VehicleCursorSelectorModal } from '../components/VehicleCursorSelectorModal';
+import { CockpitSearchBar, QUICK_FILTERS, QuickFilter } from '../components/CockpitSearchBar';
+import { CockpitLocationDetailSheet } from '../components/CockpitLocationDetailSheet';
+import { CockpitTurnByTurnHUD } from '../components/CockpitTurnByTurnHUD';
 import { AudioAlertService } from '../services/AudioAlertService';
 import {
   AudioAlertMode,
@@ -52,11 +55,29 @@ const MAP_STYLES: Record<MapStyleType, any> = {
         type: 'raster' as const,
         tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
-        attribution: '© Esri',
+        attribution: '© Esri Satellite',
+        maxzoom: 19,
+      },
+      roads: {
+        type: 'raster' as const,
+        tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: '© Esri Roads',
+        maxzoom: 19,
+      },
+      labels: {
+        type: 'raster' as const,
+        tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: '© Esri Labels',
         maxzoom: 19,
       },
     },
-    layers: [{ id: 'satellite-layer', type: 'raster' as const, source: 'satellite', minzoom: 0, maxzoom: 19 }],
+    layers: [
+      { id: 'satellite-layer', type: 'raster' as const, source: 'satellite', minzoom: 0, maxzoom: 19 },
+      { id: 'roads-layer', type: 'raster' as const, source: 'roads', minzoom: 0, maxzoom: 19 },
+      { id: 'labels-layer', type: 'raster' as const, source: 'labels', minzoom: 0, maxzoom: 19 },
+    ],
   }),
   dark: Object.freeze({
     version: 8 as const,
@@ -127,13 +148,13 @@ const KNOWN_CLEARANCE_HAZARDS: ClearanceHazard[] = [
 const GPS_UPDATE_INTERVAL = 1000;
 const CHECK_INTERVAL = 2000;
 
-interface Location {
+export interface Location {
   id: string;
   name: string;
   latitude: number;
   longitude: number;
   category: string;
-  description: string;
+  description?: string;
   address?: string;
 }
 
@@ -229,6 +250,7 @@ const MapScreen = () => {
   const [currentSpeedLimit, setCurrentSpeedLimit] = useState(90);
   const [selectedCursor, setSelectedCursor] = useState<VehicleCursorType>('camper_arca');
   const [showCursorModal, setShowCursorModal] = useState(false);
+  const [activeFilterId, setActiveFilterId] = useState<string>('all');
 
   const mapRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
@@ -868,12 +890,18 @@ const MapScreen = () => {
     })),
   } : null;
 
-  // Filtrar ubicaciones según el perfil de vehículo activo
+  // Filtrar ubicaciones según el filtro rápido activo o el perfil de vehículo
   const filteredLocations = useMemo(() => {
+    if (activeFilterId !== 'all') {
+      const qFilter = QUICK_FILTERS.find(f => f.id === activeFilterId);
+      if (qFilter && qFilter.categories.length > 0) {
+        return locations.filter(loc => qFilter.categories.includes(loc.category));
+      }
+    }
     const allowed = VehicleRoutingService.getCategoriesForMode(profileMode);
     if (!allowed || allowed.length === 0) return locations;
     return locations.filter(loc => allowed.includes(loc.category));
-  }, [locations, profileMode]);
+  }, [locations, activeFilterId, profileMode]);
 
   if (loading) {
     return (
@@ -886,13 +914,38 @@ const MapScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Selector de modo y estilo de mapa (Pilar 1 & 3) */}
+      {/* Barra de Búsqueda de Cabina y Chips de Filtro Rápido (Glassmorphism Oscuro) */}
       {!isNavigating && (
-        <RouteModeSelector
-          currentMode={profileMode}
-          currentMapStyle={currentMapStyle}
-          onSelectMode={setProfileMode}
-          onSelectMapStyle={setCurrentMapStyle}
+        <CockpitSearchBar
+          currentCoords={currentLocation ? { latitude: currentLocation.latitude, longitude: currentLocation.longitude } : null}
+          activeFilterId={activeFilterId}
+          onSelectFilter={(filter) => setActiveFilterId(filter.id)}
+          onSelectSearchResult={(result) => {
+            setSelectedLocation(result as Location);
+            cameraRef.current?.setCamera({
+              centerCoordinate: [result.longitude, result.latitude],
+              zoomLevel: 15,
+              animationDuration: 1000,
+            });
+          }}
+        />
+      )}
+
+      {/* Navegación Activa Turn-by-Turn en Cabina (Waze / Tesla Style) */}
+      {isNavigating && selectedRoute && (
+        <CockpitTurnByTurnHUD
+          instruction={selectedRoute.incidents.length > 0 ? selectedRoute.incidents[0] : 'Siga la ruta segura hacia destino'}
+          distanceToTurnMeters={Math.min(500, Math.round(selectedRoute.distance * 0.08))}
+          maneuverType="straight"
+          speedLimitKmH={currentSpeedLimit}
+          remainingDistanceKm={selectedRoute.distance / 1000}
+          remainingMinutes={Math.round(selectedRoute.duration / 60)}
+          etaString={new Date(Date.now() + selectedRoute.duration * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          activeHazard={activeClearanceHazard ? {
+            maxAllowedHeight: activeClearanceHazard.hazard.maxAllowedHeight,
+            distanceMeters: activeClearanceHazard.distanceMeters,
+          } : null}
+          onStopNavigation={stopNavigation}
         />
       )}
 
@@ -1112,46 +1165,36 @@ const MapScreen = () => {
         />
       )}
 
-      {/* Tarjeta Glassmorphic de Ubicación Seleccionada con Acceso a Reseñas */}
+      {/* Ficha Deslizable de Cabina de Ubicación Seleccionada */}
       {selectedLocation && !isNavigating && (
-        <View style={styles.locationQuickCard}>
-          <View style={styles.locationQuickHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.quickCardTitle} numberOfLines={1}>{selectedLocation.name}</Text>
-              <Text style={styles.quickCardCategory}>
-                {selectedLocation.category.replace(/_/g, ' ')} {selectedLocation.address ? `• ${selectedLocation.address}` : ''}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => setSelectedLocation(null)} style={styles.quickCardClose}>
-              <Icon name="close" size={20} color="#94A3B8" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.quickCardActions}>
-            <TouchableOpacity
-              style={styles.quickRouteBtn}
-              onPress={() => {
-                if (currentLocation) {
-                  calculateRoutes(
-                    currentLocation.latitude, currentLocation.longitude,
-                    selectedLocation.latitude, selectedLocation.longitude
-                  );
-                }
-              }}>
-              <Icon name="navigation" size={18} color="#FFFFFF" />
-              <Text style={styles.quickRouteBtnText}>Ruta Inteligente</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickReviewsBtn}
-              onPress={() => {
-                setReviewsLocation(selectedLocation);
-                setReviewsModalVisible(true);
-              }}>
-              <Icon name="star-outline" size={18} color="#0F172A" />
-              <Text style={styles.quickReviewsBtnText}>Reseñas</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <CockpitLocationDetailSheet
+          location={selectedLocation}
+          distanceKm={
+            currentLocation
+              ? Math.round(
+                  (haversine(
+                    { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
+                    { latitude: selectedLocation.latitude, longitude: selectedLocation.longitude }
+                  ) / 1000) * 10
+                ) / 10
+              : undefined
+          }
+          onClose={() => setSelectedLocation(null)}
+          onStartRoute={(loc) => {
+            if (currentLocation) {
+              calculateRoutes(
+                currentLocation.latitude,
+                currentLocation.longitude,
+                loc.latitude,
+                loc.longitude
+              );
+            }
+          }}
+          onOpenReviews={(loc) => {
+            setReviewsLocation(loc);
+            setReviewsModalVisible(true);
+          }}
+        />
       )}
 
       {/* Modal de Reseñas de la Comunidad (Pilar 4) */}
