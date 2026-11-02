@@ -18,6 +18,7 @@
     "upload": "node scripts/setup-database.js",
     "check-migration": "node scripts/check-migration.js",
     "typecheck": "tsc --noEmit",
+    "build:playstore": "bash scripts/build-playstore-bundle.sh",
     "build:bundle": "cd android && ./gradlew bundleRelease",
     "build:apk-debug": "cd android && ./gradlew assembleDebug",
     "build:android": "cd android && ./gradlew assembleRelease",

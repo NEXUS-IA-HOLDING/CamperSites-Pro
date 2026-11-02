@@ -48,6 +48,8 @@ junit.xml
 *.aab
 *.bundle
 *.tar.gz
+*.keystore
+!android/app/debug.keystore
 *.zip
 android/app/src/main/assets/index.android.bundle*
 .agents/
