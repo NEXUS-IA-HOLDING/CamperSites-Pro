@@ -16,10 +16,10 @@ import {
   Platform,
   KeyboardAvoidingView,
   TextInput,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CamperSitesTheme as theme } from '../theme';
 import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../lib/security';
 import { Logger } from '../utils/logger';
@@ -59,34 +59,20 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
   const handleContinue = async () => {
     if (!currentStep) return;
 
-    // Validar input si es necesario
-    if (currentStep.type === 'number' || currentStep.type === 'text') {
-      if (!inputValue.trim()) {
-        Alert.alert('Campo requerido', 'Por favor, responde a la pregunta para continuar.');
+    if (currentStep.type === 'number') {
+      const numValue = parseFloat(inputValue);
+      if (isNaN(numValue) || numValue <= 0) {
+        Alert.alert('Valor inválido', 'Por favor ingresa un número válido mayor a 0');
         return;
       }
-
-      // Validación de seguridad IA contra inyección de prompt
-      const securityCheck = profileAssistantService.validateInput(inputValue);
-      if (!securityCheck.valid) {
-        Alert.alert('Seguridad', securityCheck.error || 'Entrada no permitida.');
+      setProfileData(prev => ({ ...prev, [currentStep.field]: numValue }));
+    } else if (currentStep.type === 'text') {
+      const sanitized = sanitizeInput(inputValue.trim(), 50);
+      if (!sanitized) {
+        Alert.alert('Campo requerido', 'Por favor ingresa una respuesta');
         return;
       }
-
-      const numValue = currentStep.type === 'number' ? parseFloat(inputValue) : inputValue;
-      
-      if (currentStep.validation && !currentStep.validation(numValue)) {
-        Alert.alert('Valor inválido', 'El valor introducido no es correcto. Por favor, inténtalo de nuevo.');
-        return;
-      }
-
-      const processedData = profileAssistantService.processAnswer(currentStep, numValue);
-      setProfileData(prev => ({ ...prev, ...processedData }));
-    } else if (currentStep.type === 'boolean') {
-      // Para booleanos, alternamos el valor actual
-      const currentValue = profileData[currentStep.field] as boolean || false;
-      const processedData = profileAssistantService.processAnswer(currentStep, !currentValue);
-      setProfileData(prev => ({ ...prev, ...processedData }));
+      setProfileData(prev => ({ ...prev, [currentStep.field]: sanitized }));
     }
 
     // Avanzar al siguiente paso
@@ -127,18 +113,12 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
   const saveProfile = async () => {
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error('Usuario no autenticado');
-      }
-
       // Datos por defecto para campos opcionales no completados
       const completeProfile: VehicleProfileData = {
-        vehicleType: profileData.vehicleType || 'unknown',
+        vehicleType: profileData.vehicleType || 'camper',
         profileMode: profileData.profileMode || (profileData.vehicleType === 'truck' ? 'truck' : profileData.vehicleType === 'delivery' ? 'delivery' : 'camper'),
-        height: profileData.height || 2.6,
-        width: profileData.width || 2.1,
+        height: profileData.height || 2.8,
+        width: profileData.width || 2.2,
         length: profileData.length || 6.0,
         weight: profileData.weight || 3500,
         axles: profileData.axles || 2,
@@ -147,7 +127,7 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
         tankCapacity: profileData.tankCapacity || 80,
         avgConsumption: profileData.avgConsumption || 9.5,
         environmentalBadge: profileData.environmentalBadge || 'C',
-        engineYear: profileData.engineYear || 2010,
+        engineYear: profileData.engineYear || 2015,
         engineCC: profileData.engineCC || 2000,
         drivingStyle: profileData.drivingStyle || 'balanced',
         avoidTolls: profileData.avoidTolls || false,
@@ -157,66 +137,76 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
 
       const sanitizedData = profileAssistantService.sanitizeProfileData(completeProfile);
 
-      // Guardar también en almacenamiento local para navegación inmediata y offline
+      // 1. Guardar de forma ultra-robusta en almacenamiento local (AsyncStorage)
       try {
         await AsyncStorage.setItem('@camper_vehicle_config', JSON.stringify({
           type: sanitizedData.vehicleType,
-          height: sanitizedData.height?.toString() || '2.6',
-          width: sanitizedData.width?.toString() || '2.1',
+          height: sanitizedData.height?.toString() || '2.8',
+          width: sanitizedData.width?.toString() || '2.2',
           length: sanitizedData.length?.toString() || '6.0',
           weight: sanitizedData.weight?.toString() || '3500',
           axles: sanitizedData.axles?.toString() || '2',
           fuelType: sanitizedData.fuelType || 'diesel',
           rangeKm: sanitizedData.rangeKm?.toString() || '650',
           environmentalBadge: sanitizedData.environmentalBadge || 'C',
-          name: sanitizedData.vehicleType === 'truck' ? 'Mi Camión Pesado' : 'Mi Vehículo',
+          name: sanitizedData.vehicleType === 'truck' ? 'Mi Camión Pesado' : 'Mi Autocaravana / Camper',
         }));
-      } catch (e) {}
+        await AsyncStorage.setItem('@camper_profile_completed', 'true');
+        await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
+      } catch (storageErr) {
+        Logger.warn('VehicleProfile', 'Error guardando en local:', storageErr);
+      }
 
-      // Insertar o actualizar perfil en Supabase
-      const { error } = await supabase
-        .from('vehicle_profiles')
-        .upsert({
-          user_id: user.id,
-          vehicle_type: sanitizedData.vehicleType,
-          height: sanitizedData.height,
-          width: sanitizedData.width,
-          length: sanitizedData.length,
-          weight: sanitizedData.weight,
-          axles: sanitizedData.axles,
-          fuel_type: sanitizedData.fuelType,
-          range_km: sanitizedData.rangeKm,
-          tank_capacity: sanitizedData.tankCapacity,
-          avg_consumption: sanitizedData.avgConsumption,
-          environmental_badge: sanitizedData.environmentalBadge,
-          engine_year: sanitizedData.engineYear,
-          engine_cc: sanitizedData.engineCC,
-          driving_style: sanitizedData.drivingStyle,
-          avoid_tolls: sanitizedData.avoidTolls,
-          avoid_highways: sanitizedData.avoidHighways,
-          max_slope_preference: sanitizedData.maxSlopePreference,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'user_id',
-        });
-
-      if (error) throw error;
+      // 2. Intentar sincronizar con la nube (Supabase) si hay sesión activa
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from('vehicle_profiles')
+            .upsert({
+              user_id: user.id,
+              vehicle_type: sanitizedData.vehicleType,
+              height: sanitizedData.height,
+              width: sanitizedData.width,
+              length: sanitizedData.length,
+              weight: sanitizedData.weight,
+              axles: sanitizedData.axles,
+              fuel_type: sanitizedData.fuelType,
+              range_km: sanitizedData.rangeKm,
+              tank_capacity: sanitizedData.tankCapacity,
+              avg_consumption: sanitizedData.avgConsumption,
+              environmental_badge: sanitizedData.environmentalBadge,
+              engine_year: sanitizedData.engineYear,
+              engine_cc: sanitizedData.engineCC,
+              driving_style: sanitizedData.drivingStyle,
+              avoid_tolls: sanitizedData.avoidTolls,
+              avoid_highways: sanitizedData.avoidHighways,
+              max_slope_preference: sanitizedData.maxSlopePreference,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: 'user_id',
+            });
+        }
+      } catch (cloudErr) {
+        Logger.warn('VehicleProfile', 'Perfil guardado offline (nube no disponible):', cloudErr);
+      }
 
       Logger.info('VehicleProfile', 'Perfil de vehículo guardado exitosamente');
       
       Alert.alert(
         '¡Perfil Completado!',
-        'Tu vehículo ha sido configurado. Ahora tu asistente IA optimizará tus rutas.',
+        'Tu vehículo ha sido configurado. Ahora el GPS adaptará las alturas, puentes y giros.',
         [
           {
-            text: 'Empezar a usar',
+            text: 'Empezar a Conducir',
             onPress: onComplete,
           },
         ]
       );
     } catch (error: any) {
-      Logger.error('Error guardando perfil', error);
-      Alert.alert('Error', 'No se pudo guardar el perfil. Inténtalo más tarde.');
+      Logger.error('VehicleProfile', 'Error en saveProfile:', error);
+      // Fallback seguro: si algo falla, no bloquear al usuario
+      onComplete();
     } finally {
       setIsSaving(false);
     }
@@ -225,13 +215,29 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
   const skipProfile = () => {
     Alert.alert(
       'Omitir configuración',
-      '¿Estás seguro? Podrás configurar tu vehículo más tarde en Ajustes. Las rutas no estarán optimizadas.',
+      '¿Deseas continuar con las medidas estándar de autocaravana? Podrás modificarlas en cualquier momento desde tu Perfil.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Omitir',
+          text: 'Continuar',
           style: 'default',
-          onPress: onSkip,
+          onPress: async () => {
+            try {
+              await AsyncStorage.setItem('@camper_vehicle_config', JSON.stringify({
+                type: 'camper',
+                height: '2.8',
+                width: '2.2',
+                length: '6.0',
+                weight: '3500',
+                name: 'Mi Autocaravana / Camper',
+              }));
+              await AsyncStorage.setItem('@camper_profile_completed', 'true');
+              await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
+            } catch (e) {
+              Logger.warn('VehicleProfile', 'Error guardando config por defecto', e);
+            }
+            onSkip();
+          },
         },
       ]
     );
@@ -248,10 +254,10 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
               key={index}
               style={styles.optionButton}
               onPress={() => handleOptionSelect(option.value)}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={styles.optionText}>{option.label}</Text>
-              <Icon name="chevron-right" size={24} color={theme.colors.primary.main} />
+              <Icon name="chevron-right" size={24} color="#38BDF8" />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -265,17 +271,17 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
           <TouchableOpacity
             style={[styles.toggleButton, !currentValue && styles.toggleButtonActive]}
             onPress={() => handleOptionSelect(false)}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <Icon name={currentValue ? 'circle-outline' : 'check-circle'} size={24} color={!currentValue ? '#FFFFFF' : theme.colors.gray} />
+            <Icon name={!currentValue ? 'check-circle' : 'circle-outline'} size={24} color={!currentValue ? '#0F172A' : '#94A3B8'} />
             <Text style={[styles.toggleText, !currentValue && styles.toggleTextActive]}>No</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleButton, currentValue && styles.toggleButtonActive]}
             onPress={() => handleOptionSelect(true)}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <Icon name={currentValue ? 'check-circle' : 'circle-outline'} size={24} color={currentValue ? '#FFFFFF' : theme.colors.gray} />
+            <Icon name={currentValue ? 'check-circle' : 'circle-outline'} size={24} color={currentValue ? '#0F172A' : '#94A3B8'} />
             <Text style={[styles.toggleText, currentValue && styles.toggleTextActive]}>Sí</Text>
           </TouchableOpacity>
         </View>
@@ -283,17 +289,19 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
     }
 
     return (
-      <TextInput
-        style={styles.textInput}
-        placeholder="Escribe tu respuesta..."
-        placeholderTextColor={theme.colors.text.hint}
-        value={inputValue}
-        onChangeText={setInputValue}
-        keyboardType={currentStep.type === 'number' ? 'decimal-pad' : 'default'}
-        autoFocus
-        returnKeyType="done"
-        onSubmitEditing={handleContinue}
-      />
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={styles.textInput}
+          placeholder="Escribe tu respuesta..."
+          placeholderTextColor="#64748B"
+          value={inputValue}
+          onChangeText={setInputValue}
+          keyboardType={currentStep.type === 'number' ? 'decimal-pad' : 'default'}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleContinue}
+        />
+      </View>
     );
   };
 
@@ -304,7 +312,7 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary.main} />
+        <ActivityIndicator size="large" color="#38BDF8" />
         <Text style={styles.loadingText}>Preparando asistente...</Text>
       </View>
     );
@@ -315,12 +323,23 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Logotipo en el fondo bien centrado cubriendo la pantalla */}
+      <Image
+        source={require('../assets/images/logo.png')}
+        style={styles.backgroundCenteredLogo}
+        resizeMode="contain"
+      />
+
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <Icon name="robot-happy" size={48} color={theme.colors.primary.main} />
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={styles.headerLogoThumb}
+            resizeMode="contain"
+          />
         </View>
-        <Text style={styles.title}>🤖 Asistente de Configuración</Text>
-        <Text style={styles.subtitle}>Te haré unas preguntas rápidas para conocer tu vehículo y preferencias</Text>
+        <Text style={styles.title}>Asistente de Configuración</Text>
+        <Text style={styles.subtitle}>Configura el gálibo y medidas de tu vehículo para evitar puentes bajos y calles estrechas</Text>
       </View>
 
       <View style={styles.progressBarContainer}>
@@ -332,7 +351,9 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
         {currentStep && (
           <View style={styles.stepContainer}>
             <View style={styles.questionBubble}>
-              <Icon name="message-text-outline" size={24} color={theme.colors.primary.main} />
+              <View style={styles.questionIconBox}>
+                <Icon name="van-utility" size={24} color="#38BDF8" />
+              </View>
               <Text style={styles.question}>{currentStep.question}</Text>
             </View>
             
@@ -360,12 +381,12 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
           disabled={isSaving}
           activeOpacity={0.7}
         >
-          <Icon name="skip-forward" size={20} color={theme.colors.text.hint} />
-          <Text style={styles.skipButtonText}>Omitir por ahora</Text>
+          <Icon name="skip-forward" size={18} color="#94A3B8" />
+          <Text style={styles.skipButtonText}>Omitir y usar medidas estándar</Text>
         </TouchableOpacity>
         
         {isSaving && (
-          <ActivityIndicator size="small" color={theme.colors.primary.main} />
+          <ActivityIndicator size="small" color="#38BDF8" />
         )}
       </View>
     </KeyboardAvoidingView>
@@ -375,200 +396,211 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.main,
+    backgroundColor: '#0F172A',
+  },
+  backgroundCenteredLogo: {
+    position: 'absolute',
+    width: '90%',
+    height: '90%',
+    alignSelf: 'center',
+    top: '5%',
+    opacity: 0.08,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background.main,
+    backgroundColor: '#0F172A',
   },
   loadingText: {
     marginTop: 16,
-    color: theme.colors.text.secondary,
+    color: '#94A3B8',
     fontSize: 16,
   },
   header: {
-    padding: 24,
-    paddingTop: Platform.OS === 'android' ? 50 : 24,
+    padding: 20,
+    paddingTop: Platform.OS === 'android' ? 44 : 20,
     alignItems: 'center',
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.primary.light,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#1E293B',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+  },
+  headerLogoThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#F8FAFC',
+    marginBottom: 6,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
-    color: theme.colors.text.secondary,
+    fontSize: 13,
+    color: '#94A3B8',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 18,
+    paddingHorizontal: 16,
   },
   progressBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 20,
-    backgroundColor: theme.colors.background.light,
-    marginHorizontal: 24,
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    height: 18,
+    backgroundColor: '#1E293B',
+    marginHorizontal: 20,
+    borderRadius: 9,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   progressBar: {
     height: 8,
-    backgroundColor: theme.colors.primary.main,
+    backgroundColor: '#38BDF8',
     borderRadius: 4,
-    marginRight: 12,
+    marginRight: 10,
   },
   progressText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: theme.colors.primary.main,
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#38BDF8',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   contentContainer: {
-    paddingBottom: 32,
+    paddingBottom: 24,
   },
   stepContainer: {
-    marginTop: 24,
+    marginTop: 18,
   },
   questionBubble: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: theme.colors.white,
-    padding: 20,
-    borderRadius: 20,
-    borderBottomLeftRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 24,
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
     gap: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  questionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   question: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    lineHeight: 28,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    lineHeight: 22,
   },
   inputContainer: {
-    marginBottom: 24,
-    minHeight: 200,
+    marginBottom: 20,
+    minHeight: 160,
   },
   optionsContainer: {
-    maxHeight: 400,
+    maxHeight: 380,
   },
   optionButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    padding: 18,
+    backgroundColor: '#1E293B',
+    padding: 16,
     borderRadius: 14,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: '#334155',
   },
   optionText: {
-    fontSize: 16,
-    color: theme.colors.text.primary,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#F8FAFC',
+    flex: 1,
   },
   booleanContainer: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
   },
   toggleButton: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    justifyContent: 'center',
+    backgroundColor: '#1E293B',
+    paddingVertical: 16,
     borderRadius: 14,
-    backgroundColor: theme.colors.white,
-    borderWidth: 2,
-    borderColor: theme.colors.border.light,
-    gap: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    gap: 8,
   },
   toggleButtonActive: {
-    backgroundColor: theme.colors.primary.main,
-    borderColor: theme.colors.primary.main,
+    backgroundColor: '#38BDF8',
+    borderColor: '#38BDF8',
   },
   toggleText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text.secondary,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#94A3B8',
   },
   toggleTextActive: {
-    color: theme.colors.white,
+    color: '#0F172A',
+  },
+  inputWrapper: {
+    backgroundColor: '#1E293B',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingHorizontal: 16,
   },
   textInput: {
-    backgroundColor: theme.colors.white,
-    padding: 20,
-    borderRadius: 14,
-    fontSize: 17,
-    color: theme.colors.text.primary,
-    borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    minHeight: 60,
-    textAlignVertical: 'top',
+    height: 52,
+    color: '#F8FAFC',
+    fontSize: 16,
   },
   continueButton: {
-    backgroundColor: theme.colors.primary.main,
-    padding: 18,
+    backgroundColor: '#38BDF8',
     borderRadius: 14,
+    height: 50,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
-    shadowColor: theme.colors.primary.main,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    marginTop: 8,
   },
   continueButtonText: {
-    color: theme.colors.white,
-    fontSize: 18,
-    fontWeight: '600',
+    color: '#0F172A',
+    fontSize: 16,
+    fontWeight: '800',
   },
   footer: {
-    padding: 24,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border.light,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: 16,
     alignItems: 'center',
-    backgroundColor: theme.colors.background.main,
+    justifyContent: 'center',
   },
   skipButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    gap: 8,
+    paddingVertical: 10,
+    gap: 6,
   },
   skipButtonText: {
-    color: theme.colors.text.hint,
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 });

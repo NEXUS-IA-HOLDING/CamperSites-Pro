@@ -17,9 +17,21 @@ import {
   Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import MapLibreGL from '@maplibre/maplibre-react-native';
+import Geolocation from 'react-native-geolocation-service';
 import { supabase } from '../lib/supabase';
 import { CamperSitesTheme as theme } from '../theme';
 import { LocationReviewsModal } from '../components/LocationReviewsModal';
+import {
+  AdvancedSpotFilterModal,
+  SpotFilterCriteria,
+  DEFAULT_FILTER_CRITERIA,
+} from '../components/AdvancedSpotFilterModal';
+import { offlineSpotVault } from '../services/OfflineSpotVaultService';
+import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
+import { CamperAdBanner } from '../components/CamperAdBanner';
 
 interface Location {
   id: string;
@@ -36,6 +48,28 @@ interface Location {
   price: number | null;
   description: string;
 }
+
+MapLibreGL.setAccessToken(null);
+
+const EXPLORE_MAP_STYLE = {
+  version: 8,
+  sources: {
+    satellite: {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+    },
+    roads: {
+      type: 'raster',
+      tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+    },
+  },
+  layers: [
+    { id: 'satellite-layer', type: 'raster', source: 'satellite' },
+    { id: 'roads-layer', type: 'raster', source: 'roads' },
+  ],
+};
 
 // ============================================
 // CATEGORÍAS CON EMOJIS NATIVOS (alta calidad)
@@ -96,14 +130,40 @@ const getCategoryConfig = (category: string) => {
 };
 
 export default function ExploreScreen() {
+  const navigation = useNavigation();
   const [locations, setLocations] = useState<Location[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const handleJumpToMap = async (item: Location) => {
+    try {
+      await AsyncStorage.setItem('@campersites_jump_to_location', JSON.stringify(item));
+      navigation.navigate('Mapa' as never);
+    } catch {}
+  };
   const [showCategoryGrid, setShowCategoryGrid] = useState(false);
+  const [showTravelPlanner, setShowTravelPlanner] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedLocationForReviews, setSelectedLocationForReviews] = useState<Location | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterCriteria, setFilterCriteria] = useState<SpotFilterCriteria>(DEFAULT_FILTER_CRITERIA);
+  const [userCoords, setUserCoords] = useState<[number, number]>([-4.0890, 40.6720]); // Guadarrama A-6 fallback
+  const [showServicesMap, setShowServicesMap] = useState<boolean>(true);
+
+  // Obtener geolocalización real del usuario
+  useEffect(() => {
+    Geolocation.getCurrentPosition(
+      pos => {
+        if (isMountedRef.current) {
+          setUserCoords([pos.coords.longitude, pos.coords.latitude]);
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+    );
+  }, []);
 
   // Ref para evitar race conditions en búsqueda
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,8 +187,8 @@ export default function ExploreScreen() {
       }
 
       if (query.trim().length > 0) {
-        // Sanitizar: eliminar caracteres especiales de iLIKE y limitar longitud
-        const search = query.trim().replace(/[%_\\'"]/g, '').substring(0, 100);
+        // Sanitizar: eliminar caracteres especiales de iLIKE y PostgREST
+        const search = query.trim().replace(/[%_\\'(),"\\]/g, '').substring(0, 100);
         if (search.length > 0) {
           q = q.or(`name.ilike.%${search}%,city.ilike.%${search}%,province.ilike.%${search}%`);
         }
@@ -138,15 +198,25 @@ export default function ExploreScreen() {
 
       if (!isMountedRef.current) return;
 
-      if (error) {
-        console.error('Error fetching locations:', error);
-        return;
+      if (error || !data || data.length === 0) {
+        // Fallback transparente a bóveda de puntos offline
+        const offlineResults = offlineSpotVault.searchSpots(query);
+        if (offlineResults.length > 0) {
+          setLocations(offlineResults as any);
+          setTotalCount(offlineResults.length);
+          return;
+        }
       }
 
       setLocations(data || []);
       setTotalCount(count || data?.length || 0);
     } catch (err) {
       console.error('Error:', err);
+      const offlineResults = offlineSpotVault.searchSpots(query);
+      if (offlineResults.length > 0) {
+        setLocations(offlineResults as any);
+        setTotalCount(offlineResults.length);
+      }
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -185,6 +255,34 @@ export default function ExploreScreen() {
     setSearchQuery('');
     Keyboard.dismiss();
   };
+
+  const hasActiveAdvancedCriteria = useMemo(() => {
+    return (
+      filterCriteria.categories.length > 0 ||
+      filterCriteria.requireWater ||
+      filterCriteria.requireElectricity ||
+      filterCriteria.requireWasteDump ||
+      filterCriteria.onlyFree ||
+      filterCriteria.onlyLargeVehicles
+    );
+  }, [filterCriteria]);
+
+  const displayedLocations = useMemo(() => {
+    let list = locations;
+    if (filterCriteria.categories.length > 0) {
+      list = list.filter(l => filterCriteria.categories.includes(l.category));
+    }
+    if (filterCriteria.requireWater) {
+      list = list.filter(l => l.has_water === true);
+    }
+    if (filterCriteria.requireElectricity) {
+      list = list.filter(l => l.has_electricity === true);
+    }
+    if (filterCriteria.onlyFree) {
+      list = list.filter(l => l.price === 0 || l.price === null);
+    }
+    return list;
+  }, [locations, filterCriteria]);
 
   const renderCategoryChip = (item: typeof ALL_CATEGORIES[0]) => {
     const isActive = selectedCategory === item.key;
@@ -279,9 +377,38 @@ export default function ExploreScreen() {
               )}
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-              <Icon name="star" size={14} color="#F59E0B" />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>Opiniones</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity
+                onPress={() => handleJumpToMap(item)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: '#E0F2FE',
+                  paddingHorizontal: 8,
+                  paddingVertical: 5,
+                  borderRadius: 8,
+                }}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                <Icon name="map-marker-path" size={14} color="#0284C7" />
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0284C7' }}>Mapa</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setSelectedLocationForReviews(item)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: '#FFFBEB',
+                  paddingHorizontal: 8,
+                  paddingVertical: 5,
+                  borderRadius: 8,
+                }}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                <Icon name="star" size={14} color="#F59E0B" />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>Opiniones</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -372,10 +499,19 @@ export default function ExploreScreen() {
           )}
         </View>
         <TouchableOpacity
+          style={[styles.filterButton, hasActiveAdvancedCriteria && styles.filterButtonActive]}
+          onPress={() => setShowAdvancedFilters(true)}>
+          <Icon
+            name="tune-variant"
+            size={20}
+            color={hasActiveAdvancedCriteria ? '#FFF' : theme.colors.primary.main}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.filterButton, showCategoryGrid && styles.filterButtonActive]}
           onPress={() => setShowCategoryGrid(!showCategoryGrid)}>
           <Icon
-            name={showCategoryGrid ? 'close' : 'tune-variant'}
+            name={showCategoryGrid ? 'close' : 'grid-large'}
             size={20}
             color={showCategoryGrid ? '#FFF' : (selectedCategory !== 'ALL' ? theme.colors.primary.main : '#666')}
           />
@@ -400,11 +536,110 @@ export default function ExploreScreen() {
         </ScrollView>
       )}
 
+      {/* Banner Destacado: Travel Planner Camper */}
+      {!showCategoryGrid && (
+        <TouchableOpacity
+          style={styles.travelPlannerBanner}
+          onPress={() => setShowTravelPlanner(true)}
+          activeOpacity={0.88}>
+          <View style={styles.travelPlannerBannerLeft}>
+            <View style={styles.travelPlannerIconBox}>
+              <Icon name="map-clock-outline" size={24} color="#38BDF8" />
+            </View>
+            <View style={styles.travelPlannerTextBox}>
+              <View style={styles.travelPlannerBadgeRow}>
+                <Text style={styles.travelPlannerBadge}>TRAVEL PLANNER</Text>
+                <View style={styles.proTag}>
+                  <Text style={styles.proTagText}>PRO</Text>
+                </View>
+              </View>
+              <Text style={styles.travelPlannerTitle}>Diseña tu Itinerario por Etapas</Text>
+              <Text style={styles.travelPlannerSub}>
+                Rutas con pernocta segura, vaciado y GLP
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={22} color="#38BDF8" />
+        </TouchableOpacity>
+      )}
+
+      {/* Sponsor / Google Ads Banner for Free Users */}
+      {!showCategoryGrid && <CamperAdBanner placement="feed" />}
+
       {/* Grid de categorías expandido */}
       {showCategoryGrid && (
         <ScrollView style={styles.categoryGridScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
           {renderCategoryGrid()}
         </ScrollView>
+      )}
+
+      {/* Barra de cabecera del mapa de servicios de proximidad */}
+      {!showCategoryGrid && (
+        <View style={styles.servicesMapHeader}>
+          <View style={styles.servicesMapHeaderLeft}>
+            <Text style={styles.servicesMapHeaderTitle}>Radar de Servicios Cercanos</Text>
+            <Text style={styles.servicesMapHeaderSub}>Servicios activos alrededor de tu posición</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.mapToggleBtn, showServicesMap && styles.mapToggleBtnActive]}
+            onPress={() => setShowServicesMap(prev => !prev)}
+            activeOpacity={0.8}>
+            <Icon name={showServicesMap ? 'map-minus' : 'map-search'} size={15} color="#FFF" />
+            <Text style={styles.mapToggleBtnText}>
+              {showServicesMap ? 'Ocultar' : 'Ver Mapa'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Mapa Satelital de Servicios Cercanos a la Posición del Usuario */}
+      {!showCategoryGrid && showServicesMap && (
+        <View style={styles.servicesMapContainer}>
+          <MapLibreGL.MapView
+            style={styles.servicesMap}
+            mapStyle={EXPLORE_MAP_STYLE}
+            logoEnabled={false}
+            attributionEnabled={false}
+          >
+            <MapLibreGL.Camera
+              defaultSettings={{
+                centerCoordinate: userCoords,
+                zoomLevel: 12.5,
+              }}
+            />
+
+            {/* Baliza GPS del Usuario */}
+            <MapLibreGL.PointAnnotation id="explore-user-beacon" coordinate={userCoords}>
+              <View style={styles.userBeacon}>
+                <View style={styles.userBeaconCore} />
+              </View>
+            </MapLibreGL.PointAnnotation>
+
+            {/* Marcadores de Servicios Georreferenciados */}
+            {displayedLocations.slice(0, 25).map(loc => {
+              if (!loc.latitude || !loc.longitude) return null;
+              const config = getCategoryConfig(loc.category);
+              return (
+                <MapLibreGL.PointAnnotation
+                  key={loc.id}
+                  id={`marker-${loc.id}`}
+                  coordinate={[loc.longitude, loc.latitude]}
+                  onSelected={() => setSelectedLocationForReviews(loc)}
+                >
+                  <View style={[styles.servicePin, { borderColor: config.color }]}>
+                    <Text style={styles.servicePinEmoji}>{config.emoji}</Text>
+                  </View>
+                  <MapLibreGL.Callout title={loc.name}>
+                    <View style={styles.serviceCallout}>
+                      <Text style={styles.calloutTitle}>{loc.name}</Text>
+                      <Text style={styles.calloutSub}>{config.label} · Toca para ver</Text>
+                    </View>
+                  </MapLibreGL.Callout>
+                </MapLibreGL.PointAnnotation>
+              );
+            })}
+          </MapLibreGL.MapView>
+        </View>
       )}
 
       {/* Lista de locations */}
@@ -415,7 +650,7 @@ export default function ExploreScreen() {
         </View>
       ) : (
         <FlatList
-          data={locations}
+          data={displayedLocations}
           keyExtractor={item => item.id}
           renderItem={renderLocationCard}
           contentContainerStyle={styles.listContent}
@@ -448,12 +683,26 @@ export default function ExploreScreen() {
         />
       )}
 
+      {/* Modal de Filtros Avanzados (Park4Night) */}
+      <AdvancedSpotFilterModal
+        visible={showAdvancedFilters}
+        initialCriteria={filterCriteria}
+        onApply={(crit) => setFilterCriteria(crit)}
+        onClose={() => setShowAdvancedFilters(false)}
+      />
+
       {/* Modal de Reseñas de la Comunidad (Pilar 4) */}
       <LocationReviewsModal
         visible={!!selectedLocationForReviews}
         locationId={selectedLocationForReviews?.id || ''}
         locationName={selectedLocationForReviews?.name || ''}
         onClose={() => setSelectedLocationForReviews(null)}
+      />
+
+      {/* Modal de Travel Planner Camper */}
+      <CamperTravelPlannerModal
+        visible={showTravelPlanner}
+        onClose={() => setShowTravelPlanner(false)}
       />
     </View>
   );
@@ -818,5 +1067,187 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  // Servicios Cercanos Radar Map
+  servicesMapHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+  servicesMapHeaderLeft: {
+    flex: 1,
+  },
+  servicesMapHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.3,
+  },
+  servicesMapHeaderSub: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 1,
+  },
+  mapToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mapToggleBtnActive: {
+    backgroundColor: '#0369A1',
+  },
+  mapToggleBtnText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  servicesMapContainer: {
+    height: 190,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  servicesMap: {
+    flex: 1,
+  },
+  userBeacon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(56, 189, 248, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userBeaconCore: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0284C7',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  servicePin: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#0F172A',
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  servicePinEmoji: {
+    fontSize: 13,
+  },
+  serviceCallout: {
+    backgroundColor: 'rgba(15, 23, 42, 0.96)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+  },
+  calloutTitle: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  calloutSub: {
+    color: '#38BDF8',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  travelPlannerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F172A',
+    marginHorizontal: 16,
+    marginVertical: 10,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  travelPlannerBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  travelPlannerIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  travelPlannerTextBox: {
+    flex: 1,
+  },
+  travelPlannerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  travelPlannerBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#38BDF8',
+    letterSpacing: 0.8,
+  },
+  proTag: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  proTagText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  travelPlannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F8FAFC',
+  },
+  travelPlannerSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
   },
 });

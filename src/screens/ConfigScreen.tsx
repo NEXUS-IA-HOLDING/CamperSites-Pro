@@ -27,8 +27,14 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CamperSitesTheme as theme } from '../theme';
 import { VEHICLE_CURSORS, VehicleCursorType, AudioAlertMode } from '../types/assistant';
-import { AudioAlertService } from '../services/AudioAlertService';
-import { OfflineManager } from '../features/premium';
+import {
+  AudioAlertService,
+  VoicePreferences,
+  VoiceNotificationLevel,
+  DEFAULT_VOICE_PREFERENCES,
+} from '../services/AudioAlertService';
+import { CockpitNightModeService, CockpitThemeMode } from '../services/CockpitNightModeService';
+import { OfflineVaultManager } from '../components/OfflineVaultManager';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 const PREFERENCES_STORAGE_KEY = '@camper_driving_preferences';
@@ -57,7 +63,7 @@ const VEHICLE_TYPES = [
   { key: 'caravana', label: 'Coche + Caravana', emoji: '🏠', maxHeight: 2.8, maxWidth: 2.3, maxLength: 10.0 },
   { key: 'camion_rigido', label: 'Camión Rígido / Pesado', emoji: '🚚', maxHeight: 3.8, maxWidth: 2.5, maxLength: 10.0 },
   { key: 'camion_trailer', label: 'Tráiler / Articulado', emoji: '🚛', maxHeight: 4.0, maxWidth: 2.55, maxLength: 16.5 },
-  { key: 'furgon_reparto', label: 'Reparto Última Milla', emoji: '📦', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
+  { key: 'furgon_reparto', label: 'Courier / Furgón Profesional', emoji: '🚐💨', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
   { key: 'custom', label: 'Personalizado', emoji: '📐', maxHeight: 0, maxWidth: 0, maxLength: 0 },
 ];
 
@@ -86,6 +92,15 @@ export default function ConfigScreen() {
   const [audioAlertMode, setAudioAlertMode] = useState<AudioAlertMode>('multimedia');
   const [tachographEnabled, setTachographEnabled] = useState<boolean>(true);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [cockpitThemeMode, setCockpitThemeMode] = useState<CockpitThemeMode>(CockpitNightModeService.getMode());
+  const [voicePrefs, setVoicePrefs] = useState<VoicePreferences>(AudioAlertService.getVoicePreferences());
+
+  const handleUpdateVoicePref = (key: keyof VoicePreferences, val: any) => {
+    const updated = { ...voicePrefs, [key]: val };
+    setVoicePrefs(updated);
+    AudioAlertService.setVoicePreferences({ [key]: val });
+    AsyncStorage.setItem('@camper_voice_preferences', JSON.stringify(updated)).catch(() => {});
+  };
 
   useEffect(() => {
     loadVehicleConfig();
@@ -338,6 +353,159 @@ export default function ConfigScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {/* Botón de Test de Voz de Cabina */}
+              <TouchableOpacity
+                style={styles.testVoiceBtn}
+                activeOpacity={0.8}
+                onPress={() => {
+                  AudioAlertService.speak(
+                    'Sistema de voz Cockpit CamperSites Pro verificado. Radar fijo a quinientos metros, límite noventa. Conducción asistida activa.'
+                  );
+                }}>
+                <Icon name="account-voice" size={18} color="#0284C7" />
+                <Text style={styles.testVoiceBtnText}>🔊 Probar Locución Cockpit por Altavoz</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* SELECCIÓN DE MODO DE LOCUCIÓN DE VOZ */}
+            <View style={{ paddingVertical: 8 }}>
+              <Text style={styles.subHeading}>Modo de Locución de Voz:</Text>
+              <Text style={styles.settingSubtitle}>
+                Elige qué tipo de notificaciones quieres que se pronuncien en voz alta
+              </Text>
+              <View style={[styles.btnRow, { marginTop: 6, flexWrap: 'wrap' }]}>
+                {[
+                  { key: 'safety_only', label: '🛡️ Solo Alertas (Recom.)', desc: 'Radares, gálibo y velocidad' },
+                  { key: 'radars_only', label: '🚨 Solo Radares DGT', desc: 'Radares y velocidad' },
+                  { key: 'all', label: '🧭 Completo', desc: 'Alertas y maniobras' },
+                  { key: 'mute', label: '🔇 Silencio', desc: 'Solo HUD visual' },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      styles.choiceBtn,
+                      { minWidth: '48%', marginBottom: 6 },
+                      voicePrefs.level === opt.key && styles.choiceBtnActive,
+                    ]}
+                    onPress={() => handleUpdateVoicePref('level', opt.key)}>
+                    <Text style={[styles.choiceBtnText, voicePrefs.level === opt.key && styles.choiceBtnTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* INTERRUPTORES GRANULARES DE VOZ */}
+            <View style={{ paddingVertical: 8 }}>
+              <Text style={styles.subHeading}>Personalización de Avisos de Voz:</Text>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Avisos de Radares DGT</Text>
+                  <Text style={styles.settingSubtitle}>Radares fijos, de tramo, túneles y semáforos</Text>
+                </View>
+                <Switch
+                  value={voicePrefs.announceRadars}
+                  onValueChange={v => handleUpdateVoicePref('announceRadars', v)}
+                  trackColor={{ false: '#334155', true: '#0284C7' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Alerta de Exceso de Velocidad</Text>
+                  <Text style={styles.settingSubtitle}>Aviso al rebasar el límite oficial R-301</Text>
+                </View>
+                <Switch
+                  value={voicePrefs.announceSpeedLimit}
+                  onValueChange={v => handleUpdateVoicePref('announceSpeedLimit', v)}
+                  trackColor={{ false: '#334155', true: '#0284C7' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Alerta Crítica de Gálibo</Text>
+                  <Text style={styles.settingSubtitle}>Aviso ante pasos inferiores y puentes bajos</Text>
+                </View>
+                <Switch
+                  value={voicePrefs.announceClearanceDanger}
+                  onValueChange={v => handleUpdateVoicePref('announceClearanceDanger', v)}
+                  trackColor={{ false: '#334155', true: '#DC2626' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Instrucciones de Maniobras (Giro a Giro)</Text>
+                  <Text style={styles.settingSubtitle}>Salidas de autovía, bifurcaciones y rotondas</Text>
+                </View>
+                <Switch
+                  value={voicePrefs.announceTurnByTurn}
+                  onValueChange={v => handleUpdateVoicePref('announceTurnByTurn', v)}
+                  trackColor={{ false: '#334155', true: '#0284C7' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Locución al pulsar botones (Feedback)</Text>
+                  <Text style={styles.settingSubtitle}>Desactivado para no hablar en cada toque de pantalla</Text>
+                </View>
+                <Switch
+                  value={voicePrefs.announceUiFeedback}
+                  onValueChange={v => handleUpdateVoicePref('announceUiFeedback', v)}
+                  trackColor={{ false: '#334155', true: '#0284C7' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* Selector de Modo Noche / Visión Nocturna de Cabina */}
+            <View style={{ paddingVertical: 8 }}>
+              <Text style={styles.subHeading}>Visión de Pantalla en Cabina:</Text>
+              <Text style={styles.settingSubtitle}>
+                {cockpitThemeMode === 'auto'
+                  ? '☀️/🌙 Automático: Conmuta al anochecer, amanecer o dentro de túneles'
+                  : cockpitThemeMode === 'night'
+                  ? '🌙 Modo Noche Forzado: Fondo OLED oscuro anti-deslumbramiento'
+                  : '☀️ Modo Día Forzado: Máximo contraste a plena luz'}
+              </Text>
+              <View style={[styles.btnRow, { marginTop: 8 }]}>
+                {[
+                  { key: 'auto', label: 'Auto (Sol/Túnel)', icon: 'weather-sunset' },
+                  { key: 'day', label: 'Día', icon: 'white-balance-sunny' },
+                  { key: 'night', label: 'Noche OLED', icon: 'weather-night' },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      styles.choiceBtn,
+                      cockpitThemeMode === opt.key && styles.choiceBtnActive,
+                    ]}
+                    onPress={() => {
+                      setCockpitThemeMode(opt.key as CockpitThemeMode);
+                      CockpitNightModeService.setMode(opt.key as CockpitThemeMode);
+                    }}>
+                    <Icon name={opt.icon} size={16} color={cockpitThemeMode === opt.key ? '#FFFFFF' : '#64748B'} />
+                    <Text style={[styles.choiceBtnText, cockpitThemeMode === opt.key && styles.choiceBtnTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             <View style={styles.divider} />
@@ -545,18 +713,19 @@ export default function ConfigScreen() {
         </View>
       </Modal>
 
-      {/* Modal Mapas Offline */}
+      {/* Modal Bóveda de Puntos y Mapas Offline */}
       <Modal visible={showOfflineModal} animationType="slide" onRequestClose={() => setShowOfflineModal(false)}>
         <View style={{ flex: 1, backgroundColor: '#FFFFFF', paddingTop: 48 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#EEE' }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#0F172A' }}>🗺️ Descarga de Mapas Offline</Text>
-            <TouchableOpacity onPress={() => setShowOfflineModal(false)}>
+            <View>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: '#0F172A' }}>🗺️ Bóveda de Puntos Offline</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#0284C7' }}>Rival de Park4Night Pro & Sygic Truck</Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowOfflineModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Icon name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ flex: 1 }}>
-            <OfflineManager />
-          </ScrollView>
+          <OfflineVaultManager />
         </View>
       </Modal>
     </View>
@@ -663,6 +832,7 @@ const styles = StyleSheet.create({
   cursorChoiceLabel: { fontSize: 11, fontWeight: '600', color: '#334155', textAlign: 'center' },
   cursorSelectedBadge: { position: 'absolute', top: 6, right: 6 },
   settingRow: { flexDirection: 'row', alignItems: 'center' },
+  settingTextContainer: { flex: 1, marginRight: 12 },
   iconPod: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   settingTitle: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
   settingSubtitle: { fontSize: 11, color: '#64748B', marginTop: 1 },
@@ -685,6 +855,24 @@ const styles = StyleSheet.create({
   choiceBtnActive: {
     borderColor: '#0284C7',
     backgroundColor: '#0284C7',
+  },
+  testVoiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1.5,
+    borderColor: '#BAE6FD',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 10,
+  },
+  testVoiceBtnText: {
+    color: '#0284C7',
+    fontSize: 12,
+    fontWeight: '800',
+    marginLeft: 6,
   },
   choiceBtnText: { fontSize: 11, fontWeight: '700', color: '#475569' },
   choiceBtnTextActive: { color: '#FFFFFF', fontWeight: '800' },

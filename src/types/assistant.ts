@@ -79,9 +79,9 @@ export const VEHICLE_CURSORS: Record<VehicleCursorType, VehicleCursorConfig> = {
   },
   delivery_van: {
     type: 'delivery_van',
-    label: 'Furgón Reparto',
-    icon: 'package-variant-closed',
-    badge: '📦',
+    label: 'Courier / Furgón Profesional',
+    icon: 'van-utility',
+    badge: 'VAN',
     color: '#06B6D4',
     haloColor: 'rgba(6, 182, 212, 0.4)',
   },

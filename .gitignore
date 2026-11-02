@@ -43,6 +43,15 @@ junit.xml
 # Metro / RN
 .metro-health-check*
 
+# Build outputs & packages
+*.apk
+*.aab
+*.bundle
+*.tar.gz
+*.zip
+android/app/src/main/assets/index.android.bundle*
+.agents/
+
 # Android
 android/.gradle/
 android/app/build/

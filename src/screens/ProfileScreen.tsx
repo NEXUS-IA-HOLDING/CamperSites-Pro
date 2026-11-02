@@ -35,6 +35,13 @@ import {
   MultiDestinationRoute,
 } from '../features/premium';
 import { VEHICLE_CURSORS, VehicleCursorType } from '../types/assistant';
+import { CamperRewardsModal } from '../components/CamperRewardsModal';
+import Geolocation from 'react-native-geolocation-service';
+import { AffiliatePartnersModal } from '../components/AffiliatePartnersModal';
+import { CamperBookingModal } from '../components/CamperBookingModal';
+import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
+import { AdminDashboardModal } from '../components/AdminDashboardModal';
+import { adminService } from '../services/AdminService';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
@@ -48,7 +55,7 @@ const VEHICLE_TYPES = [
   { key: 'caravana', label: 'Coche + Caravana', emoji: '🏠', maxHeight: 2.8, maxWidth: 2.3, maxLength: 10.0 },
   { key: 'camion_rigido', label: 'Camión Rígido / Pesado', emoji: '🚚', maxHeight: 3.8, maxWidth: 2.5, maxLength: 10.0 },
   { key: 'camion_trailer', label: 'Tráiler / Articulado', emoji: '🚛', maxHeight: 4.0, maxWidth: 2.55, maxLength: 16.5 },
-  { key: 'furgon_reparto', label: 'Reparto Última Milla', emoji: '📦', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
+  { key: 'furgon_reparto', label: 'Courier / Furgón Profesional', emoji: '🚐💨', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
   { key: 'custom', label: 'Personalizado', emoji: '📐', maxHeight: 0, maxWidth: 0, maxLength: 0 },
 ];
 
@@ -191,6 +198,50 @@ export default function ProfileScreen() {
   // Cursor del Vehículo en Ruta (Pilar 3)
   const [selectedCursor, setSelectedCursor] = useState<VehicleCursorType>('camper_arca');
 
+  // Club Camper, Puntos Recompensas y Afiliados
+  const [showRewardsModal, setShowRewardsModal] = useState(false);
+  const [rewardsGpsSpeedKmH, setRewardsGpsSpeedKmH] = useState(0);
+
+  useEffect(() => {
+    let watchId: number | null = null;
+    if (showRewardsModal) {
+      try {
+        Geolocation.getCurrentPosition(
+          (pos) => {
+            const rawSpeed = pos.coords.speed;
+            const spd = rawSpeed && rawSpeed > 0 ? rawSpeed * 3.6 : 0;
+            setRewardsGpsSpeedKmH(Math.max(0, spd));
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 1000 }
+        );
+
+        watchId = Geolocation.watchPosition(
+          (pos) => {
+            const rawSpeed = pos.coords.speed;
+            const spd = rawSpeed && rawSpeed > 0 ? rawSpeed * 3.6 : 0;
+            setRewardsGpsSpeedKmH(Math.max(0, spd));
+          },
+          () => {},
+          { enableHighAccuracy: true, distanceFilter: 1, interval: 1000 }
+        );
+      } catch (e) {}
+    } else {
+      setRewardsGpsSpeedKmH(0);
+    }
+
+    return () => {
+      if (watchId !== null) {
+        Geolocation.clearWatch(watchId);
+      }
+    };
+  }, [showRewardsModal]);
+  const [showAffiliatesModal, setShowAffiliatesModal] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showTravelPlannerModal, setShowTravelPlannerModal] = useState(false);
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [isAdminAuthorized, setIsAdminAuthorized] = useState(false);
+
   useEffect(() => {
     checkAuth();
     loadVehicleConfig();
@@ -212,6 +263,13 @@ export default function ProfileScreen() {
       setUserEmail(user.email || '');
       setUserName(user.user_metadata?.display_name || 'Viajero');
       loadTrustProfile();
+    }
+    // Verificación de credenciales de Administrador Maestro
+    try {
+      const authCheck = await adminService.verifyAdminAccess();
+      setIsAdminAuthorized(authCheck.authorized);
+    } catch {
+      setIsAdminAuthorized(false);
     }
   };
 
@@ -314,6 +372,12 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Marca de agua elegante del logo en el fondo */}
+      <Image
+        source={require('../assets/images/logo.png')}
+        style={styles.backgroundCenteredLogo}
+        resizeMode="contain"
+      />
       {/* Header con Logo Oficial de la App */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
@@ -369,6 +433,30 @@ export default function ProfileScreen() {
 
         {/* Trust Level Card */}
         {trustProfile && <TrustLevelCard trustProfile={trustProfile} />}
+
+        {/* Tarjeta Ejecutiva de Acceso al Panel de Administración & Finanzas (Solo Admin Autorizado) */}
+        {isAdminAuthorized && (
+          <TouchableOpacity
+            style={styles.adminDashboardBanner}
+            onPress={() => setShowAdminDashboard(true)}
+            activeOpacity={0.85}>
+            <View style={styles.adminBannerIconBox}>
+              <Icon name="shield-crown" size={26} color="#F59E0B" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.adminBannerTitle}>PANEL DE ADMINISTRACIÓN</Text>
+                <View style={styles.adminLiveBadge}>
+                  <Text style={styles.adminLiveText}>EJECUTIVO</Text>
+                </View>
+              </View>
+              <Text style={styles.adminBannerSub}>
+                Balances, ganancias, usuarios en vivo, suscripciones y equipo
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={22} color="#38BDF8" />
+          </TouchableOpacity>
+        )}
 
         {/* ============================================ */}
         {/* VEHÍCULO - SECCIÓN NUEVA */}
@@ -600,6 +688,44 @@ export default function ProfileScreen() {
               title="Ruta Multi-Destino"
               subtitle="Optimización de paradas (algoritmo TSP)"
               onPress={() => setActivePremiumTool('multidest')}
+            />
+          </View>
+        </View>
+
+        {/* Club Camper, Puntos de Recompensa, Afiliados y B2B */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>💎 Club Camper, Recompensas y Ventajas</Text>
+          <View style={styles.sectionCard}>
+            <SettingRow
+              icon="crown"
+              iconColor="#FFD600"
+              title="Pirámide de Niveles & CamperPoints"
+              subtitle="Gana puntos, sube de nivel y canjea pases seguros"
+              onPress={() => setShowRewardsModal(true)}
+            />
+            <View style={styles.separator} />
+            <SettingRow
+              icon="map-clock-outline"
+              iconColor="#38BDF8"
+              title="Travel Planner & Itinerarios Camper"
+              subtitle="Rutas legendarias y planificación multidía por etapas"
+              onPress={() => setShowTravelPlannerModal(true)}
+            />
+            <View style={styles.separator} />
+            <SettingRow
+              icon="handshake"
+              iconColor="#00E676"
+              title="Descuentos en GLP, Ferries y Seguros"
+              subtitle="Repsol Waylet, Cepsa Gow, Baleària, Trasmed y Allianz"
+              onPress={() => setShowAffiliatesModal(true)}
+            />
+            <View style={styles.separator} />
+            <SettingRow
+              icon="calendar-check"
+              iconColor="#00B0FF"
+              title="Central de Reservas B2B de Parcelas"
+              subtitle="Reservas garantizadas y códigos PIN de barreras"
+              onPress={() => setShowBookingModal(true)}
             />
           </View>
         </View>
@@ -1026,6 +1152,43 @@ export default function ProfileScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* MODAL CLUB CAMPER & RECOMPENSAS */}
+      <CamperRewardsModal
+        visible={showRewardsModal}
+        currentSpeedKmH={rewardsGpsSpeedKmH}
+        onClose={() => setShowRewardsModal(false)}
+      />
+
+      {/* MODAL AFILIADOS (GLP, FERRIES, SEGUROS) */}
+      <AffiliatePartnersModal
+        visible={showAffiliatesModal}
+        onClose={() => setShowAffiliatesModal(false)}
+      />
+
+      {/* MODAL RESERVAS B2B */}
+      <CamperBookingModal
+        visible={showBookingModal}
+        areaId="area_sierra_madrid_01"
+        areaName="Área Camper Sierra Norte (Madrid)"
+        onClose={() => setShowBookingModal(false)}
+      />
+
+      {/* MODAL TRAVEL PLANNER */}
+      <CamperTravelPlannerModal
+        visible={showTravelPlannerModal}
+        onClose={() => setShowTravelPlannerModal(false)}
+        onOpenB2BBooking={() => {
+          setShowTravelPlannerModal(false);
+          setShowBookingModal(true);
+        }}
+      />
+
+      {/* MODAL PANEL DE ADMINISTRACIÓN EJECUTIVO */}
+      <AdminDashboardModal
+        visible={showAdminDashboard}
+        onClose={() => setShowAdminDashboard(false)}
+      />
     </View>
   );
 }
@@ -1034,14 +1197,22 @@ export default function ProfileScreen() {
 // STYLES
 // ============================================
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F4F7' },
+  container: { flex: 1, backgroundColor: '#0F172A' },
+  backgroundCenteredLogo: {
+    position: 'absolute',
+    width: '90%',
+    height: '90%',
+    alignSelf: 'center',
+    top: '5%',
+    opacity: 0.05,
+  },
   header: {
-    backgroundColor: theme.colors.primary.main,
-    paddingTop: 56,
-    paddingBottom: 24,
+    backgroundColor: '#1E293B',
+    paddingTop: 54,
+    paddingBottom: 20,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
   },
   headerRow: {
     flexDirection: 'row',
@@ -1051,17 +1222,17 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
     marginRight: 14,
   },
   headerTextContainer: {
     flex: 1,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerTitle: { fontSize: 24, fontWeight: '800', color: '#F8FAFC', letterSpacing: -0.5 },
   headerSubtitle: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: '#94A3B8',
     fontWeight: '600',
     marginTop: 2,
   },
@@ -1074,30 +1245,25 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cursorChoiceCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E293B',
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 12,
     alignItems: 'center',
     width: 108,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#334155',
     position: 'relative',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
   },
   cursorChoiceCardActive: {
-    borderColor: '#10B981',
-    backgroundColor: '#F0FDF4',
+    borderColor: '#38BDF8',
+    backgroundColor: '#1A2942',
   },
   cursorBadgeIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
@@ -1105,7 +1271,7 @@ const styles = StyleSheet.create({
   cursorChoiceLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#334155',
+    color: '#94A3B8',
     textAlign: 'center',
   },
   cursorSelectedBadge: {
@@ -1114,87 +1280,84 @@ const styles = StyleSheet.create({
     right: 6,
   },
   scrollView: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
 
   // User Card
   userCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B',
     borderRadius: 18, padding: 16, marginBottom: 12,
-    elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 4,
+    borderWidth: 1, borderColor: '#334155',
   },
   avatar: {
     width: 54, height: 54, borderRadius: 27,
-    backgroundColor: theme.colors.primary.main + '12',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
     justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#38BDF8',
   },
   userInfo: { flex: 1, marginLeft: 14 },
-  userName: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
-  userEmail: { fontSize: 13, color: '#888', marginTop: 2 },
+  userName: { fontSize: 18, fontWeight: '700', color: '#F8FAFC' },
+  userEmail: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
   levelBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   levelBadgeText: { fontSize: 12, fontWeight: '700' },
 
   // Login Card
   loginCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B',
     borderRadius: 18, padding: 16, marginBottom: 12,
-    elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 4,
+    borderWidth: 1, borderColor: '#334155',
   },
   loginIconContainer: {
     width: 54, height: 54, borderRadius: 27,
-    backgroundColor: theme.colors.primary.main + '12',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
   loginInfo: { flex: 1, marginLeft: 14 },
-  loginTitle: { fontSize: 18, fontWeight: '700', color: theme.colors.primary.main },
-  loginSubtitle: { fontSize: 13, color: '#888', marginTop: 2 },
+  loginTitle: { fontSize: 18, fontWeight: '700', color: '#38BDF8' },
+  loginSubtitle: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
 
   // Trust Card
   trustCard: {
-    backgroundColor: '#FFF', borderRadius: 18, padding: 16, marginBottom: 12,
-    elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 4,
+    backgroundColor: '#1E293B', borderRadius: 18, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: '#334155',
   },
   trustHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   trustBadge: { width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   trustInfo: { flex: 1 },
-  trustLevelText: { fontSize: 20, fontWeight: '800', color: '#1A1A1A' },
-  trustPerks: { fontSize: 13, color: '#888', marginTop: 2 },
+  trustLevelText: { fontSize: 20, fontWeight: '800', color: '#F8FAFC' },
+  trustPerks: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
   pointsContainer: { alignItems: 'center' },
-  pointsNumber: { fontSize: 24, fontWeight: '800', color: theme.colors.primary.main },
-  pointsLabel: { fontSize: 11, color: '#888' },
+  pointsNumber: { fontSize: 24, fontWeight: '800', color: '#38BDF8' },
+  pointsLabel: { fontSize: 11, color: '#94A3B8' },
 
   // Progress
   progressSection: { marginTop: 14 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressLabel: { fontSize: 13, color: '#888' },
-  progressPercent: { fontSize: 13, fontWeight: '700', color: theme.colors.primary.main },
-  progressBarBg: { height: 8, backgroundColor: '#F0F0F0', borderRadius: 4, overflow: 'hidden' },
+  progressLabel: { fontSize: 13, color: '#94A3B8' },
+  progressPercent: { fontSize: 13, fontWeight: '700', color: '#38BDF8' },
+  progressBarBg: { height: 8, backgroundColor: '#0F172A', borderRadius: 4, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 4 },
-  progressHint: { fontSize: 12, color: '#AAA', marginTop: 4 },
+  progressHint: { fontSize: 12, color: '#64748B', marginTop: 4 },
 
   // Trust Stats
-  trustStats: { flexDirection: 'row', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  trustStats: { flexDirection: 'row', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#334155' },
   trustStat: { flex: 1, alignItems: 'center' },
-  trustStatNum: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
-  trustStatLabel: { fontSize: 11, color: '#888', marginTop: 2 },
-  trustStatDivider: { width: 1, backgroundColor: '#F0F0F0' },
+  trustStatNum: { fontSize: 18, fontWeight: '800', color: '#F8FAFC' },
+  trustStatLabel: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  trustStatDivider: { width: 1, backgroundColor: '#334155' },
 
   // Vehicle
   vehicleCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B',
     borderRadius: 16, padding: 16, gap: 12,
-    elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 3,
+    borderWidth: 1, borderColor: '#334155',
   },
   vehicleEmoji: { fontSize: 36 },
   vehicleInfo: { flex: 1 },
-  vehicleName: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
-  vehicleDetails: { fontSize: 13, color: '#888', marginTop: 2 },
+  vehicleName: { fontSize: 16, fontWeight: '700', color: '#F8FAFC' },
+  vehicleDetails: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
   vehicleAction: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: theme.colors.primary.main + '12',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
   vehicleDimensions: {
@@ -1202,55 +1365,52 @@ const styles = StyleSheet.create({
   },
   dimBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 10, elevation: 1, shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2,
+    backgroundColor: '#0F172A', paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10, borderWidth: 1, borderColor: '#334155',
   },
   dimIcon: { fontSize: 14 },
-  dimText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  dimText: { fontSize: 13, fontWeight: '600', color: '#CBD5E1' },
   vehicleHint: {
-    fontSize: 12, color: '#AAA', marginTop: 8, fontStyle: 'italic', textAlign: 'center',
+    fontSize: 12, color: '#64748B', marginTop: 8, fontStyle: 'italic', textAlign: 'center',
   },
 
   // Premium
   premiumCard: {
-    backgroundColor: '#1B5E20', borderRadius: 18, padding: 18, marginBottom: 16,
-    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15, shadowRadius: 6,
+    backgroundColor: '#0F2744', borderRadius: 18, padding: 18, marginBottom: 16,
+    borderWidth: 1.5, borderColor: '#0284C7',
   },
   premiumContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   premiumEmoji: { fontSize: 28 },
   premiumInfo: { flex: 1 },
-  premiumTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
-  premiumSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+  premiumTitle: { fontSize: 18, fontWeight: '700', color: '#F8FAFC' },
+  premiumSubtitle: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
   premiumPrice: {
-    backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'flex-start',
+    backgroundColor: 'rgba(56, 189, 248, 0.2)', alignSelf: 'flex-start',
     paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10, marginTop: 12,
   },
-  premiumPriceText: { fontSize: 15, fontWeight: '700', color: '#FFD700' },
+  premiumPriceText: { fontSize: 15, fontWeight: '800', color: '#38BDF8' },
 
   // Sections
   section: { marginBottom: 16 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#666', marginBottom: 8, marginLeft: 4, letterSpacing: 0.3 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: '#38BDF8', marginBottom: 8, marginLeft: 4, letterSpacing: 0.5 },
   sectionCard: {
-    backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden',
-    elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 3,
+    backgroundColor: '#1E293B', borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: '#334155',
   },
 
   // Settings Row
   settingRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
   settingIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   settingInfo: { flex: 1 },
-  settingTitle: { fontSize: 16, fontWeight: '500', color: '#1A1A1A' },
-  settingSubtitle: { fontSize: 13, color: '#888', marginTop: 1 },
-  separator: { height: 1, backgroundColor: '#F0F0F0', marginLeft: 66 },
+  settingTitle: { fontSize: 15, fontWeight: '600', color: '#F8FAFC' },
+  settingSubtitle: { fontSize: 12, color: '#94A3B8', marginTop: 1 },
+  separator: { height: 1, backgroundColor: '#334155', marginLeft: 66 },
 
   // Points Guide
   pointsGuideRow: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
   pointsEmoji: { fontSize: 20, width: 34, textAlign: 'center' },
-  pointsGuideReason: { flex: 1, fontSize: 14, color: '#333' },
-  pointsGuidePoints: { fontSize: 16, fontWeight: '800' },
+  pointsGuideReason: { flex: 1, fontSize: 14, color: '#CBD5E1' },
+  pointsGuidePoints: { fontSize: 15, fontWeight: '800', color: '#10B981' },
 
   // Levels
   levelRow: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
@@ -1310,4 +1470,50 @@ const styles = StyleSheet.create({
     flex: 1, padding: 14, borderRadius: 14, backgroundColor: theme.colors.primary.main, alignItems: 'center',
   },
   modalBtnSaveText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  adminDashboardBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  adminBannerIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  adminBannerTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#F8FAFC',
+    letterSpacing: 0.5,
+  },
+  adminLiveBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  adminLiveText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#F59E0B',
+  },
+  adminBannerSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
 });

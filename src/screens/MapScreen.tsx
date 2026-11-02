@@ -14,6 +14,7 @@ import MapLibreGL from '@maplibre/maplibre-react-native';
 import Geolocation from 'react-native-geolocation-service';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import { useFocusEffect } from '@react-navigation/native';
 import BackgroundTimer from 'react-native-background-timer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import haversine from 'haversine-distance';
@@ -21,7 +22,6 @@ import { supabase } from '../lib/supabase';
 import { FLATLIST_PERF_PROPS } from '../utils/performance';
 import { Logger } from '../utils/logger';
 import ReportAlertButton from '../components/ReportAlertButton';
-import { DrivingHUD } from '../components/DrivingHUD';
 import { LocationReviewsModal } from '../components/LocationReviewsModal';
 import { RouteModeSelector } from '../components/RouteModeSelector';
 import { SpeedGaugesHUD } from '../components/SpeedGaugesHUD';
@@ -31,7 +31,24 @@ import { VehicleCursorSelectorModal } from '../components/VehicleCursorSelectorM
 import { CockpitSearchBar, QUICK_FILTERS, QuickFilter } from '../components/CockpitSearchBar';
 import { CockpitLocationDetailSheet } from '../components/CockpitLocationDetailSheet';
 import { CockpitTurnByTurnHUD } from '../components/CockpitTurnByTurnHUD';
+import { LaneGuidanceHUD } from '../components/LaneGuidanceHUD';
+import { CockpitSectionRadarHUD } from '../components/CockpitSectionRadarHUD';
+import {
+  AdvancedSpotFilterModal,
+  SpotFilterCriteria,
+  DEFAULT_FILTER_CRITERIA,
+} from '../components/AdvancedSpotFilterModal';
 import { AudioAlertService } from '../services/AudioAlertService';
+import { CockpitNightModeService, NightModeState } from '../services/CockpitNightModeService';
+import {
+  sectionRadarTracker,
+  SectionRadarStatus,
+} from '../services/SectionRadarTracker';
+import { offlineSpotVault } from '../services/OfflineSpotVaultService';
+import {
+  navigationEngine,
+  NavigationProgress,
+} from '../services/TurnByTurnNavigationEngine';
 import {
   AudioAlertMode,
   ClearanceHazard,
@@ -46,7 +63,47 @@ import { VehicleRoutingService } from '../services/VehicleRoutingService';
 // Inicializar MapLibre (sin token - usa raster gratuito)
 MapLibreGL.setAccessToken(null);
 
-// 4 Estilos de Mapa Conmutables de Alta Definición
+// Función de Auto-Zoom Adaptativo por Velocidad y Asistencia en Cruces/Visibilidad
+export function calculateSpeedAdaptiveCamera(
+  speedKmH: number,
+  distanceToManeuverMeters?: number
+): { zoom: number; pitch: number } {
+  // 1. Asistencia en Maniobras / Cruces / Rotondas (< 180 metros de distancia)
+  // Permite al conductor identificar el carril y salida exactos con máxima claridad en niebla, noche o rutas desconocidas
+  if (
+    distanceToManeuverMeters !== undefined &&
+    distanceToManeuverMeters > 0 &&
+    distanceToManeuverMeters < 180
+  ) {
+    const proximityRatio = Math.max(0, distanceToManeuverMeters / 180);
+    const junctionZoom = 18.3 - proximityRatio * 0.5; // Zoom 18.3 a 17.8 cerca del cruce
+    const junctionPitch = 50 + proximityRatio * 10;   // Inclinación 50° para vista cenital-perspectiva del cruce
+    return { zoom: Math.min(18.6, junctionZoom), pitch: junctionPitch };
+  }
+
+  // 2. Escala Adaptativa según Velocidad del Vehículo (km/h)
+  if (speedKmH <= 25) {
+    // Maniobras a paso de peatón / calles estrechas de pueblos / entrada a campings
+    return { zoom: 18.2, pitch: 58 };
+  } else if (speedKmH <= 50) {
+    // Ciudad / travesías urbanas (25 a 50 km/h) -> zoom suave de 18.2 a 17.2
+    const t = (speedKmH - 25) / 25;
+    return { zoom: 18.2 - t * 1.0, pitch: 58 };
+  } else if (speedKmH <= 80) {
+    // Carreteras convencionales / secundarias (50 a 80 km/h) -> zoom de 17.2 a 16.2
+    const t = (speedKmH - 50) / 30;
+    return { zoom: 17.2 - t * 1.0, pitch: 60 };
+  } else if (speedKmH <= 110) {
+    // Autovías / vías rápidas (80 a 110 km/h) -> visión expandida de 16.2 a 15.2
+    const t = (speedKmH - 80) / 30;
+    return { zoom: 16.2 - t * 1.0, pitch: 62 };
+  } else {
+    // Alta velocidad autopista (> 110 km/h) -> zoom 14.8 para anticipar salidas y radares a gran distancia
+    return { zoom: 14.8, pitch: 64 };
+  }
+}
+
+// 4 Estilos de Mapa Conmutables de Alta Definición (100% Libres de API Keys y sin marcas de agua)
 const MAP_STYLES: Record<MapStyleType, any> = {
   satellite: Object.freeze({
     version: 8 as const,
@@ -60,14 +117,14 @@ const MAP_STYLES: Record<MapStyleType, any> = {
       },
       roads: {
         type: 'raster' as const,
-        tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'],
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
         attribution: '© Esri Roads',
         maxzoom: 19,
       },
       labels: {
         type: 'raster' as const,
-        tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
         attribution: '© Esri Labels',
         maxzoom: 19,
@@ -84,13 +141,23 @@ const MAP_STYLES: Record<MapStyleType, any> = {
     sources: {
       dark: {
         type: 'raster' as const,
-        tiles: ['https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'],
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
-        attribution: '© CartoDB',
-        maxzoom: 19,
+        attribution: '© Esri Dark Canvas',
+        maxzoom: 18,
+      },
+      darkLabels: {
+        type: 'raster' as const,
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: '© Esri Dark Labels',
+        maxzoom: 18,
       },
     },
-    layers: [{ id: 'dark-layer', type: 'raster' as const, source: 'dark', minzoom: 0, maxzoom: 19 }],
+    layers: [
+      { id: 'dark-layer', type: 'raster' as const, source: 'dark', minzoom: 0, maxzoom: 18 },
+      { id: 'dark-labels-layer', type: 'raster' as const, source: 'darkLabels', minzoom: 0, maxzoom: 18 },
+    ],
   }),
   topo: Object.freeze({
     version: 8 as const,
@@ -166,6 +233,9 @@ interface Radar {
   speedLimit: number;
   verified: boolean;
   lastVerified?: string;
+  description?: string;
+  radarType?: string;
+  roadName?: string;
 }
 
 interface Route {
@@ -174,6 +244,7 @@ interface Route {
   duration: number;
   incidents: string[];
   type: 'fastest' | 'alternative';
+  rawRoute?: any;
 }
 
 // Memoizar configuración de marcadores - evita recreación en cada render
@@ -251,6 +322,85 @@ const MapScreen = () => {
   const [selectedCursor, setSelectedCursor] = useState<VehicleCursorType>('camper_arca');
   const [showCursorModal, setShowCursorModal] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string>('all');
+  const [navProgress, setNavProgress] = useState<NavigationProgress | null>(null);
+  const [camera3DMode, setCamera3DMode] = useState<boolean>(false);
+  const [sectionRadarStatus, setSectionRadarStatus] = useState<SectionRadarStatus | null>(null);
+  const [showAdvancedFilterModal, setShowAdvancedFilterModal] = useState<boolean>(false);
+  const [advancedFilterCriteria, setAdvancedFilterCriteria] = useState<SpotFilterCriteria>(DEFAULT_FILTER_CRITERIA);
+  const [nightModeState, setNightModeState] = useState<NightModeState>(CockpitNightModeService.getState());
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isAwayFromUser, setIsAwayFromUser] = useState(false);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const currentMapCenterRef = useRef<[number, number]>(DEFAULT_CENTER);
+  const lastStableHeading = useRef<number>(0);
+
+  const handleToggleFullScreen = useCallback(() => {
+    setIsFullScreen(prev => {
+      const next = !prev;
+      AudioAlertService.speak(
+        next ? 'Mapa maximizado a pantalla completa.' : 'Mapa minimizado.'
+      );
+      return next;
+    });
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    setCameraZoom(prev => {
+      const nextZoom = Math.min(19, prev + 1);
+      cameraRef.current?.setCamera({
+        centerCoordinate: currentMapCenterRef.current,
+        zoomLevel: nextZoom,
+        animationDuration: 250,
+      });
+      return nextZoom;
+    });
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setCameraZoom(prev => {
+      const nextZoom = Math.max(3, prev - 1);
+      cameraRef.current?.setCamera({
+        centerCoordinate: currentMapCenterRef.current,
+        zoomLevel: nextZoom,
+        animationDuration: 250,
+      });
+      return nextZoom;
+    });
+  }, []);
+
+  const handleRecenter = useCallback(() => {
+    if (currentLocation) {
+      const targetCoords: [number, number] = [currentLocation.longitude, currentLocation.latitude];
+      currentMapCenterRef.current = targetCoords;
+      cameraRef.current?.setCamera({
+        centerCoordinate: targetCoords,
+        zoomLevel: 15.5,
+        pitch: isNavigating ? 60 : 0,
+        heading: isNavigating ? (currentLocation.heading || 0) : 0,
+        animationDuration: 800,
+      });
+      setIsAwayFromUser(false);
+      AudioAlertService.speak('Centrando en tu vehículo');
+    } else {
+      cameraRef.current?.setCamera({
+        centerCoordinate: DEFAULT_CENTER,
+        zoomLevel: DEFAULT_ZOOM,
+        animationDuration: 800,
+      });
+      setIsAwayFromUser(false);
+    }
+  }, [currentLocation, isNavigating]);
+
+  const isNavigatingRef = useRef(false);
+  const camera3DModeRef = useRef(false);
+
+  useEffect(() => {
+    isNavigatingRef.current = isNavigating;
+  }, [isNavigating]);
+
+  useEffect(() => {
+    camera3DModeRef.current = camera3DMode;
+  }, [camera3DMode]);
 
   const mapRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
@@ -258,6 +408,7 @@ const MapScreen = () => {
   const checkIntervalId = useRef<any>(null);
   const lastFetchCenter = useRef<{lat: number; lng: number} | null>(null);
   const lastBoundsFetch = useRef<string>('');
+  const isRecalculating = useRef<boolean>(false);
 
   const saveLastKnownLocation = useCallback(async (lat: number, lng: number) => {
     try {
@@ -337,7 +488,19 @@ const MapScreen = () => {
       setIsLoggedIn(!!session);
     });
 
+    const unsubscribeNight = CockpitNightModeService.subscribe((state) => {
+      setNightModeState(state);
+      if (state.mode === 'auto' || state.mode === 'night') {
+        if (state.isNight) {
+          setCurrentMapStyle('dark');
+        } else {
+          setCurrentMapStyle('satellite');
+        }
+      }
+    });
+
     return () => {
+      unsubscribeNight();
       authListener?.subscription?.unsubscribe();
       if (watchId.current !== null) {
         Geolocation.clearWatch(watchId.current);
@@ -347,6 +510,33 @@ const MapScreen = () => {
       }
     };
   }, []);
+
+  // Al enfocarse en el mapa, comprobar si viene de Favoritos o Explorar para centrar en el punto
+  useFocusEffect(
+    useCallback(() => {
+      const checkJumpLocation = async () => {
+        try {
+          const raw = await AsyncStorage.getItem('@campersites_jump_to_location');
+          if (raw) {
+            await AsyncStorage.removeItem('@campersites_jump_to_location');
+            const target: Location = JSON.parse(raw);
+            setSelectedLocation(target);
+            const targetCoord: [number, number] = [target.longitude, target.latitude];
+            currentMapCenterRef.current = targetCoord;
+            setCameraCenter(targetCoord);
+            setCameraZoom(16.5);
+            cameraRef.current?.setCamera({
+              centerCoordinate: targetCoord,
+              zoomLevel: 16.5,
+              animationDuration: 1000,
+            });
+            AudioAlertService.speak(`Destino seleccionado: ${target.name}`);
+          }
+        } catch {}
+      };
+      checkJumpLocation();
+    }, [])
+  );
 
   const requestLocationPermission = async () => {
     try {
@@ -360,9 +550,9 @@ const MapScreen = () => {
         const fineResult = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
         if (fineResult === RESULTS.GRANTED) {
           startRealtimeLocationTracking();
-          if (parseInt(String(Platform.Version), 10) >= 29) {
-            await request(PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION);
-          }
+        } else {
+          // Si el usuario deniega o pospone, arrancar con ubicación inicial segura sin bloquear
+          startRealtimeLocationTracking();
         }
       }
     } catch (error) {
@@ -396,14 +586,59 @@ const MapScreen = () => {
       (position) => {
         const { latitude, longitude, speed, heading } = position.coords;
         const currentSpeedKmH = (speed || 0) * 3.6;
+        CockpitNightModeService.updateLocation(latitude, longitude);
+
+        // Filtro inteligente anti-peonza / anti-jitter:
+        // Si el vehículo está detenido o quieto (< 2.5 km/h), descartar fluctuaciones aleatorias del magnetómetro/giroscopio
+        if (currentSpeedKmH >= 2.5 && heading !== null && heading !== undefined && heading >= 0) {
+          lastStableHeading.current = heading;
+        }
+
         setCurrentLocation({
           latitude,
           longitude,
           speed: speed || 0,
-          heading: heading || 0,
+          heading: lastStableHeading.current,
         });
 
-        // 1. Alerta sonora inmediata de exceso de velocidad
+        // 1. Navegación Turn-by-Turn activa y Cámara 3D Dinámica
+        if (isNavigatingRef.current) {
+          const progress = navigationEngine.updateLocation(
+            latitude,
+            longitude,
+            speed || 0,
+            lastStableHeading.current
+          );
+          setNavProgress(progress);
+
+          if (camera3DModeRef.current) {
+            const adaptiveCam = calculateSpeedAdaptiveCamera(
+              currentSpeedKmH,
+              progress.distanceToTurnMeters
+            );
+
+            // Al estar detenido (< 2.5 km/h), mantener la orientación fija de la calzada
+            const safeHeading = progress.snappedPosition?.bearing ?? lastStableHeading.current;
+
+            cameraRef.current?.setCamera({
+              centerCoordinate: [
+                progress.snappedPosition.longitude,
+                progress.snappedPosition.latitude,
+              ],
+              zoomLevel: adaptiveCam.zoom,
+              pitch: adaptiveCam.pitch,
+              heading: safeHeading,
+              animationDuration: 400,
+            });
+          }
+        }
+        // En modo libre (!isNavigating), la cámara no se rota automáticamente, permitiendo explorar en calma.
+
+        // 2. Control y Seguimiento de Radares de Tramo DGT
+        const secStatus = sectionRadarTracker.updatePosition(latitude, longitude, speed || 0);
+        setSectionRadarStatus(secStatus);
+
+        // 3. Alerta sonora inmediata de exceso de velocidad
         if (currentSpeedKmH > currentSpeedLimit) {
           AudioAlertService.playSpeedExceededAlert(currentSpeedKmH, currentSpeedLimit);
         }
@@ -513,7 +748,17 @@ const MapScreen = () => {
 
   const sendRadarAlert = (radar: Radar, distance: number, speed: number, stage: string) => {
     Logger.info('MapScreen', `RADAR ALERT: ${stage} - ${radar.speedLimit}km/h`);
-    AudioAlertService.playRadarApproachingAlert(radar.id, radar.speedLimit, distance);
+    const desc = (radar.description || '').toLowerCase();
+    let type: 'fixed' | 'section' | 'traffic_light' | 'mobile' | 'tunnel' = 'fixed';
+    if (desc.includes('túnel') || desc.includes('tunel')) {
+      type = 'tunnel';
+      CockpitNightModeService.setTunnelState(distance < 350);
+    } else if (desc.includes('tramo')) {
+      type = 'section';
+    } else if (desc.includes('semáforo') || desc.includes('semaforo') || desc.includes('foto-rojo')) {
+      type = 'traffic_light';
+    }
+    AudioAlertService.playRadarApproachingAlert(radar.id, radar.speedLimit, distance, type);
   };
 
   const sendControlAlert = (radar: Radar, distance: number, stage: string) => {
@@ -610,13 +855,26 @@ const MapScreen = () => {
 
       if (error) {
         Logger.error('MapScreen', 'Error fetching locations in bounds', error);
+        // Fallback inmediato a bóveda offline
+        const offlineSpots = offlineSpotVault.queryBounds(minLat, maxLat, minLng, maxLng);
+        if (offlineSpots.length > 0) {
+          setLocations(offlineSpots as Location[]);
+        }
         return;
       }
       if (data && data.length > 0) {
-        setLocations(data);
+        // Enriquecer con spots de la bóveda offline si hay alguno descargado
+        const offlineSpots = offlineSpotVault.queryBounds(minLat, maxLat, minLng, maxLng);
+        const merged = offlineSpots.length > 0 ? [...data, ...offlineSpots] : data;
+        setLocations(merged);
         const centerLat = (minLat + maxLat) / 2;
         const centerLng = (minLng + maxLng) / 2;
         lastFetchCenter.current = { lat: centerLat, lng: centerLng };
+      } else {
+        const offlineSpots = offlineSpotVault.queryBounds(minLat, maxLat, minLng, maxLng);
+        if (offlineSpots.length > 0) {
+          setLocations(offlineSpots as Location[]);
+        }
       }
     } catch (error) {
       Logger.error('MapScreen', 'Error fetching locations in bounds', error);
@@ -662,42 +920,125 @@ const MapScreen = () => {
     }
   };
 
+  const handleOffRouteRecalculate = useCallback(() => {
+    if (isRecalculating.current || !selectedLocation || !currentLocation) return;
+    isRecalculating.current = true;
+    Logger.info('MapScreen', 'Recálculo automático por desvío en marcha...');
+    calculateRoutes(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      selectedLocation.latitude,
+      selectedLocation.longitude
+    ).finally(() => {
+      setTimeout(() => {
+        isRecalculating.current = false;
+      }, 6000);
+    });
+  }, [currentLocation, selectedLocation]);
+
   const calculateRoutes = async (
     fromLat: number, fromLng: number,
     toLat: number, toLng: number,
-    avoidControls: boolean = false
+    avoidControls: boolean = false,
+    autoShowModal: boolean = false
   ): Promise<Route[]> => {
+    setIsCalculatingRoute(true);
     try {
-      // Usar OSRM (gratuito, sin API key)
-      const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&alternatives=true`;
+      // 1. Usar OSRM con timeout controlado (5s)
+      const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true&annotations=true&alternatives=true`;
 
-      const response = await fetch(url);
-      const data = await response.json();
-
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const calculatedRoutes: Route[] = [];
 
-      if (data.routes && data.routes.length > 0) {
-        data.routes.forEach((route: any, idx: number) => {
-          calculatedRoutes.push({
-            coordinates: route.geometry.coordinates.map((coord: number[]) => ({
-              latitude: coord[1],
-              longitude: coord[0],
-            })),
-            distance: route.distance,
-            duration: route.duration,
-            incidents: detectIncidents(route.geometry.coordinates),
-            type: idx === 0 ? 'fastest' : 'alternative',
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.routes && data.routes.length > 0) {
+            data.routes.forEach((route: any, idx: number) => {
+              calculatedRoutes.push({
+                coordinates: route.geometry.coordinates.map((coord: number[]) => ({
+                  latitude: coord[1],
+                  longitude: coord[0],
+                })),
+                distance: route.distance,
+                duration: route.duration,
+                incidents: detectIncidents(route.geometry.coordinates),
+                type: idx === 0 ? 'fastest' : 'alternative',
+                rawRoute: route,
+              });
+            });
+          }
+        }
+      } catch (fetchErr) {
+        Logger.warn('MapScreen', 'OSRM server offline o timeout, activando fallback');
+      }
+
+      // Si OSRM falló o no devolvió rutas, crear una ruta suave interpolada de navegación segura
+      if (calculatedRoutes.length === 0) {
+        const straightDistM = haversine({ latitude: fromLat, longitude: fromLng }, { latitude: toLat, longitude: toLng });
+        const steps = 20;
+        const coords: { latitude: number; longitude: number }[] = [];
+        for (let i = 0; i <= steps; i++) {
+          const ratio = i / steps;
+          coords.push({
+            latitude: fromLat + (toLat - fromLat) * ratio,
+            longitude: fromLng + (toLng - fromLng) * ratio,
           });
+        }
+        const estDist = Math.max(500, Math.round(straightDistM * 1.25));
+        const estDur = Math.max(60, Math.round(estDist / 22));
+        calculatedRoutes.push({
+          coordinates: coords,
+          distance: estDist,
+          duration: estDur,
+          incidents: [],
+          type: 'fastest',
+          rawRoute: {
+            distance: estDist,
+            duration: estDur,
+            geometry: {
+              type: 'LineString',
+              coordinates: coords.map(c => [c.longitude, c.latitude]),
+            },
+            legs: [{
+              steps: [{
+                maneuver: { type: 'depart', modifier: 'straight', location: [fromLng, fromLat] },
+                name: 'Carretera principal hacia destino',
+                distance: estDist,
+                duration: estDur,
+              }],
+            }],
+          },
         });
       }
 
       setRoutes(calculatedRoutes);
-      setShowRouteSelector(true);
+
+      // Si ya estábamos navegando (recálculo automático), actualizar de inmediato sin interrumpir
+      if (isNavigatingRef.current && calculatedRoutes.length > 0) {
+        const fastestRoute = calculatedRoutes[0];
+        setSelectedRoute(fastestRoute);
+        navigationEngine.initializeRoute(
+          fastestRoute.rawRoute,
+          { latitude: fromLat, longitude: fromLng },
+          handleOffRouteRecalculate
+        );
+        return calculatedRoutes;
+      }
+
+      if (autoShowModal) {
+        setShowRouteSelector(true);
+      }
       return calculatedRoutes;
     } catch (error) {
       Logger.error('MapScreen', 'Error calculating routes', error);
-      Alert.alert('Error', 'No se pudo calcular la ruta');
       return [];
+    } finally {
+      setIsCalculatingRoute(false);
     }
   };
 
@@ -734,18 +1075,75 @@ const MapScreen = () => {
     if (profileMode === 'truck') {
       setTachographStatus(VehicleRoutingService.calculateTachographStatus(startTime));
     }
+
+    const startLat = currentLocation?.latitude || (route.coordinates[0]?.latitude ?? 40.0);
+    const startLng = currentLocation?.longitude || (route.coordinates[0]?.longitude ?? -3.5);
+
+    // Inicializar motor turn-by-turn con pasos e instrucciones de voz
+    navigationEngine.initializeRoute(
+      route.rawRoute || route,
+      { latitude: startLat, longitude: startLng },
+      handleOffRouteRecalculate
+    );
+
+    // Activar modo cámara de cabina 3D (pitch: 60)
+    setCamera3DMode(true);
+    cameraRef.current?.setCamera({
+      centerCoordinate: [startLng, startLat],
+      zoomLevel: 17.5,
+      pitch: 60,
+      heading: currentLocation?.heading || 0,
+      animationDuration: 800,
+    });
+
     Logger.info('MapScreen', `NAV START: ${selectedLocation?.name}`);
   };
 
   const stopNavigation = () => {
     setIsNavigating(false);
+    setCamera3DMode(false);
+    camera3DModeRef.current = false;
     setSelectedLocation(null);
     setSelectedRoute(null);
     setRoutes([]);
+    setNavProgress(null);
+    sectionRadarTracker.reset();
+    setSectionRadarStatus(null);
     setAlertedRadars(new Set());
     setActiveClearanceHazard(null);
     setTachographStatus(null);
     setNavStartTime(0);
+
+    // Restaurar perspectiva 2D aérea hacia el norte
+    cameraRef.current?.setCamera({
+      pitch: 0,
+      heading: 0,
+      zoomLevel: 14,
+      animationDuration: 600,
+    });
+  };
+
+  const toggleCameraMode = () => {
+    const nextMode = !camera3DMode;
+    setCamera3DMode(nextMode);
+    if (nextMode) {
+      cameraRef.current?.setCamera({
+        pitch: 60,
+        zoomLevel: 17.5,
+        heading: navProgress?.snappedPosition.bearing || currentLocation?.heading || 0,
+        centerCoordinate: currentLocation
+          ? [currentLocation.longitude, currentLocation.latitude]
+          : DEFAULT_CENTER,
+        animationDuration: 600,
+      });
+    } else {
+      cameraRef.current?.setCamera({
+        pitch: 0,
+        heading: 0,
+        zoomLevel: 14,
+        animationDuration: 600,
+      });
+    }
   };
 
   const verifyRadar = async (stillThere: boolean) => {
@@ -824,6 +1222,18 @@ const MapScreen = () => {
   const handleRegionDidChange = useCallback(async (feature: any) => {
     if (isNavigating) return;
 
+    const center = feature?.geometry?.coordinates;
+    if (center && Array.isArray(center) && center.length === 2) {
+      currentMapCenterRef.current = [center[0], center[1]];
+      if (currentLocation) {
+        const distFromUser = haversine(
+          { latitude: center[1], longitude: center[0] },
+          { latitude: currentLocation.latitude, longitude: currentLocation.longitude }
+        );
+        setIsAwayFromUser(distFromUser > 350);
+      }
+    }
+
     try {
       let bounds = feature?.properties?.visibleBounds;
       if (!bounds && mapRef.current?.getVisibleBounds) {
@@ -851,7 +1261,6 @@ const MapScreen = () => {
     }
 
     if (lastFetchCenter.current) {
-      const center = feature?.geometry?.coordinates;
       if (center) {
         const dist = haversine(
           { latitude: center[1], longitude: center[0] },
@@ -862,7 +1271,7 @@ const MapScreen = () => {
         }
       }
     }
-  }, [isNavigating]);
+  }, [isNavigating, currentLocation]);
 
   // Generar GeoJSON para la ruta seleccionada
   const routeGeoJSON = selectedRoute ? {
@@ -890,18 +1299,70 @@ const MapScreen = () => {
     })),
   } : null;
 
-  // Filtrar ubicaciones según el filtro rápido activo o el perfil de vehículo
+  // Filtrar ubicaciones según filtros avanzados (Park4Night), filtros rápidos o perfil de vehículo
   const filteredLocations = useMemo(() => {
-    if (activeFilterId !== 'all') {
+    let result = locations;
+
+    // 1. Filtros avanzados tipo Park4Night
+    if (advancedFilterCriteria.categories.length > 0) {
+      result = result.filter(loc => advancedFilterCriteria.categories.includes(loc.category));
+    }
+    if (advancedFilterCriteria.requireWater) {
+      result = result.filter(loc => (loc as any).has_water === true);
+    }
+    if (advancedFilterCriteria.requireElectricity) {
+      result = result.filter(loc => (loc as any).has_electricity === true);
+    }
+    if (advancedFilterCriteria.onlyFree) {
+      result = result.filter(loc => (loc as any).price === 0 || !(loc as any).price);
+    }
+    if (advancedFilterCriteria.onlyLargeVehicles) {
+      result = result.filter(loc =>
+        (loc as any).suitable_for_large_vehicles === true ||
+        loc.category === 'AREA_SERVICIOS' ||
+        loc.category === 'GASOLINERA_GLP'
+      );
+    }
+
+    // 2. Filtro rápido de cabina si no hay categoría específica avanzada
+    if (advancedFilterCriteria.categories.length === 0 && activeFilterId !== 'all') {
       const qFilter = QUICK_FILTERS.find(f => f.id === activeFilterId);
       if (qFilter && qFilter.categories.length > 0) {
-        return locations.filter(loc => qFilter.categories.includes(loc.category));
+        result = result.filter(loc => qFilter.categories.includes(loc.category));
       }
     }
+
+    // 3. Perfil de vehículo
     const allowed = VehicleRoutingService.getCategoriesForMode(profileMode);
-    if (!allowed || allowed.length === 0) return locations;
-    return locations.filter(loc => allowed.includes(loc.category));
-  }, [locations, activeFilterId, profileMode]);
+    if (!allowed || allowed.length === 0) return result;
+    return result.filter(loc => allowed.includes(loc.category));
+  }, [locations, activeFilterId, profileMode, advancedFilterCriteria]);
+
+  // Decluttering inteligente: Renderizar solo los 35 spots más cercanos al encuadre para máxima fluidez y evitar apelotonamiento
+  const visibleLocations = useMemo(() => {
+    const centerLat = currentMapCenterRef.current[1] || currentLocation?.latitude || DEFAULT_CENTER[1];
+    const centerLng = currentMapCenterRef.current[0] || currentLocation?.longitude || DEFAULT_CENTER[0];
+
+    const withDist = filteredLocations.map(loc => ({
+      ...loc,
+      _dist: haversine({ latitude: centerLat, longitude: centerLng }, { latitude: loc.latitude, longitude: loc.longitude }),
+    }));
+    withDist.sort((a, b) => a._dist - b._dist);
+    return withDist.slice(0, 35);
+  }, [filteredLocations, currentLocation]);
+
+  // Radares visibles optimizados: Solo los radares a menos de 45km del vehículo para no saturar la pantalla
+  const visibleRadars = useMemo(() => {
+    const centerLat = currentLocation?.latitude || currentMapCenterRef.current[1] || DEFAULT_CENTER[1];
+    const centerLng = currentLocation?.longitude || currentMapCenterRef.current[0] || DEFAULT_CENTER[0];
+
+    return radars
+      .filter(radar => {
+        const d = haversine({ latitude: centerLat, longitude: centerLng }, { latitude: radar.latitude, longitude: radar.longitude });
+        return d <= 45000;
+      })
+      .slice(0, 25);
+  }, [radars, currentLocation]);
 
   if (loading) {
     return (
@@ -915,18 +1376,34 @@ const MapScreen = () => {
   return (
     <View style={styles.container}>
       {/* Barra de Búsqueda de Cabina y Chips de Filtro Rápido (Glassmorphism Oscuro) */}
-      {!isNavigating && (
+      {!isNavigating && !isFullScreen && (
         <CockpitSearchBar
           currentCoords={currentLocation ? { latitude: currentLocation.latitude, longitude: currentLocation.longitude } : null}
           activeFilterId={activeFilterId}
+          hasActiveAdvancedFilters={
+            advancedFilterCriteria.categories.length > 0 ||
+            advancedFilterCriteria.requireWater ||
+            advancedFilterCriteria.requireElectricity ||
+            advancedFilterCriteria.onlyFree ||
+            advancedFilterCriteria.onlyLargeVehicles
+          }
           onSelectFilter={(filter) => setActiveFilterId(filter.id)}
-          onSelectSearchResult={(result) => {
-            setSelectedLocation(result as Location);
+          onOpenAdvancedFilters={() => setShowAdvancedFilterModal(true)}
+          onSelectSearchResult={async (result) => {
+            const locItem = result as Location;
+            setSelectedLocation(locItem);
+            currentMapCenterRef.current = [result.longitude, result.latitude];
             cameraRef.current?.setCamera({
               centerCoordinate: [result.longitude, result.latitude],
-              zoomLevel: 15,
+              zoomLevel: 15.5,
               animationDuration: 1000,
             });
+            setIsAwayFromUser(true);
+
+            // Calcular ruta al instante para que el botón de iniciar esté listo sin espera
+            const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+            const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+            await calculateRoutes(fromLat, fromLng, locItem.latitude, locItem.longitude, false, false);
           }}
         />
       )}
@@ -934,19 +1411,99 @@ const MapScreen = () => {
       {/* Navegación Activa Turn-by-Turn en Cabina (Waze / Tesla Style) */}
       {isNavigating && selectedRoute && (
         <CockpitTurnByTurnHUD
-          instruction={selectedRoute.incidents.length > 0 ? selectedRoute.incidents[0] : 'Siga la ruta segura hacia destino'}
-          distanceToTurnMeters={Math.min(500, Math.round(selectedRoute.distance * 0.08))}
-          maneuverType="straight"
+          instruction={
+            navProgress?.instruction ||
+            (selectedRoute.incidents.length > 0
+              ? selectedRoute.incidents[0]
+              : 'Siga la ruta segura hacia destino')
+          }
+          roadName={navProgress?.roadName}
+          distanceToTurnMeters={navProgress?.distanceToTurnMeters ?? 400}
+          maneuverType={navProgress?.maneuverType ?? 'straight'}
           speedLimitKmH={currentSpeedLimit}
-          remainingDistanceKm={selectedRoute.distance / 1000}
-          remainingMinutes={Math.round(selectedRoute.duration / 60)}
-          etaString={new Date(Date.now() + selectedRoute.duration * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          activeHazard={activeClearanceHazard ? {
-            maxAllowedHeight: activeClearanceHazard.hazard.maxAllowedHeight,
-            distanceMeters: activeClearanceHazard.distanceMeters,
-          } : null}
+          currentSpeedKmH={currentLocation ? currentLocation.speed * 3.6 : 0}
+          remainingDistanceKm={
+            navProgress?.remainingDistanceKm ?? selectedRoute.distance / 1000
+          }
+          remainingMinutes={
+            navProgress?.remainingMinutes ?? Math.round(selectedRoute.duration / 60)
+          }
+          etaString={
+            navProgress?.etaString ??
+            new Date(Date.now() + selectedRoute.duration * 1000).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          }
+          isOffRoute={navProgress?.isOffRoute ?? false}
+          camera3DMode={camera3DMode}
+          audioMode={drivingPrefs.audioMode}
+          nightMode={nightModeState.mode}
+          isNightActive={nightModeState.isNight}
+          tachographStatus={tachographStatus}
+          activeHazard={
+            activeClearanceHazard
+              ? {
+                  maxAllowedHeight: activeClearanceHazard.hazard.maxAllowedHeight,
+                  distanceMeters: activeClearanceHazard.distanceMeters,
+                }
+              : null
+          }
           onStopNavigation={stopNavigation}
+          onToggleCameraMode={toggleCameraMode}
+          onToggleNightMode={() => {
+            const nextMode =
+              nightModeState.mode === 'auto'
+                ? 'night'
+                : nightModeState.mode === 'night'
+                ? 'day'
+                : 'auto';
+            CockpitNightModeService.setMode(nextMode);
+          }}
+          onToggleAudioMode={() => {
+            const nextMode: AudioAlertMode =
+              drivingPrefs.audioMode === 'multimedia'
+                ? 'bluetooth_hfp'
+                : drivingPrefs.audioMode === 'bluetooth_hfp'
+                ? 'silent_visual'
+                : 'multimedia';
+            const updated = { ...drivingPrefs, audioMode: nextMode };
+            setDrivingPrefs(updated);
+            AudioAlertService.setAudioMode(nextMode);
+            AsyncStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(updated));
+          }}
+          onOpenTachographDetails={() => {
+            if (tachographStatus) {
+              Alert.alert(
+                'Tacógrafo Digital (Reglamento UE)',
+                `Conducción continua: ${VehicleRoutingService.formatTachographTime(
+                  tachographStatus.drivingMinutes
+                )}\nLímite legal: 4h 30m.\n\n${
+                  tachographStatus.isWarningActive
+                    ? '⚠️ ¡Atención! Te quedan menos de 45 minutos. Debes estacionar en un área de servicio para camiones.'
+                    : 'Estado normal de conducción.'
+                }`
+              );
+            }
+          }}
         />
+      )}
+
+      {/* Guía Automotriz de Carriles en Autovía / Salidas (Sygic Truck / Waze) */}
+      {isNavigating && navProgress?.activeLanes && navProgress.activeLanes.length > 0 && (
+        <View style={styles.laneGuidanceWrapper}>
+          <LaneGuidanceHUD
+            lanes={navProgress.activeLanes}
+            distanceToManeuverMeters={navProgress.distanceToTurnMeters}
+          />
+        </View>
+      )}
+
+      {/* Alerta y Medidor de Velocidad Media de Radar de Tramo DGT */}
+      {sectionRadarStatus && sectionRadarStatus.isActive && (
+        <View style={styles.sectionRadarWrapper}>
+          <CockpitSectionRadarHUD status={sectionRadarStatus} />
+        </View>
       )}
 
       <MapLibreGL.MapView
@@ -965,25 +1522,36 @@ const MapScreen = () => {
           }}
         />
 
-        {/* Usuario - marcador con vehículo personalizado y orientación 360° */}
+        {/* Usuario - marcador con vehículo personalizado y orientación 360° con Snap-to-Road */}
         {currentLocation && (
           <MapLibreGL.PointAnnotation
             id="user-location"
-            coordinate={[currentLocation.longitude, currentLocation.latitude]}>
+            coordinate={
+              isNavigating && navProgress?.snappedPosition
+                ? [
+                    navProgress.snappedPosition.longitude,
+                    navProgress.snappedPosition.latitude,
+                  ]
+                : [currentLocation.longitude, currentLocation.latitude]
+            }>
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => setShowCursorModal(true)}>
               <VehicleMapCursor
                 cursorType={selectedCursor}
-                heading={currentLocation.heading || 0}
+                heading={
+                  isNavigating && navProgress?.snappedPosition
+                    ? navProgress.snappedPosition.bearing
+                    : (currentLocation.heading || 0)
+                }
                 isMoving={(currentLocation.speed || 0) > 1}
               />
             </TouchableOpacity>
           </MapLibreGL.PointAnnotation>
         )}
 
-        {/* Ubicaciones filtradas por perfil */}
-        {filteredLocations.map((location) => {
+        {/* Ubicaciones filtradas por perfil (De-cluttered: Máximo 35 más cercanas al encuadre) */}
+        {visibleLocations.map((location) => {
           const markerConfig = getMarkerConfig(location.category);
           return (
             <MapLibreGL.PointAnnotation
@@ -992,15 +1560,12 @@ const MapScreen = () => {
               coordinate={[location.longitude, location.latitude]}
               onSelected={() => {
                 setSelectedLocation(location);
-                if (currentLocation) {
-                  calculateRoutes(
-                    currentLocation.latitude, currentLocation.longitude,
-                    location.latitude, location.longitude
-                  );
-                }
+                const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+                const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+                calculateRoutes(fromLat, fromLng, location.latitude, location.longitude);
               }}>
-              <View style={styles.markerContainer}>
-                <Icon name={markerConfig.icon} size={28} color={markerConfig.color} />
+              <View style={styles.markerBadge}>
+                <Icon name={markerConfig.icon} size={18} color={markerConfig.color} />
               </View>
               <MapLibreGL.Callout title={location.name}>
                 <View style={styles.callout}>
@@ -1012,17 +1577,17 @@ const MapScreen = () => {
           );
         })}
 
-        {/* Radares */}
-        {radars.map((radar) => (
+        {/* Radares relevantes (De-cluttered: Solo a menos de 45km de la posición) */}
+        {visibleRadars.map((radar) => (
           <MapLibreGL.PointAnnotation
             key={radar.id}
             id={`radar-${radar.id}`}
             coordinate={[radar.longitude, radar.latitude]}>
-            <View style={styles.markerContainer}>
+            <View style={styles.radarBadge}>
               <Icon
                 name={radar.type === 'RADAR' ? 'speedometer' : 'shield-alert'}
-                size={26}
-                color={radar.type === 'RADAR' ? '#D32F2F' : '#FF6F00'}
+                size={16}
+                color="#FFFFFF"
               />
             </View>
             <MapLibreGL.Callout title={radar.type === 'RADAR' ? 'Radar' : 'Control'}>
@@ -1077,24 +1642,33 @@ const MapScreen = () => {
       <MapControlDock
         currentMapStyle={currentMapStyle}
         gpsEnabled={gpsEnabled}
+        isFullScreen={isFullScreen}
         onSelectMapStyle={setCurrentMapStyle}
-        onRecenterGPS={() => {
-          if (currentLocation) {
-            cameraRef.current?.setCamera({
-              centerCoordinate: [currentLocation.longitude, currentLocation.latitude],
-              zoomLevel: 14,
-              animationDuration: 1000,
-            });
-          } else {
-            cameraRef.current?.setCamera({
-              centerCoordinate: DEFAULT_CENTER,
-              zoomLevel: DEFAULT_ZOOM,
-              animationDuration: 1000,
-            });
-          }
-        }}
+        onToggleFullScreen={handleToggleFullScreen}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onRecenterGPS={handleRecenter}
         onOpenReportIncident={() => setIsReportModalOpen(true)}
       />
+
+      {/* Botón Flotante de Recentrado Rápido en Vehículo (Aparece cuando el usuario desplaza el mapa) */}
+      {isAwayFromUser && !isNavigating && (
+        <TouchableOpacity
+          style={styles.floatingRecenterBtn}
+          onPress={handleRecenter}
+          activeOpacity={0.85}>
+          <Icon name="crosshairs-gps" size={18} color="#38BDF8" style={{ marginRight: 6 }} />
+          <Text style={styles.floatingRecenterText}>Centrar en mi vehículo</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Indicador de cálculo de ruta en curso */}
+      {isCalculatingRoute && (
+        <View style={styles.calculatingRoutePill}>
+          <ActivityIndicator size="small" color="#38BDF8" style={{ marginRight: 8 }} />
+          <Text style={styles.calculatingRouteText}>Calculando ruta segura...</Text>
+        </View>
+      )}
 
       {/* Modal ergonómico de reporte de incidencias con margen automático de 100m */}
       <ReportAlertButton
@@ -1117,54 +1691,6 @@ const MapScreen = () => {
         </View>
       )}
 
-      {/* Head-Up Display (HUD) de Conducción Futurista (Pilar 1, 2, 3) */}
-      {isNavigating && selectedLocation && selectedRoute && (
-        <DrivingHUD
-          currentSpeedKmH={currentLocation ? (currentLocation.speed * 3.6) : 0}
-          speedLimit={90}
-          destinationName={selectedLocation.name}
-          remainingDistanceKm={selectedRoute.distance / 1000}
-          remainingDurationMinutes={Math.round(selectedRoute.duration / 60)}
-          profileMode={profileMode}
-          audioMode={drivingPrefs.audioMode}
-          vehicleHeightMeters={vehicleHeight}
-          activeClearanceHazard={activeClearanceHazard}
-          tachographStatus={tachographStatus}
-          onStopNavigation={stopNavigation}
-          onToggleAudioMode={() => {
-            const nextMode: AudioAlertMode =
-              drivingPrefs.audioMode === 'multimedia'
-                ? 'bluetooth_hfp'
-                : drivingPrefs.audioMode === 'bluetooth_hfp'
-                ? 'silent_visual'
-                : 'multimedia';
-            const updated = { ...drivingPrefs, audioMode: nextMode };
-            setDrivingPrefs(updated);
-            AsyncStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(updated));
-          }}
-          onOpenClearanceDetails={() => {
-            if (activeClearanceHazard) {
-              Alert.alert(
-                'Aviso de Gálibo Crítico',
-                `Paso bajo detectado en ruta: ${activeClearanceHazard.hazard.description}.\nAltura permitida: ${activeClearanceHazard.hazard.maxAllowedHeight.toFixed(2)}m.\nTu vehículo mide: ${vehicleHeight.toFixed(2)}m.\n\nSe recomienda tomar desvío seguro.`
-              );
-            }
-          }}
-          onOpenTachographDetails={() => {
-            if (tachographStatus) {
-              Alert.alert(
-                'Tacógrafo Digital (Reglamento UE)',
-                `Conducción continua: ${VehicleRoutingService.formatTachographTime(tachographStatus.drivingMinutes)}\nLímite legal: 4h 30m.\n\n${
-                  tachographStatus.isWarningActive
-                    ? '⚠️ ¡Atención! Te quedan menos de 45 minutos. Debes estacionar en un área de servicio para camiones.'
-                    : 'Estado normal de conducción.'
-                }`
-              );
-            }
-          }}
-        />
-      )}
-
       {/* Ficha Deslizable de Cabina de Ubicación Seleccionada */}
       {selectedLocation && !isNavigating && (
         <CockpitLocationDetailSheet
@@ -1180,14 +1706,18 @@ const MapScreen = () => {
               : undefined
           }
           onClose={() => setSelectedLocation(null)}
-          onStartRoute={(loc) => {
-            if (currentLocation) {
-              calculateRoutes(
-                currentLocation.latitude,
-                currentLocation.longitude,
-                loc.latitude,
-                loc.longitude
-              );
+          onStartRoute={async (loc) => {
+            const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+            const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+            AudioAlertService.speak(`Iniciando ruta hacia ${loc.name}`);
+            const calcRoutes = await calculateRoutes(
+              fromLat,
+              fromLng,
+              loc.latitude,
+              loc.longitude
+            );
+            if (calcRoutes && calcRoutes.length > 0) {
+              startNavigation(calcRoutes[0]);
             }
           }}
           onOpenReviews={(loc) => {
@@ -1203,6 +1733,14 @@ const MapScreen = () => {
         locationId={reviewsLocation?.id || ''}
         locationName={reviewsLocation?.name || ''}
         onClose={() => setReviewsModalVisible(false)}
+      />
+
+      {/* Modal de Filtro Multicriterio Profesional (Park4Night / iOverlander) */}
+      <AdvancedSpotFilterModal
+        visible={showAdvancedFilterModal}
+        initialCriteria={advancedFilterCriteria}
+        onApply={(crit) => setAdvancedFilterCriteria(crit)}
+        onClose={() => setShowAdvancedFilterModal(false)}
       />
 
       {/* Modal selector de rutas */}
@@ -1295,6 +1833,85 @@ const styles = StyleSheet.create({
   markerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  markerBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#0F172A',
+    borderWidth: 2,
+    borderColor: '#38BDF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  radarBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#DC2626',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  floatingRecenterBtn: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 115 : 100,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 12,
+    zIndex: 92,
+  },
+  floatingRecenterText: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  calculatingRoutePill: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 100 : 80,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 110,
+  },
+  calculatingRouteText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '700',
   },
   callout: {
     padding: 8,
@@ -1483,6 +2100,19 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   noGpsText: { color: '#FFF', fontSize: 13, fontWeight: '500' },
+  laneGuidanceWrapper: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 142 : 112,
+    alignSelf: 'center',
+    zIndex: 119,
+  },
+  sectionRadarWrapper: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 190 : 160,
+    left: 14,
+    right: 14,
+    zIndex: 118,
+  },
 });
 
 export default MapScreen;

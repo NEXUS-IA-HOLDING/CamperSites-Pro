@@ -20,6 +20,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import haversine from 'haversine-distance';
 import { supabase } from '../lib/supabase';
 import { Logger } from '../utils/logger';
+import { offlineSpotVault } from '../services/OfflineSpotVaultService';
 
 export interface QuickFilter {
   id: string;
@@ -102,16 +103,20 @@ interface SearchResultItem {
 interface CockpitSearchBarProps {
   currentCoords?: { latitude: number; longitude: number } | null;
   activeFilterId: string;
+  hasActiveAdvancedFilters?: boolean;
   onSelectFilter: (filter: QuickFilter) => void;
   onSelectSearchResult: (result: SearchResultItem) => void;
+  onOpenAdvancedFilters?: () => void;
   onFocusChange?: (isFocused: boolean) => void;
 }
 
 export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
   currentCoords,
   activeFilterId,
+  hasActiveAdvancedFilters = false,
   onSelectFilter,
   onSelectSearchResult,
+  onOpenAdvancedFilters,
   onFocusChange,
 }) => {
   const [query, setQuery] = useState('');
@@ -136,39 +141,135 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
       setIsSearching(true);
       try {
         const cleanQuery = query.trim();
-        const { data, error } = await supabase
-          .from('locations')
-          .select('id, name, latitude, longitude, category, description, address')
-          .or(`name.ilike.%${cleanQuery}%,address.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%`)
-          .limit(10);
-
-        if (error) {
-          Logger.error('CockpitSearchBar', 'Error en búsqueda', error);
+        // Sanitización contra inyección de filtros PostgREST / Supabase
+        const safeQuery = cleanQuery.replace(/[%_,()"\\]/g, ' ').trim();
+        if (safeQuery.length < 2) {
           setResults([]);
-        } else if (data) {
-          const mapped: SearchResultItem[] = data.map((item) => {
-            let distanceKm: number | undefined;
-            if (currentCoords) {
-              const dMeters = haversine(
-                { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
-                { latitude: item.latitude, longitude: item.longitude }
-              );
-              distanceKm = Math.round(dMeters / 100) / 10;
-            }
-            return {
-              ...item,
-              distanceKm,
-            };
-          });
-
-          // Ordenar por distancia si está disponible
-          if (currentCoords) {
-            mapped.sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
-          }
-
-          setResults(mapped);
-          setShowResults(true);
+          setIsSearching(false);
+          return;
         }
+
+        const combinedResults: SearchResultItem[] = [];
+        const seenKeys = new Set<string>();
+
+        // 1. Puntos en la nube (Supabase)
+        try {
+          const { data, error } = await supabase
+            .from('locations')
+            .select('id, name, latitude, longitude, category, description, address')
+            .or(`name.ilike.%${safeQuery}%,address.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%`)
+            .limit(10);
+
+          if (!error && data) {
+            data.forEach((item) => {
+              const key = `${item.latitude.toFixed(4)}_${item.longitude.toFixed(4)}`;
+              seenKeys.add(key);
+              combinedResults.push({
+                ...item,
+                distanceKm: currentCoords
+                  ? Math.round(
+                      haversine(
+                        { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                        { latitude: item.latitude, longitude: item.longitude }
+                      ) / 100
+                    ) / 10
+                  : undefined,
+              });
+            });
+          }
+        } catch (cloudErr) {
+          Logger.warn('CockpitSearchBar', 'Cloud search offline', cloudErr);
+        }
+
+        // 2. Bóveda local de spots offline (Montaña y zonas rurales)
+        try {
+          const offlineMatches = offlineSpotVault.searchSpots(cleanQuery);
+          offlineMatches.slice(0, 10).forEach((spot) => {
+            const key = `${spot.latitude.toFixed(4)}_${spot.longitude.toFixed(4)}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              combinedResults.push({
+                id: spot.id,
+                name: spot.name,
+                latitude: spot.latitude,
+                longitude: spot.longitude,
+                category: spot.category,
+                description: spot.description,
+                address: [spot.address, spot.city, spot.province].filter(Boolean).join(', '),
+                distanceKm: currentCoords
+                  ? Math.round(
+                      haversine(
+                        { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                        { latitude: spot.latitude, longitude: spot.longitude }
+                      ) / 100
+                    ) / 10
+                  : undefined,
+              });
+            }
+          });
+        } catch (vaultErr) {}
+
+        // 3. Geocodificador OpenStreetMap Photon (ciudades, pueblos, direcciones en toda Europa)
+        if (combinedResults.length < 10) {
+          try {
+            const photonLat = currentCoords?.latitude || 40.4168;
+            const photonLng = currentCoords?.longitude || -3.7038;
+            const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&lat=${photonLat}&lon=${photonLng}&limit=6`;
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const geoRes = await fetch(photonUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (geoRes.ok) {
+              const geoData = await geoRes.json();
+              if (geoData?.features && Array.isArray(geoData.features)) {
+                geoData.features.forEach((feat: any) => {
+                  const p = feat.properties;
+                  const coords = feat.geometry?.coordinates;
+                  if (!coords || coords.length < 2) return;
+                  const lat = coords[1];
+                  const lng = coords[0];
+                  const key = `${lat.toFixed(4)}_${lng.toFixed(4)}`;
+                  if (!seenKeys.has(key)) {
+                    seenKeys.add(key);
+                    const placeName = p.name || cleanQuery;
+                    const subtitle = [p.street, p.city || p.town || p.village, p.state, p.country]
+                      .filter(Boolean)
+                      .join(', ');
+                    combinedResults.push({
+                      id: `geo-${p.osm_id || Math.random()}`,
+                      name: placeName,
+                      latitude: lat,
+                      longitude: lng,
+                      category: (p.osm_value || 'DESTINO').toUpperCase(),
+                      description: subtitle || 'Destino en carretera',
+                      address: subtitle,
+                      distanceKm: currentCoords
+                        ? Math.round(
+                            haversine(
+                              { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                              { latitude: lat, longitude: lng }
+                            ) / 100
+                          ) / 10
+                        : undefined,
+                    });
+                  }
+                });
+              }
+            }
+          } catch (geoErr) {
+            // Geocodificación silenciosa en caso de offline
+          }
+        }
+
+        // Ordenar por distancia si está disponible
+        if (currentCoords) {
+          combinedResults.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+        }
+
+        setResults(combinedResults);
+        setShowResults(combinedResults.length > 0);
       } catch (e) {
         Logger.error('CockpitSearchBar', 'Fallo de búsqueda', e);
       } finally {
@@ -282,6 +383,30 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterScroll}
         style={styles.filterContainer}>
+        {onOpenAdvancedFilters && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onOpenAdvancedFilters}
+            style={[
+              styles.filterChip,
+              styles.advancedFilterTrigger,
+              hasActiveAdvancedFilters && styles.advancedFilterTriggerActive,
+            ]}>
+            <Icon
+              name="tune-variant"
+              size={15}
+              color={hasActiveAdvancedFilters ? '#FFFFFF' : '#38BDF8'}
+              style={{ marginRight: 5 }}
+            />
+            <Text
+              style={[
+                styles.filterChipText,
+                { color: hasActiveAdvancedFilters ? '#FFFFFF' : '#38BDF8', fontWeight: '800' },
+              ]}>
+              Filtros Pro
+            </Text>
+          </TouchableOpacity>
+        )}
         {QUICK_FILTERS.map((f) => {
           const isActive = activeFilterId === f.id;
           return (
@@ -423,6 +548,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+  },
+  advancedFilterTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 132, 199, 0.2)',
+    borderColor: 'rgba(56, 189, 248, 0.6)',
+  },
+  advancedFilterTriggerActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#38BDF8',
   },
   filterChipText: {
     color: '#E2E8F0',

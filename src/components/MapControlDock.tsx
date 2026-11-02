@@ -22,9 +22,13 @@ import { MapStyleType } from '../types/assistant';
 interface MapControlDockProps {
   currentMapStyle: MapStyleType;
   gpsEnabled: boolean;
+  isFullScreen?: boolean;
   onSelectMapStyle: (style: MapStyleType) => void;
   onRecenterGPS: () => void;
   onOpenReportIncident: () => void;
+  onToggleFullScreen?: () => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
 }
 
 interface MapLayerOption {
@@ -69,9 +73,13 @@ const MAP_LAYERS: MapLayerOption[] = [
 export const MapControlDock: React.FC<MapControlDockProps> = ({
   currentMapStyle,
   gpsEnabled,
+  isFullScreen = false,
   onSelectMapStyle,
   onRecenterGPS,
   onOpenReportIncident,
+  onToggleFullScreen,
+  onZoomIn,
+  onZoomOut,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -130,6 +138,39 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
 
       {/* Pila vertical de controles agrupados abajo a la derecha */}
       <View style={styles.dockColumn}>
+        {/* 0. Botón Maximizar / Minimizar Pantalla Completa del Mapa */}
+        {onToggleFullScreen && (
+          <TouchableOpacity
+            style={[styles.dockBtn, isFullScreen && styles.dockBtnActive]}
+            onPress={onToggleFullScreen}
+            activeOpacity={0.8}>
+            <Icon
+              name={isFullScreen ? 'fullscreen-exit' : 'fullscreen'}
+              size={24}
+              color={isFullScreen ? '#F59E0B' : '#38BDF8'}
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* 0.1 Botones de Zoom In / Zoom Out */}
+        {onZoomIn && onZoomOut && (
+          <View style={styles.zoomGroup}>
+            <TouchableOpacity
+              style={styles.zoomBtn}
+              onPress={onZoomIn}
+              activeOpacity={0.75}>
+              <Icon name="plus" size={20} color="#F1F5F9" />
+            </TouchableOpacity>
+            <View style={styles.zoomDivider} />
+            <TouchableOpacity
+              style={styles.zoomBtn}
+              onPress={onZoomOut}
+              activeOpacity={0.75}>
+              <Icon name="minus" size={20} color="#F1F5F9" />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* 1. Botón Desplegable de Capas del Mapa */}
         <TouchableOpacity
           style={[styles.dockBtn, layersOpen && styles.dockBtnActive]}
@@ -142,15 +183,16 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
           />
         </TouchableOpacity>
 
-        {/* 2. Botón Recentrador GPS */}
+        {/* 2. Botón Recentrador GPS en Cabina */}
         <TouchableOpacity
-          style={styles.dockBtn}
+          style={[styles.dockBtn, gpsEnabled && styles.recenterBtnActive]}
           onPress={onRecenterGPS}
-          activeOpacity={0.8}>
+          activeOpacity={0.8}
+          accessibilityLabel="Centrar en mi ubicación">
           <Icon
-            name={gpsEnabled ? 'crosshairs-gps' : 'crosshairs'}
-            size={22}
-            color={gpsEnabled ? '#10B981' : '#94A3B8'}
+            name="crosshairs-gps"
+            size={24}
+            color={gpsEnabled ? '#38BDF8' : '#94A3B8'}
           />
         </TouchableOpacity>
 
@@ -256,7 +298,34 @@ const styles = StyleSheet.create({
   },
   dockBtnActive: {
     borderColor: '#38BDF8',
-    backgroundColor: '#0F172A',
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+  },
+  recenterBtnActive: {
+    borderColor: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+  },
+  zoomGroup: {
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  zoomBtn: {
+    width: 44,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomDivider: {
+    width: 28,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   reportBtn: {
     borderColor: 'rgba(245, 158, 11, 0.45)',

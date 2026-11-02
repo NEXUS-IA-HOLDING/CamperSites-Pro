@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+const fetchFn = typeof fetch !== 'undefined' ? fetch : (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
 // Leer .env
 const envPath = path.join(__dirname, '../.env');
@@ -48,23 +48,30 @@ async function main() {
     active: true,
   }));
 
-  console.log(`📡 Subiendo ${radars.length} radares a Supabase...`);
+  console.log(`📡 Subiendo ${radars.length} radares a Supabase en lotes de 200...`);
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/radars`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(radars),
-  });
+  const BATCH_SIZE = 200;
+  let totalUploaded = 0;
 
-  if (!res.ok) {
-    const err = await res.json();
-    console.error('❌ Error:', JSON.stringify(err, null, 2));
-  } else {
-    console.log(`✅ ${radars.length} radares subidos correctamente`);
+  for (let i = 0; i < radars.length; i += BATCH_SIZE) {
+    const batch = radars.slice(i, i + BATCH_SIZE);
+    const res = await fetchFn(`${SUPABASE_URL}/rest/v1/radars`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(batch),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error(`❌ Error en lote ${i}-${i + batch.length}:`, JSON.stringify(err, null, 2));
+    } else {
+      totalUploaded += batch.length;
+      console.log(`✅ Lote subido: ${totalUploaded} / ${radars.length} radares (${Math.round((totalUploaded / radars.length) * 100)}%)`);
+    }
   }
 
   // Verificar conteo
-  const countRes = await fetch(`${SUPABASE_URL}/rest/v1/radars?select=*&limit=0`, {
+  const countRes = await fetchFn(`${SUPABASE_URL}/rest/v1/radars?select=*&limit=0`, {
     headers: { ...headers, 'Prefer': 'count=exact' },
   });
   const range = countRes.headers.get('content-range');

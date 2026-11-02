@@ -1,5 +1,5 @@
 /**
- * FavoritesScreen - Lugares favoritos del usuario
+ * FavoritesScreen - Lugares favoritos del usuario y lista de deseos nómade
  * CamperSites Pro - YRYS
  */
 
@@ -11,11 +11,13 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { CamperSitesTheme as theme } from '../theme';
 import { AdvancedFavorites } from '../features/premium';
 
 const FAVORITES_KEY = '@campersites_favorites';
@@ -31,7 +33,64 @@ interface Location {
   has_water: boolean;
   has_electricity: boolean;
   price: number | null;
+  description?: string;
 }
+
+// Lugares legendarios sugeridos para cuando la lista de favoritos esté vacía
+const CURATED_RECOMMENDED_SPOTS: Location[] = [
+  {
+    id: 'spot_cabo_gata_rec',
+    name: 'Área Camper Cabo de Gata & Las Negras',
+    latitude: 36.8791,
+    longitude: -2.0084,
+    category: 'CAMPING',
+    city: 'Níjar',
+    province: 'Almería',
+    has_water: true,
+    has_electricity: true,
+    price: 15,
+    description: 'A 200m del mar, noches estrelladas sin contaminación lumínica.',
+  },
+  {
+    id: 'spot_picos_europa_rec',
+    name: 'Parking Mirador Picos de Europa (Sotres)',
+    latitude: 43.2312,
+    longitude: -4.7523,
+    category: 'PARKING_PERMITIDO',
+    city: 'Cabrales',
+    province: 'Asturias',
+    has_water: true,
+    has_electricity: false,
+    price: 0,
+    description: 'Vistas panorámicas hacia el Naranjo de Bulnes y pistas de senderismo.',
+  },
+  {
+    id: 'spot_fisterra_rec',
+    name: 'Área O Rincón da Costa Fisterra',
+    latitude: 42.9089,
+    longitude: -9.2556,
+    category: 'CAMPING',
+    city: 'Fisterra',
+    province: 'A Coruña',
+    has_water: true,
+    has_electricity: true,
+    price: 18,
+    description: 'Atardeceres legendarios sobre el océano Atlántico.',
+  },
+  {
+    id: 'spot_cazorla_rec',
+    name: 'Área Ecológica Parque Natural Cazorla',
+    latitude: 37.9123,
+    longitude: -2.9984,
+    category: 'AREA_SERVICIOS',
+    city: 'Cazorla',
+    province: 'Jaén',
+    has_water: true,
+    has_electricity: true,
+    price: 12,
+    description: 'Punto de recarga de agua limpia y vaciado rodeado de pinos centenarios.',
+  },
+];
 
 const getCategoryIcon = (category: string) => {
   switch (category) {
@@ -45,23 +104,30 @@ const getCategoryIcon = (category: string) => {
 
 const getCategoryColor = (category: string) => {
   switch (category) {
-    case 'CAMPING': return theme.colors.primary.main;
-    case 'PARKING_PERMITIDO': return theme.colors.accent.sky;
-    case 'AREA_DESCANSO': return theme.colors.secondary.main;
-    case 'AREA_SERVICIOS': return theme.colors.accent.mountain;
-    default: return theme.colors.text.secondary;
+    case 'CAMPING': return '#10B981';
+    case 'PARKING_PERMITIDO': return '#38BDF8';
+    case 'AREA_DESCANSO': return '#F59E0B';
+    case 'AREA_SERVICIOS': return '#818CF8';
+    default: return '#94A3B8';
   }
 };
 
 export default function FavoritesScreen() {
+  const navigation = useNavigation();
   const [favorites, setFavorites] = useState<Location[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'folders'>('list');
 
+  const handleSelectFavorite = async (item: Location) => {
+    try {
+      await AsyncStorage.setItem('@campersites_jump_to_location', JSON.stringify(item));
+      navigation.navigate('Mapa' as never);
+    } catch {}
+  };
+
   const loadFavorites = useCallback(async () => {
     try {
-      // Cargar IDs de favoritos de AsyncStorage
       const stored = await AsyncStorage.getItem(FAVORITES_KEY);
       const ids: string[] = stored ? JSON.parse(stored) : [];
       setFavoriteIds(ids);
@@ -72,18 +138,19 @@ export default function FavoritesScreen() {
         return;
       }
 
-      // Buscar las locations en Supabase
+      // Buscar en Supabase
       const { data, error } = await supabase
         .from('locations')
         .select('*')
         .in('id', ids);
 
       if (error) {
-        console.error('Error fetching favorites:', error);
-        return;
+        // Fallback a los recomendados que coincidan
+        const localMatches = CURATED_RECOMMENDED_SPOTS.filter(s => ids.includes(s.id));
+        setFavorites(localMatches);
+      } else {
+        setFavorites(data || []);
       }
-
-      setFavorites(data || []);
     } catch (err) {
       console.error('Error loading favorites:', err);
     } finally {
@@ -94,6 +161,18 @@ export default function FavoritesScreen() {
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
+
+  const addCuratedToFavorites = async (item: Location) => {
+    try {
+      const newIds = [...favoriteIds, item.id];
+      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(newIds));
+      setFavoriteIds(newIds);
+      setFavorites(prev => [item, ...prev]);
+      Alert.alert('¡Añadido a Favoritos!', `"${item.name}" guardado para tus próximas rutas.`);
+    } catch (err) {
+      console.error('Error adding curated to favorites:', err);
+    }
+  };
 
   const removeFavorite = async (locationId: string) => {
     try {
@@ -107,16 +186,19 @@ export default function FavoritesScreen() {
   };
 
   const renderFavoriteCard = ({ item }: { item: Location }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.85}
+      onPress={() => handleSelectFavorite(item)}>
       <View style={styles.cardContent}>
         <View
           style={[
             styles.iconContainer,
-            { backgroundColor: getCategoryColor(item.category) + '15' },
+            { backgroundColor: `${getCategoryColor(item.category)}20` },
           ]}>
           <Icon
             name={getCategoryIcon(item.category)}
-            size={28}
+            size={26}
             color={getCategoryColor(item.category)}
           />
         </View>
@@ -133,60 +215,82 @@ export default function FavoritesScreen() {
           <View style={styles.cardTags}>
             {item.has_water && (
               <View style={styles.tag}>
-                <Icon name="water" size={12} color={theme.colors.accent.sky} />
+                <Icon name="water" size={12} color="#38BDF8" />
                 <Text style={styles.tagText}>Agua</Text>
               </View>
             )}
             {item.has_electricity && (
               <View style={styles.tag}>
-                <Icon name="flash" size={12} color={theme.colors.secondary.main} />
-                <Text style={styles.tagText}>Luz</Text>
+                <Icon name="flash" size={12} color="#FBBF24" />
+                <Text style={styles.tagText}>220V</Text>
               </View>
             )}
-            {item.price !== null && item.price > 0 && (
-              <View style={styles.tag}>
-                <Icon name="currency-eur" size={12} color={theme.colors.primary.main} />
-                <Text style={styles.tagText}>{item.price}€</Text>
+            {item.price !== null && item.price !== undefined && (
+              <View style={[styles.tag, item.price === 0 && styles.freeTag]}>
+                <Text style={[styles.tagText, item.price === 0 && styles.freeTagText]}>
+                  {item.price === 0 ? 'Gratis' : `${item.price}€`}
+                </Text>
               </View>
             )}
+            <View style={[styles.tag, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+              <Icon name="navigation-variant" size={11} color="#38BDF8" />
+              <Text style={[styles.tagText, { color: '#38BDF8', fontWeight: '700' }]}>Ver en Mapa</Text>
+            </View>
           </View>
         </View>
 
         <TouchableOpacity
           style={styles.removeButton}
           onPress={() => removeFavorite(item.id)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Icon name="heart" size={24} color={theme.colors.alerts.radar} />
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Icon name="heart" size={24} color="#EF4444" />
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
+      {/* Marca de agua elegante del logo en el fondo */}
+      <Image
+        source={require('../assets/images/logo.png')}
+        style={styles.backgroundCenteredLogo}
+        resizeMode="contain"
+      />
+
       {/* Header */}
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={styles.headerTitle}>Favoritos</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle}>Mis Favoritos</Text>
           <View style={styles.countBadge}>
-            <Icon name="heart" size={16} color="#FFFFFF" />
+            <Icon name="heart" size={14} color="#EF4444" />
             <Text style={styles.countText}>{favorites.length}</Text>
           </View>
         </View>
 
         {/* View Mode Toggle */}
-        <View style={{ flexDirection: 'row', backgroundColor: '#E8F5E9', borderRadius: 8, padding: 2 }}>
+        <View style={styles.viewToggle}>
           <TouchableOpacity
-            style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }, viewMode === 'list' && { backgroundColor: theme.colors.primary.main }]}
+            style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
             onPress={() => setViewMode('list')}>
-            <Text style={[{ fontSize: 12, fontWeight: '600', color: theme.colors.primary.main }, viewMode === 'list' && { color: '#FFFFFF' }]}>
+            <Icon
+              name="format-list-bulleted"
+              size={16}
+              color={viewMode === 'list' ? '#0F172A' : '#94A3B8'}
+            />
+            <Text style={[styles.toggleBtnText, viewMode === 'list' && styles.toggleBtnTextActive]}>
               Lista
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }, viewMode === 'folders' && { backgroundColor: theme.colors.primary.main }]}
+            style={[styles.toggleBtn, viewMode === 'folders' && styles.toggleBtnActive]}
             onPress={() => setViewMode('folders')}>
-            <Text style={[{ fontSize: 12, fontWeight: '600', color: theme.colors.primary.main }, viewMode === 'folders' && { color: '#FFFFFF' }]}>
+            <Icon
+              name="folder-star"
+              size={16}
+              color={viewMode === 'folders' ? '#0F172A' : '#94A3B8'}
+            />
+            <Text style={[styles.toggleBtnText, viewMode === 'folders' && styles.toggleBtnTextActive]}>
               Carpetas Pro
             </Text>
           </TouchableOpacity>
@@ -197,18 +301,63 @@ export default function FavoritesScreen() {
         <AdvancedFavorites />
       ) : loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary.main} />
+          <ActivityIndicator size="large" color="#38BDF8" />
         </View>
       ) : favorites.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <View style={styles.emptyIconContainer}>
-            <Icon name="heart-outline" size={80} color={theme.colors.text.disabled} />
-          </View>
-          <Text style={styles.emptyTitle}>Sin favoritos aún</Text>
-          <Text style={styles.emptySubtitle}>
-            Explora el mapa y guarda tus lugares preferidos tocando el corazón
-          </Text>
-        </View>
+        // Estado inicial enriquecido con recomendaciones reales (NUNCA SOSO)
+        <FlatList
+          ListHeaderComponent={
+            <View style={styles.emptyHeader}>
+              <View style={styles.emptyIconContainer}>
+                <Icon name="heart-pulse" size={44} color="#38BDF8" />
+              </View>
+              <Text style={styles.emptyTitle}>Tu lista de favoritos está esperando</Text>
+              <Text style={styles.emptySubtitle}>
+                Guarda tus áreas preferidas con el corazón. Te sugerimos estos 4 destinos top para empezar:
+              </Text>
+            </View>
+          }
+          data={CURATED_RECOMMENDED_SPOTS}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.recommendedCard}>
+              <View style={styles.cardContent}>
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: `${getCategoryColor(item.category)}20` },
+                  ]}>
+                  <Icon
+                    name={getCategoryIcon(item.category)}
+                    size={26}
+                    color={getCategoryColor(item.category)}
+                  />
+                </View>
+
+                <View style={styles.cardInfo}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.cardLocation} numberOfLines={1}>
+                    {[item.city, item.province].filter(Boolean).join(', ')}
+                  </Text>
+                  <Text style={styles.recDesc} numberOfLines={1}>
+                    {item.description}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.addCuratedButton}
+                  onPress={() => addCuratedToFavorites(item)}
+                  activeOpacity={0.8}>
+                  <Icon name="heart-plus" size={20} color="#38BDF8" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
       ) : (
         <FlatList
           data={favorites}
@@ -225,45 +374,100 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.light,
+    backgroundColor: '#0F172A',
+  },
+  backgroundCenteredLogo: {
+    position: 'absolute',
+    width: '90%',
+    height: '90%',
+    alignSelf: 'center',
+    top: '5%',
+    opacity: 0.06,
   },
   header: {
-    backgroundColor: theme.colors.primary.main,
-    paddingTop: 60,
-    paddingBottom: 24,
+    backgroundColor: '#1E293B',
+    paddingTop: 54,
+    paddingBottom: 16,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#F8FAFC',
   },
   countBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   countText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  toggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#38BDF8',
+  },
+  toggleBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  toggleBtnTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
   },
   listContent: {
     padding: 16,
-    gap: 10,
+    paddingBottom: 100,
+    gap: 12,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E293B',
     borderRadius: 16,
     padding: 14,
-    ...theme.shadows.sm,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  recommendedCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    marginBottom: 4,
   },
   cardContent: {
     flexDirection: 'row',
@@ -271,8 +475,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconContainer: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
@@ -281,14 +485,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#F8FAFC',
   },
   cardLocation: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
+    fontSize: 12,
+    color: '#94A3B8',
     marginTop: 2,
+  },
+  recDesc: {
+    fontSize: 11,
+    color: '#38BDF8',
+    marginTop: 3,
   },
   cardTags: {
     flexDirection: 'row',
@@ -298,18 +507,39 @@ const styles = StyleSheet.create({
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.background.light,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 3,
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   tagText: {
-    fontSize: 11,
-    color: theme.colors.text.secondary,
+    fontSize: 10,
+    color: '#CBD5E1',
+    fontWeight: '600',
+  },
+  freeTag: {
+    backgroundColor: '#065F46',
+    borderColor: '#059669',
+  },
+  freeTagText: {
+    color: '#34D399',
+    fontWeight: '800',
   },
   removeButton: {
-    padding: 4,
+    padding: 8,
+  },
+  addCuratedButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
   },
   centerContainer: {
     flex: 1,
@@ -317,25 +547,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: theme.colors.background.paper,
-    justifyContent: 'center',
+  emptyHeader: {
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
+    paddingVertical: 16,
     marginBottom: 8,
   },
-  emptySubtitle: {
-    fontSize: 15,
-    color: theme.colors.text.secondary,
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#F8FAFC',
+    marginBottom: 6,
     textAlign: 'center',
-    lineHeight: 22,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 20,
   },
 });

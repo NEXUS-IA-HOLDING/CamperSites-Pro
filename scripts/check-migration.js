@@ -9,8 +9,27 @@
  *   2. The expanded CHECK constraint (category 'MIRADOR' allowed)
  */
 
-const SUPABASE_URL = 'https://cdlhipiukgjmfimhjlkl.supabase.co';
-const SERVICE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbGhpcGl1a2dqbWZpbWhqbGtsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDgyNjIwNywiZXhwIjoyMDg2NDAyMjA3fQ._zi1YHP-A1e_7VNxAi9yRrPZgxxMdVn6YcwkoGoXIFc';
+const fs = require('fs');
+const path = require('path');
+
+// Cargar variables de entorno desde .env de forma segura
+const envPath = path.join(__dirname, '../.env');
+let env = {};
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf-8');
+  envContent.split('\n').forEach(line => {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (match) env[match[1].trim()] = match[2].trim();
+  });
+}
+
+const SUPABASE_URL = process.env.SUPABASE_URL || env.SUPABASE_URL || 'https://cdlhipiukgjmfimhjlkl.supabase.co';
+const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+if (!SERVICE_KEY) {
+  console.error('❌ ERROR DE SEGURIDAD: SUPABASE_SERVICE_ROLE_KEY no configurado en el entorno ni en .env');
+  process.exit(1);
+}
 
 const headers = {
   'apikey':        SERVICE_KEY,

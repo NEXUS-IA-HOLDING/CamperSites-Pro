@@ -17,46 +17,82 @@ import { Logger } from '../utils/logger';
 // 1. PROMPT INJECTION DETECTION
 // ============================================
 
-// Patrones comunes de prompt injection attacks
+// Homoglyph & Zero-Width Map para normalización previa a inspección
+const HOMOGLYPH_MAP: Record<string, string> = {
+  'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x', 'і': 'i', 'ј': 'j',
+  'α': 'a', 'ε': 'e', 'ο': 'o', 'ρ': 'p', 'τ': 't', 'υ': 'y', '0': 'o', '1': 'i', '3': 'e',
+  '@': 'a', '$': 's', '!': 'i',
+};
+
+/**
+ * Normaliza caracteres ofuscados (homoglyphs cirílicos, griegos, leet y caracteres invisibles)
+ */
+export function normalizeSecurityInput(input: string): string {
+  // 1. Eliminar caracteres invisibles y zero-width
+  let cleaned = input.replace(/[\u200B-\u200D\uFEFF\u00A0\u2060\u180E]/g, '');
+
+  // 2. Mapear homoglyphs comunes usados para evadir filtros
+  cleaned = cleaned.split('').map(char => HOMOGLYPH_MAP[char.toLowerCase()] || char).join('');
+
+  return cleaned.toLowerCase().trim();
+}
+
+// Patrones avanzados de prompt injection attacks (Multilingüe: ES / EN)
 const PROMPT_INJECTION_PATTERNS: RegExp[] = [
-  // Ignorar instrucciones previas
+  // 1. Ignorar instrucciones previas / Anulación de directivas
   /\b(ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions|rules|directives|prompts))\b/i,
   /\b(don'?t\s+(follow|obey|listen\s+to)\s+(previous|prior|above)\s+instructions)\b/i,
   /\b(disregard\s+(all\s+)?(previous|prior|above)\s+information)\b/i,
-  
-  // Sobrescribir sistema
+  /\b(ignora|olvida|desestima|anula|borra)\s+(todas?\s+)?(las?\s+)?(instrucciones|reglas|directivas|prompts?)\b/i,
+  /\b(olvida\s+lo\s+anterior|no\s+hagas\s+caso\s+a\s+lo\s+anterior)\b/i,
+
+  // 2. Sobrescribir sistema / Modo Desarrollador / Jailbreaks (DAN, AIM, STAN)
   /\b(you\s+are\s+(now|actually|really))\b/i,
   /\b(new\s+instruction|new\s+rule|system\s+instruction)\s*:/i,
   /\b(important:\s*(remember|note|understand))\b/i,
-  
-  // Exfiltración de datos/prompt
-  /\b(print|output|show|reveal|display)\s+(your\s+)?(prompt|instructions|system\s+message|configuration)\b/i,
+  /\b(dan|jailbreak|developer\s+mode|god\s+mode|root\s+access|unrestricted\s+mode)\b/i,
+  /\b(modo\s+(desarrollador|dios|root|sin\s+limites|sin\s+restricciones|jailbreak))\b/i,
+  /\b(ahora\s+eres|a\s+partir\s+de\s+ahora\s+eres)\b/i,
+  /\b(act\s+as\s+an?\s+unfiltered|unrestricted\s+and\s+uncensored)\b/i,
+
+  // 3. Exfiltración de datos, variables y system prompt
+  /\b(print|output|show|reveal|display|leak)\s+(your\s+)?(prompt|instructions|system\s+message|configuration|api\s*key)\b/i,
   /\b(what\s+(is|are)\s+your\s+(instructions|rules|guidelines|prompt))\b/i,
   /\b(copy\s+and\s+paste\s+(your\s+)?(prompt|instructions))\b/i,
-  
-  // Ejecución de código/comandos
+  /\b(repite|muestra|imprime|dime|revela)\s+(el\s+)?(prompt|las\s+instrucciones|tu\s+configuracion|la\s+clave)\b/i,
+  /\b(que\s+instrucciones\s+(te\s+dieron|tienes)|cuales\s+son\s+tus\s+reglas)\b/i,
+
+  // 4. Marcadores de formato de token LLM y delimitadores maliciosos
+  /<\|im_start\|>|<\|im_end\|>|<\|system\|>|\[INST\]|\[\/INST\]|<<SYS>>|<<\/SYS>>/i,
+  /\[SYSTEM\s*(PROMPT|OVERRIDE|INSTRUCTION)\]/i,
+  /###\s*(system|instruction|user|assistant):/i,
+
+  // 5. Ejecución de código y comandos maliciosos
   /\b(execute|run|eval|interpret)\s+(this\s+)?(code|command|script|function)\b/i,
+  /\b(ejecuta|corre|evalua)\s+(este\s+)?(codigo|comando|script|funcion)\b/i,
   /\b(```[\s\S]*?```)\b/, // Bloques de código
   /\b(\$\{[^}]*\})\b/,    // Template literals
   /\b(eval\s*\([^)]*\))/i,
-  
-  // Manipulación de rol
-  /\b(act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+(admin|developer|system|owner)\b/i,
+
+  // 6. Manipulación de rol y suplantación de privilegios
+  /\b(act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+(admin|developer|system|owner|root|master)\b/i,
+  /\b(actua\s+como|finge\s+ser|hazte\s+pasar\s+por)\s+(admin|administrador|desarrollador|root|dueno)\b/i,
   /\b(you\s+have\s+(been\s+)?(updated|upgraded|modified))\b/i,
-  
-  // Bypass de restricciones
+
+  // 7. Bypass de restricciones éticas y escenarios ficticios forzados
   /\b(without\s+(any\s+)?(restrictions|limitations|ethics|safety))\b/i,
   /\b(in\s+an\s+alternate\s+universe|in\s+a\s+roleplay|hypothetically)\b/i,
   /\b(for\s+educational\s+purposes|for\s+research\s+only)\b/i,
-  
-  // Codificación/Ofuscación
-  /(base64|hex|rot13|url\s*encode)/i,
+  /\b(en\s+un\s+universo\s+paralelo|hipoteticamente|solo\s+para\s+pruebas|fines\s+educativos)\b/i,
+
+  // 8. Codificación / Ofuscación
+  /(base64|hex|rot13|url\s*encode|ascii\s*decode)/i,
   /(&#x?[0-9a-f]+;)+/i, // HTML entities
 ];
 
-// Keywords peligrosas en contexto de comandos
+// Keywords peligrosas en contexto de comandos y bases de datos
 const DANGEROUS_COMMAND_KEYWORDS: string[] = [
-  'DROP TABLE', 'DELETE FROM', 'INSERT INTO', 'UPDATE SET',
+  'DROP TABLE', 'DELETE FROM', 'INSERT INTO', 'UPDATE SET', 'UNION SELECT',
   'EXEC ', 'EXECUTE ', 'xp_cmdshell', 'sp_executesql',
   'rm -rf', 'sudo ', 'chmod ', 'chown ', 'curl ', 'wget ',
   'npm install', 'pip install', 'yarn add',
@@ -64,6 +100,7 @@ const DANGEROUS_COMMAND_KEYWORDS: string[] = [
   'require(', 'import(', 'eval(', 'Function(',
   'document.cookie', 'localStorage', 'sessionStorage',
   'process.env', 'process.exit', 'child_process',
+  'SUPABASE_SERVICE_ROLE', 'SERVICE_ROLE_KEY', 'jwt.sign',
 ];
 
 export interface PromptAnalysisResult {
@@ -81,8 +118,8 @@ export function analyzePromptForInjection(input: string): PromptAnalysisResult {
   const detectedPatterns: string[] = [];
   let riskScore = 0;
   
-  // Normalizar input para análisis
-  const normalizedInput = input.toLowerCase().trim();
+  // Normalizar input para análisis eliminando homoglyphs y caracteres invisibles
+  const normalizedInput = normalizeSecurityInput(input);
   
   // 1. Detectar patrones de prompt injection
   PROMPT_INJECTION_PATTERNS.forEach((pattern, index) => {
@@ -324,13 +361,17 @@ export function validateAIOutput(output: string): OutputValidationResult {
   const blockedContent: string[] = [];
   let sanitizedOutput = output;
   
-  // 1. Detectar información sensible que pueda haber sido filtrada
+  // 1. Detectar información sensible que pueda haber sido filtrada (API keys, JWT, passwords, URIs)
   const sensitivePatterns: RegExp[] = [
     /api[_-]?key\s*[=:]\s*['"][A-Za-z0-9_-]{20,}['"]/i,
-    /password\s*[=:]\s*['"][^'"]{8,}['"]/i,
+    /password\s*[=:]\s*['"][^'"]{6,}['"]/i,
     /secret\s*[=:]\s*['"][A-Za-z0-9_-]{16,}['"]/i,
     /token\s*[=:]\s*['"][A-Za-z0-9._-]{20,}['"]/i,
     /Bearer\s+[A-Za-z0-9._-]{20,}/i,
+    /eyJh[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}/i, // JWT tokens
+    /AIzaSy[A-Za-z0-9_-]{33}/i, // Google API keys
+    /pk\.[A-Za-z0-9_-]{20,}/i, // Mapbox keys
+    /postgres(ql)?:\/\/[^\s"'`]+/i, // Database connection strings
   ];
   
   sensitivePatterns.forEach((pattern, index) => {

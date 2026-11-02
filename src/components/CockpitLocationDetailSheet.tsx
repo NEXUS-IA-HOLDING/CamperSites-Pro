@@ -3,7 +3,7 @@
  * Reemplaza los popups cutres por una tarjeta de control táctico con servicios y cálculo de ruta segura
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,8 +11,23 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  Alert,
+  Share,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  locationOccupancyService,
+  LocationOccupancyData,
+  OccupancyLevel,
+} from '../services/LocationOccupancyService';
+import {
+  camperWeatherService,
+  CamperWeatherReport,
+} from '../services/CamperWeatherService';
+
+const FAVORITES_KEY = '@campersites_favorites';
 
 interface LocationItem {
   id: string;
@@ -39,6 +54,73 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
   onStartRoute,
   onOpenReviews,
 }) => {
+  const [occupancy, setOccupancy] = useState<LocationOccupancyData | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [weather, setWeather] = useState<CamperWeatherReport | null>(null);
+
+  useEffect(() => {
+    if (location) {
+      setOccupancy(locationOccupancyService.getOccupancy(location.id));
+      checkFavoriteStatus(location.id);
+      loadWeatherData(location.latitude, location.longitude);
+    }
+  }, [location?.id, location?.latitude, location?.longitude]);
+
+  const checkFavoriteStatus = async (id: string) => {
+    try {
+      const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+      if (stored) {
+        const ids: string[] = JSON.parse(stored);
+        setIsFavorite(ids.includes(id));
+      }
+    } catch {}
+  };
+
+  const loadWeatherData = async (lat: number, lon: number) => {
+    try {
+      const rep = await camperWeatherService.getSpotWeather(lat, lon);
+      setWeather(rep);
+    } catch {}
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!location) return;
+    try {
+      const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+      let ids: string[] = stored ? JSON.parse(stored) : [];
+      if (ids.includes(location.id)) {
+        ids = ids.filter(i => i !== location.id);
+        setIsFavorite(false);
+      } else {
+        ids.push(location.id);
+        setIsFavorite(true);
+      }
+      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
+    } catch {}
+  };
+
+  const handleShareLocation = async () => {
+    if (!location) return;
+    try {
+      const mapsUrl = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
+      await Share.share({
+        title: location.name,
+        message: `🚐 ¡Mira este punto en CamperSites Pro!\n\n📍 ${location.name}\nCoordenadas: ${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}\n\nVer en mapa: ${mapsUrl}`,
+      });
+    } catch {}
+  };
+
+  const handleOpenExternalMaps = () => {
+    if (!location) return;
+    const url = Platform.select({
+      ios: `maps:0,0?q=${location.latitude},${location.longitude}(${encodeURIComponent(location.name)})`,
+      android: `geo:0,0?q=${location.latitude},${location.longitude}(${encodeURIComponent(location.name)})`,
+    }) || `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
+    Linking.openURL(url).catch(() => {
+      Linking.openURL(`https://maps.google.com/?q=${location.latitude},${location.longitude}`);
+    });
+  };
+
   if (!location) return null;
 
   // Determinar servicios según la categoría
@@ -46,6 +128,38 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
   const isAreaCamper = location.category === 'AREA_SERVICIOS' || location.category === 'AREA_DESCANSO';
   const isGasStation = location.category === 'GASOLINERA_GLP';
   const isRestaurant = location.category === 'RESTAURANTE' || location.category.includes('BAR');
+
+  const handlePromptCheckIn = () => {
+    Alert.alert(
+      '📍 Confirmar Ocupación de Plazas',
+      `¿Cómo está la disponibilidad en ${location.name}?`,
+      [
+        {
+          text: '🟢 Hay sitio libre',
+          onPress: async () => {
+            const res = await locationOccupancyService.submitCheckIn(location.id, 'plenty');
+            setOccupancy(res);
+          },
+        },
+        {
+          text: '🟡 Quedan pocas plazas',
+          onPress: async () => {
+            const res = await locationOccupancyService.submitCheckIn(location.id, 'few');
+            setOccupancy(res);
+          },
+        },
+        {
+          text: '🔴 Completo / Lleno',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await locationOccupancyService.submitCheckIn(location.id, 'full');
+            setOccupancy(res);
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
 
   return (
     <View style={styles.sheetContainer}>
@@ -83,9 +197,40 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
           <Text style={styles.verifiedText}>Comunidad Verificada</Text>
         </View>
 
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Icon name="close" size={20} color="#94A3B8" />
-        </TouchableOpacity>
+        {/* Acciones Rápidas de Cabecera: Favorito, Compartir, Abrir Navegador y Cerrar */}
+        <View style={styles.headerActionsPod}>
+          <TouchableOpacity
+            onPress={handleToggleFavorite}
+            style={styles.actionIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon
+              name={isFavorite ? 'heart' : 'heart-outline'}
+              size={20}
+              color={isFavorite ? '#EF4444' : '#94A3B8'}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleShareLocation}
+            style={styles.actionIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="share-variant-outline" size={19} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleOpenExternalMaps}
+            style={styles.actionIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="google-maps" size={19} color="#38BDF8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.closeBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="close" size={20} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Nombre y Dirección */}
@@ -98,6 +243,107 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
           <Text style={styles.addressText} numberOfLines={1}>
             {location.address}
           </Text>
+        </View>
+      )}
+
+      {/* Tarjeta de Clima y Rachas de Viento (Especial Camper/Autocaravana) */}
+      {weather && (
+        <View
+          style={[
+            styles.weatherCard,
+            weather.highProfileWindAlert && styles.weatherAlertCard,
+          ]}>
+          <View style={styles.weatherLeft}>
+            <Text style={styles.weatherEmoji}>{weather.weatherEmoji}</Text>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.weatherTempText}>{weather.temperatureC}°C</Text>
+                <Text style={styles.weatherDescText}>{weather.weatherDescription}</Text>
+              </View>
+              <Text
+                style={[
+                  styles.weatherWindText,
+                  weather.highProfileWindAlert && { color: '#F87171', fontWeight: '800' },
+                ]}>
+                💨 Viento {weather.windSpeedKmH} km/h · Rachas {weather.windGustsKmH} km/h
+              </Text>
+            </View>
+          </View>
+          <View
+            style={[
+              styles.awningBadge,
+              weather.awningSafe ? styles.awningBadgeSafe : styles.awningBadgeRisk,
+            ]}>
+            <Icon
+              name={weather.awningSafe ? 'umbrella-outline' : 'weather-windy'}
+              size={12}
+              color={weather.awningSafe ? '#10B981' : '#F59E0B'}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={[
+                styles.awningBadgeText,
+                { color: weather.awningSafe ? '#34D399' : '#FBBF24' },
+              ]}>
+              {weather.awningSafe ? 'Toldo OK' : 'Riesgo Toldo'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Ocupación y Plazas en Tiempo Real (Rival Park4Night Pro) */}
+      {occupancy && (isCamping || isAreaCamper) && (
+        <View style={styles.occupancyCard}>
+          <View style={styles.occupancyHeaderRow}>
+            <View style={styles.occupancyBadgeRow}>
+              <View
+                style={[
+                  styles.occupancyDot,
+                  {
+                    backgroundColor:
+                      occupancy.level === 'plenty'
+                        ? '#10B981'
+                        : occupancy.level === 'few'
+                        ? '#F59E0B'
+                        : '#EF4444',
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.occupancyTitle,
+                  {
+                    color:
+                      occupancy.level === 'plenty'
+                        ? '#34D399'
+                        : occupancy.level === 'few'
+                        ? '#FBBF24'
+                        : '#F87171',
+                  },
+                ]}>
+                {occupancy.level === 'plenty'
+                  ? 'PLAZAS DISPONIBLES'
+                  : occupancy.level === 'few'
+                  ? 'POCAS PLAZAS LIBRES'
+                  : 'COMPLETO / SIN PLAZAS'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.checkInBtn}
+              onPress={handlePromptCheckIn}
+              activeOpacity={0.8}>
+              <Icon name="map-marker-check" size={14} color="#38BDF8" style={{ marginRight: 4 }} />
+              <Text style={styles.checkInBtnText}>Confirmar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.occupancyDetailRow}>
+            <Text style={styles.occupancyEstimateText}>{occupancy.freeSpotsEstimate}</Text>
+            <Text style={styles.occupancyMetaText}>
+              · {occupancy.lastReportedAgo} ({occupancy.confirmedCount} campers hoy)
+            </Text>
+          </View>
         </View>
       )}
 
@@ -270,6 +516,66 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
+  occupancyCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  occupancyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  occupancyBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  occupancyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  occupancyTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  checkInBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  checkInBtnText: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  occupancyDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  occupancyEstimateText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  occupancyMetaText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
   servicesScroll: {
     marginBottom: 12,
   },
@@ -344,6 +650,75 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     marginTop: 2,
+  },
+  headerActionsPod: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  weatherCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  weatherAlertCard: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  weatherLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  weatherEmoji: {
+    fontSize: 22,
+  },
+  weatherTempText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#F8FAFC',
+  },
+  weatherDescText: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  weatherWindText: {
+    fontSize: 10,
+    color: '#38BDF8',
+    marginTop: 1,
+  },
+  awningBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  awningBadgeSafe: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  awningBadgeRisk: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  awningBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
   },
 });
 

@@ -15,6 +15,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { supabase } from '../lib/supabase';
@@ -197,17 +198,30 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* Marca de agua elegante en el fondo */}
+      <Image
+        source={require('../assets/images/logo.png')}
+        style={styles.backgroundWatermark}
+        resizeMode="contain"
+      />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        {/* Logo y titulo */}
+        {/* Logo oficial y título */}
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
-            <Icon name="van-utility" size={48} color="#FFFFFF" />
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.appName}>CamperSites Pro</Text>
-          <Text style={styles.tagline}>Tu compañero de ruta</Text>
+          <View style={styles.proBadge}>
+            <Text style={styles.proBadgeText}>GPS & COMUNIDAD NÓMADE</Text>
+          </View>
+          <Text style={styles.tagline}>Tu copiloto definitivo para autocaravanas y campers</Text>
         </View>
 
         {/* Tabs Login / Registro */}
@@ -406,47 +420,84 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.main,
+    backgroundColor: '#0F172A',
+  },
+  backgroundWatermark: {
+    position: 'absolute',
+    width: 380,
+    height: 380,
+    top: -50,
+    right: -70,
+    opacity: 0.08,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingTop: 50,
     paddingBottom: 40,
   },
   // Logo
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 28,
   },
   logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: theme.colors.primary.main,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: '#1E293B',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    ...theme.shadows.lg,
+    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  logoImage: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
   },
   appName: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '800',
-    color: theme.colors.primary.dark,
+    color: '#F8FAFC',
     letterSpacing: -0.5,
   },
+  proBadge: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+  },
+  proBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#38BDF8',
+    letterSpacing: 1.2,
+  },
   tagline: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    marginTop: 4,
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 6,
+    textAlign: 'center',
   },
   // Tabs
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.background.light,
+    backgroundColor: '#1E293B',
     borderRadius: 12,
     padding: 4,
-    marginBottom: 28,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   tab: {
     flex: 1,
@@ -455,16 +506,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   tabActive: {
-    backgroundColor: '#FFFFFF',
-    ...theme.shadows.sm,
+    backgroundColor: '#0284C7',
   },
   tabText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: theme.colors.text.secondary,
+    color: '#94A3B8',
   },
   tabTextActive: {
-    color: theme.colors.primary.main,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   // Form
   form: {
@@ -474,89 +525,87 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#CBD5E1',
     marginLeft: 4,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.background.light,
+    backgroundColor: '#1E293B',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
     paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    height: 48,
     gap: 10,
   },
   inputError: {
-    borderColor: theme.colors.alerts.radar,
-    backgroundColor: theme.colors.alerts.radar + '08',
+    borderColor: '#EF4444',
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: theme.colors.text.primary,
+    fontSize: 14,
+    color: '#F8FAFC',
     padding: 0,
+  },
+  inputHint: {
+    fontSize: 11,
+    color: '#64748B',
+    marginLeft: 4,
   },
   errorText: {
     fontSize: 12,
-    color: theme.colors.alerts.radar,
+    color: '#EF4444',
     marginLeft: 4,
   },
-  // Submit button
   submitButton: {
-    backgroundColor: theme.colors.primary.main,
+    backgroundColor: '#38BDF8',
     borderRadius: 14,
-    paddingVertical: 16,
+    height: 50,
+    justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    ...theme.shadows.md,
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitButtonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   submitButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  // Divider
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 12,
+    gap: 12,
   },
   dividerLine: {
     flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.colors.text.disabled,
+    height: 1,
+    backgroundColor: '#334155',
   },
   dividerText: {
-    fontSize: 14,
-    color: theme.colors.text.hint,
-    marginHorizontal: 16,
+    fontSize: 13,
+    color: '#64748B',
   },
-  // Skip
   skipButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
     gap: 6,
   },
   skipButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: theme.colors.text.secondary,
-  },
-  // Input hint text
-  inputHint: {
-    fontSize: 12,
-    color: theme.colors.text.hint,
-    marginLeft: 4,
-    marginTop: 4,
-    fontStyle: 'italic',
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 });

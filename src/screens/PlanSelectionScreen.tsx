@@ -12,9 +12,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { CamperSitesTheme as theme } from '../theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppConfig } from '../config/AppConfig';
 import { supabase } from '../lib/supabase';
 
@@ -34,261 +35,279 @@ interface PlanSelectionScreenProps {
 }
 
 export default function PlanSelectionScreen({ onComplete, onSkip }: PlanSelectionScreenProps) {
-  const [selectedPlan, setSelectedPlan] = useState<string>('free');
+  const [selectedPlan, setSelectedPlan] = useState<string>('premium');
   const [loading, setLoading] = useState(false);
 
   const plans: Plan[] = [
-    AppConfig.PLANS.FREE,
     { ...AppConfig.PLANS.PREMIUM, popular: true },
+    AppConfig.PLANS.FREE,
   ];
 
   const handleContinue = async () => {
     setLoading(true);
 
     try {
-      // Guardar la selección del plan en el perfil del usuario
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        Alert.alert('Error', 'No hay usuario autenticado');
-        setLoading(false);
-        return;
+      // Guardar localmente siempre para funcionamiento offline y sin fricción
+      await AsyncStorage.setItem('@camper_user_plan', selectedPlan);
+
+      // Intentar sincronizar con Supabase si hay usuario activo
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.auth.updateUser({
+            data: {
+              plan: selectedPlan,
+              plan_started_at: new Date().toISOString(),
+            },
+          });
+        }
+      } catch (cloudErr) {
+        console.log('Plan guardado localmente (modo offline):', cloudErr);
       }
 
-      // Actualizar metadata del usuario con el plan seleccionado
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          plan: selectedPlan,
-          plan_started_at: new Date().toISOString(),
-        },
-      });
-
-      if (error) throw error;
-
-      // Si es premium, aquí se integraría con pasarela de pago
-      if (selectedPlan === 'premium') {
-        Alert.alert(
-          '¡Plan Premium Seleccionado!',
-          'Te redirigiremos a la configuración de pago para activar tu suscripción.',
-          [{ text: 'Continuar', onPress: onComplete }]
-        );
-      } else {
-        Alert.alert(
-          '¡Plan Gratuito Activado!',
-          'Puedes empezar a usar CamperSites Pro. Siempre puedes actualizar a Premium más tarde.',
-          [{ text: 'Empezar', onPress: onComplete }]
-        );
-      }
+      onComplete();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo guardar tu selección');
+      console.warn('Error en selección de plan:', error);
+      onComplete();
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Icon name="star-circle" size={48} color={theme.colors.primary.main} />
+    <View style={styles.container}>
+      {/* Logotipo en el fondo bien centrado cubriendo la pantalla */}
+      <Image
+        source={require('../assets/images/logo.png')}
+        style={styles.backgroundCenteredLogo}
+        resizeMode="contain"
+      />
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.logoBadge}>
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={styles.logoThumb}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.title}>Elige tu Plan Nómade</Text>
+          <Text style={styles.subtitle}>
+            Acceso a navegación GPS de gálibo, alertas de radar y pernocta segura
+          </Text>
         </View>
-        <Text style={styles.title}>Elige tu Plan</Text>
-        <Text style={styles.subtitle}>
-          Comienza gratis o desbloquea todas las funciones con Premium
-        </Text>
-      </View>
 
-      {/* Plan Cards */}
-      {plans.map((plan) => (
-        <TouchableOpacity
-          key={plan.id}
-          style={[
-            styles.planCard,
-            selectedPlan === plan.id && styles.planCardSelected,
-            plan.popular && styles.planCardPopular,
-          ]}
-          onPress={() => setSelectedPlan(plan.id)}
-          activeOpacity={0.7}>
-          
-          {plan.popular && (
-            <View style={styles.popularBadge}>
-              <Text style={styles.popularBadgeText}>MÁS POPULAR</Text>
-            </View>
-          )}
-
-          <View style={styles.planHeader}>
-            <View>
-              <Text style={styles.planName}>{plan.name}</Text>
-              {plan.price > 0 ? (
-                <Text style={styles.planPrice}>
-                  {plan.price}{plan.currency}/{plan.period}
-                </Text>
-              ) : (
-                <Text style={styles.planPrice}>Gratis</Text>
-              )}
-            </View>
-            <View style={[
-              styles.radioButton,
-              selectedPlan === plan.id && styles.radioButtonSelected,
-            ]}>
-              {selectedPlan === plan.id && (
-                <Icon name="check-circle" size={24} color="#FFFFFF" />
-              )}
-            </View>
-          </View>
-
-          <View style={styles.featuresList}>
-            {plan.features.map((feature, index) => (
-              <View key={index} style={styles.featureItem}>
-                <Icon 
-                  name="check-circle" 
-                  size={18} 
-                  color={theme.colors.success.main} 
-                />
-                <Text style={styles.featureText}>{feature}</Text>
+        {/* Plan Cards */}
+        {plans.map((plan) => (
+          <TouchableOpacity
+            key={plan.id}
+            style={[
+              styles.planCard,
+              selectedPlan === plan.id && styles.planCardSelected,
+              plan.popular && styles.planCardPopular,
+            ]}
+            onPress={() => setSelectedPlan(plan.id)}
+            activeOpacity={0.8}>
+            
+            {plan.popular && (
+              <View style={styles.popularBadge}>
+                <Text style={styles.popularBadgeText}>RECOMENDADO</Text>
               </View>
-            ))}
-          </View>
-        </TouchableOpacity>
-      ))}
+            )}
 
-      {/* Info Box */}
-      <View style={styles.infoBox}>
-        <Icon name="information-outline" size={20} color={theme.colors.primary.main} />
-        <Text style={styles.infoText}>
-          Puedes cambiar de plan en cualquier momento desde tu perfil.
-        </Text>
-      </View>
+            <View style={styles.planHeader}>
+              <View>
+                <Text style={styles.planName}>{plan.name}</Text>
+                {plan.price > 0 ? (
+                  <Text style={styles.planPrice}>
+                    {plan.price} {plan.currency}/{plan.period}
+                  </Text>
+                ) : (
+                  <Text style={styles.planPrice}>Gratis</Text>
+                )}
+              </View>
+              <View style={[
+                styles.radioButton,
+                selectedPlan === plan.id && styles.radioButtonSelected,
+              ]}>
+                {selectedPlan === plan.id && (
+                  <Icon name="check-circle" size={24} color="#0F172A" />
+                )}
+              </View>
+            </View>
 
-      {/* Botones de acción */}
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.continueButton, loading && styles.buttonDisabled]}
-          onPress={handleContinue}
-          disabled={loading}
-          activeOpacity={0.8}>
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <Text style={styles.continueButtonText}>
-              {selectedPlan === 'premium' ? 'Activar Premium' : 'Comenzar Gratis'}
-            </Text>
-          )}
-        </TouchableOpacity>
+            <View style={styles.featuresList}>
+              {plan.features.map((feature, index) => (
+                <View key={index} style={styles.featureItem}>
+                  <Icon 
+                    name="check-circle-outline" 
+                    size={18} 
+                    color="#10B981" 
+                  />
+                  <Text style={styles.featureText}>{feature}</Text>
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
+        ))}
 
-        {selectedPlan === 'free' && (
+        {/* Info Box */}
+        <View style={styles.infoBox}>
+          <Icon name="shield-check-outline" size={20} color="#38BDF8" />
+          <Text style={styles.infoText}>
+            Puedes cambiar de plan en cualquier momento desde tu perfil o Ajustes.
+          </Text>
+        </View>
+
+        {/* Botones de acción */}
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.continueButton, loading && styles.buttonDisabled]}
+            onPress={handleContinue}
+            disabled={loading}
+            activeOpacity={0.8}>
+            {loading ? (
+              <ActivityIndicator color="#0F172A" size="small" />
+            ) : (
+              <Text style={styles.continueButtonText}>
+                {selectedPlan === 'premium' ? 'Continuar con Plan Pro' : 'Comenzar Gratis'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.skipButton}
             onPress={onSkip}
             disabled={loading}>
-            <Text style={styles.skipButtonText}>Quizás más tarde</Text>
+            <Text style={styles.skipButtonText}>Continuar al cuestionario ➔</Text>
           </TouchableOpacity>
-        )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.main,
+    backgroundColor: '#0F172A',
+  },
+  backgroundCenteredLogo: {
+    position: 'absolute',
+    width: '90%',
+    height: '90%',
+    alignSelf: 'center',
+    top: '5%',
+    opacity: 0.08,
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
-    padding: 24,
-    paddingTop: 60,
+    padding: 20,
+    paddingTop: 50,
     paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.primary.light,
+  logoBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#1E293B',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+  },
+  logoThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
-    color: theme.colors.text.primary,
-    marginBottom: 8,
+    color: '#F8FAFC',
+    marginBottom: 6,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
+    fontSize: 14,
+    color: '#94A3B8',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
+    paddingHorizontal: 12,
   },
   planCard: {
-    backgroundColor: theme.colors.background.light,
+    backgroundColor: '#1E293B',
     borderRadius: 16,
-    padding: 20,
+    padding: 18,
     marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#334155',
     position: 'relative',
     overflow: 'hidden',
   },
   planCardSelected: {
-    borderColor: theme.colors.primary.main,
-    backgroundColor: theme.colors.primary.light + '20',
+    borderColor: '#38BDF8',
+    backgroundColor: '#1A2942',
   },
   planCardPopular: {
-    borderColor: theme.colors.accent.gold,
+    borderColor: '#F59E0B',
   },
   popularBadge: {
     position: 'absolute',
     top: 0,
     right: 0,
-    backgroundColor: theme.colors.accent.gold,
+    backgroundColor: '#F59E0B',
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderBottomLeftRadius: 8,
+    borderBottomLeftRadius: 10,
   },
   popularBadgeText: {
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: '900',
+    letterSpacing: 0.6,
   },
   planHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   planName: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '700',
-    color: theme.colors.text.primary,
+    color: '#F8FAFC',
   },
   planPrice: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    color: theme.colors.primary.main,
-    marginTop: 4,
+    color: '#38BDF8',
+    marginTop: 2,
   },
   radioButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 2,
-    borderColor: theme.colors.border.light,
+    borderColor: '#64748B',
     justifyContent: 'center',
     alignItems: 'center',
   },
   radioButtonSelected: {
-    backgroundColor: theme.colors.primary.main,
-    borderColor: theme.colors.primary.main,
+    backgroundColor: '#38BDF8',
+    borderColor: '#38BDF8',
   },
   featuresList: {
-    gap: 12,
+    gap: 10,
   },
   featureItem: {
     flexDirection: 'row',
@@ -296,49 +315,52 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   featureText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
+    fontSize: 13,
+    color: '#CBD5E1',
     flex: 1,
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.primary.light + '30',
+    backgroundColor: '#1E293B',
     borderRadius: 12,
     padding: 12,
-    marginBottom: 24,
-    gap: 8,
+    marginBottom: 20,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   infoText: {
     flex: 1,
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-    lineHeight: 18,
+    fontSize: 12,
+    color: '#94A3B8',
+    lineHeight: 16,
   },
   actions: {
     gap: 12,
   },
   continueButton: {
-    backgroundColor: theme.colors.primary.main,
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#38BDF8',
+    borderRadius: 14,
+    height: 50,
+    justifyContent: 'center',
     alignItems: 'center',
-    ...theme.shadows.md,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   continueButtonText: {
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   skipButton: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
   },
   skipButtonText: {
-    color: theme.colors.text.hint,
+    color: '#94A3B8',
     fontSize: 14,
+    fontWeight: '600',
   },
 });

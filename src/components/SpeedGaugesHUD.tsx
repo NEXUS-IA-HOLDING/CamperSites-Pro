@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     left: 14,
-    top: Platform.OS === 'ios' ? 120 : 100,
+    top: Platform.OS === 'ios' ? 175 : 150,
     zIndex: 90,
     alignItems: 'center',
     gap: 12,

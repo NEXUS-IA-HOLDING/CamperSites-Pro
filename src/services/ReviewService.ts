@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { LocationReview, LocationReviewStats } from '../types/assistant';
 import { Logger } from '../utils/logger';
+import { analyzePromptForInjection } from '../lib/AISecurityService';
 
 const LOCAL_REVIEWS_STORAGE_PREFIX = '@camper_location_reviews_';
 
@@ -67,6 +68,12 @@ export class ReviewService {
       const userId = user?.id || review.userId || 'anon-user';
       const userName = user?.user_metadata?.display_name || review.userName || 'Viajero';
 
+      // Sanitización y Blindaje de Seguridad IA contra Inyecciones
+      const commentAnalysis = analyzePromptForInjection(review.comment || '');
+      const sanitizedComment = commentAnalysis.sanitizedInput
+        .replace(/<[^>]*>?/gm, '') // Strip HTML tags
+        .trim();
+
       const payload = {
         location_id: review.locationId,
         user_id: userId,
@@ -74,7 +81,7 @@ export class ReviewService {
         rating: review.rating,
         security_level: review.securityLevel,
         noise_level: review.noiseLevel,
-        comment: review.comment,
+        comment: sanitizedComment,
         verified_services: review.verifiedServices,
         vehicle_type_used: review.vehicleTypeUsed,
         updated_at: new Date().toISOString(),
