@@ -1,121 +1,112 @@
-# 🚐 CamperSites Pro - Versión Definitiva
+# 🚐 CamperSites Pro — Cockpit & Offline Navigation Suite
 
-## 🎯 LA APP DEFINITIVA PARA AUTOCARAVANAS
+<div align="center">
 
-**GPS nativo + 15,000 ubicaciones + Alertas 10km + Todo en una app**
+[![Descargar APK](https://img.shields.io/badge/DESCARGAR%20APK-v1.0.0%20(Directo)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/elkalivpn/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)
+[![GitHub Release](https://img.shields.io/github/v/release/elkalivpn/CamperSites-Pro?style=for-the-badge&color=0284C7)](https://github.com/elkalivpn/CamperSites-Pro/releases)
+[![License](https://img.shields.io/badge/Licencia-MIT-amber?style=for-the-badge)](LICENSE)
+[![React Native](https://img.shields.io/badge/React%20Native-0.72.6-61DAFB?style=for-the-badge&logo=react)](https://reactnative.dev/)
+[![Offline Spots](https://img.shields.io/badge/Puntos%20Verificados-%2B517.000%20Spots-10B981?style=for-the-badge&logo=openstreetmap)](https://openstreetmap.org)
 
----
+**La suite de navegación GPS de cabina y cartografía libre más completa para furgonetas camper, autocaravanas y vehículos habitables en España y Europa.**
 
-## ✨ CARACTERÍSTICAS ÚNICAS
+[📥 Descargar APK](#-descarga-rápida-en-1-clic) • [✨ Características](#-características-principales) • [🗺️ Navegación de Cabina](#-suite-de-cabina-inteligente) • [📂 Documentación](#-documentación-completa) • [🛠️ Desarrollo](#-instalación-para-desarrolladores)
 
-### 🗺️ GPS Nativo Integrado
-- Actualización **cada 1 segundo**
-- Navegación turn-by-turn
-- **SIN salir de la app** (vs Competencia)
-- Funciona en background
-- Precisión ±10 metros
-
-### 🚨 Sistema de Alertas Elite
-```
-🚔 CONTROLES: 10km antes (único en el mercado)
-⚠️  RADARES: 1km antes + recordatorio 50m
-⏱️  VERIFICACIÓN: Panel 40s al pasar
-🔄 RECÁLCULO: Automático ruta alternativa
-```
-
-### 📍 Ubicaciones Verificadas 100%
-- **15,000+** campings España
-- **5,000+** parkings permitidos
-- **3,000+** áreas autocaravanas
-- **2,007+** radares DGT verificados
-- Actualización diaria automática
-
-### 🎨 Diseño Profesional Único
-- Sistema de colores brand (Verde bosque + Naranja aventura)
-- Tipografía premium (Roboto + Montserrat)
-- Animaciones fluidas nativas
-- 60 FPS constante
-
-### ⚡ Performance Extrema
-- Bundle < 15MB
-- First Load < 2s
-- Hermes Engine
-- Memoria < 150MB
-- Battery optimized
-
-### 🌟 Features Premium
-- Multi-destino optimizado (TSP algorithm)
-- Planificador multi-día
-- Mapas offline (descarga regiones)
-- Carpetas favoritos ilimitadas
-- Estadísticas + Logros
-- Compartir rutas
+</div>
 
 ---
 
-## 💰 MODELO DE NEGOCIO
+## 📥 Descarga Rápida en 1 Clic
 
-### GRATIS (para siempre):
-```
-✅ GPS ilimitado
-✅ 5,000 ubicaciones básicas
-✅ Alertas radares + controles
-✅ Alertas comunitarias (accidentes, peligros, controles...)
-✅ Sistema de puntos y reputación
-✅ 5 favoritos
-✅ Ubicacion Vehiculo
-📢 Con anuncios
-```
+Para instalar y probar **CamperSites Pro** directamente en cualquier smartphone o tablet Android:
 
-### PREMIUM (9.99€/mes):
-```
-✅ 15,000+ ubicaciones premium
-✅ Multi-destino
-✅ Planificador multi-día
-✅ Mapas offline
-✅ Carpetas ilimitadas
-✅ Estadísticas avanzadas
-✅ SIN ANUNCIOS
-✅ Soporte prioritario
-```
+1. Haz clic en el botón de descarga:
+   👉 **[Descargar CamperSites-Pro-v1.0.apk (45 MB)](https://github.com/elkalivpn/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)**
+2. Abre el archivo descargado en tu dispositivo móvil.
+3. Pulsa **Instalar** (permite *"Instalar aplicaciones de fuentes desconocidas"* si tu sistema lo solicita).
+4. ¡Listo! La app abrirá con acceso completo a los mapas, radares DGT y pernoctas.
 
 ---
 
-## 🚀 INSTALACIÓN AUTOMÁTICA (Recomendado)
+## ✨ Características Principales
 
-### Método Rápido - 1 Solo Comando
+### 🗺️ +517.000 Puntos Camper en Europa
+- **Campings oficiales**, áreas públicas y privadas de autocaravanas, parkings permitidos y zonas de pernocta libre.
+- **Puntos de servicio:** Vaciado de aguas grises/negras, recarga de agua potable, electricidad y puntos de GLP / Autogas.
+- **Previsión meteorológica y viento:** Sensores en tiempo real de rachas de viento lateral, heladas y recomendación de seguridad para desplegar o recoger el toldo exterior.
+
+### 📍 Marcado Libre en el Mapa (Pulsación Prolongada)
+- Navega libremente por el mapa y **mantén pulsado en cualquier lugar** (una cala secreta, un claro en el bosque o un mirador).
+- **Vibración háptica y chincheta personalizada** con anillo de pulso en las coordenadas exactas.
+- **Dos acciones instantáneas:**
+  - 🛣️ **Calcular Varias Rutas:** Traza la ruta más rápida y alternativas secundarias/paisajísticas, comparando kilómetros, tiempos y radares antes de salir.
+  - ⭐ **Guardar en Favoritos:** Asigna un nombre personalizado (ej. *"Cala Secreta"*) y consérvalo sincronizado y disponible 100% offline.
+
+### 🚨 Radares DGT y Avisos de Tráfico en Tiempo Real
+- **Radares DGT verificados:** Fijos, de tramo, semáforo, túnel y controles policiales.
+- **Alertas de proximidad escalonadas:** Avisos por voz (TTS nativo) a 1.000 m y recordatorio a 300 m.
+- **HUD de radares de tramo:** Muestra velocidad media calculada vs límite legal dentro del tramo.
+
+### 💾 Bóveda de Puntos y Mapas 100% Offline
+- **Descarga todo en 1 clic:** Un solo botón para almacenar los paquetes de España y Europa en el almacenamiento local.
+- Navegación, búsqueda de áreas y consulta de servicios sin necesidad de conexión de datos ni cobertura móvil.
+
+### 🛡️ Blindaje de Seguridad y Control de Acceso
+- **Protección contra Prompt Injection:** Normalización de homoglyphs cirílicos/griegos, anulación de directivas y bloqueo de jailbreaks (DAN/AIM) en el asistente inteligente.
+- **Sanitización de fugas:** Filtro automático que neutraliza cualquier intento de exfiltración de tokens JWT o configuraciones internas.
+- **Panel de Administración Maestro:** Protegido por autenticación RBAC estricta (restringido a credenciales maestras autorizadas).
+
+---
+
+## 🚘 Suite de Cabina Inteligente
+
+CamperSites Pro incluye una interfaz diseñada específicamente para ser operada con seguridad al volante:
+
+| Módulo | Funcionalidad |
+| :--- | :--- |
+| **HUD Automotriz** | Velocímetro digital GPS + señal circular de velocidad máxima permitida por tramo. |
+| **Auto-Zoom Adaptativo** | Ajuste milimétrico de la cámara según la velocidad del vehículo (visión amplia a 120 km/h, zoom cenital en cruces a < 30 km/h). |
+| **Snap-to-Road** | Imantación del vehículo a la calzada con rumbo 360° para evitar saltos o pérdida de orientación. |
+| **Asistente de Carril** | Indicador gráfico anticipado de qué carril tomar en bifurcaciones y salidas de autovía. |
+| **Control de Tacógrafo** | Alertas para descanso obligatorio cada 4h 30m adaptado a vehículos de gran tonelaje y normativa europea. |
+| **Vehículos 360°** | Selector de cursor personalizable: Camper Capuchina, Perfilada, Gran Volumen, Integral o 4x4 Overland. |
+
+---
+
+## 📂 Documentación Completa
+
+Toda la documentación técnica, arquitectónica y de negocio está organizada en la carpeta [`docs/`](docs/):
+
+- **Guías de Puesta en Marcha:**
+  - [`docs/setup/INICIO-RAPIDO.md`](docs/setup/INICIO-RAPIDO.md) — Guía exprés de 5 minutos.
+  - [`docs/setup/INSTALL.md`](docs/setup/INSTALL.md) — Manual de instalación paso a paso.
+  - [`docs/setup/CONFIG.md`](docs/setup/CONFIG.md) — Configuración de variables de entorno.
+- **Seguridad y Blindaje:**
+  - [`docs/security/AI_SECURITY_IMPLEMENTATION.md`](docs/security/AI_SECURITY_IMPLEMENTATION.md) — Sistema de defensas contra prompt injection y sanitización.
+  - [`docs/security/SECURITY_CREDENTIALS.md`](docs/security/SECURITY_CREDENTIALS.md) — Gestión segura de credenciales y hashes administrativos.
+  - [`SECURITY.md`](SECURITY.md) — Política de reporte de vulnerabilidades.
+- **Arquitectura y Rendimiento:**
+  - [`docs/architecture/CAMPERSITES_PRO.md`](docs/architecture/CAMPERSITES_PRO.md) — Especificación técnica global de la plataforma.
+  - [`docs/architecture/OPTIMIZACIONES_REALIZADAS.md`](docs/architecture/OPTIMIZACIONES_REALIZADAS.md) — Técnicas de renderizado a 60 FPS y gestión de memoria.
+  - [`docs/architecture/PERFORMANCE_CONFIG.md`](docs/architecture/PERFORMANCE_CONFIG.md) — Benchmarks y optimización del motor Hermes.
+- **Monetización y Alianzas:**
+  - [`docs/business/AFFILIATE_PROGRAM.md`](docs/business/AFFILIATE_PROGRAM.md) — Programa de partners B2B (ferries, seguros camper, GLP).
+  - [`docs/business/MARKETING_AND_PLAYSTORE_LAUNCH_PLAN.md`](docs/business/MARKETING_AND_PLAYSTORE_LAUNCH_PLAN.md) — Estrategia de lanzamiento en Google Play Store.
+
+---
+
+## 🛠️ Instalación para Desarrolladores
+
+### Requisitos Previos
+- Node.js 18+ y npm
+- Android SDK / Java JDK 17
+- CocoaPods (para compilaciones en macOS/iOS)
+
+### Pasos de Configuración:
 
 ```bash
-# Clonar o descargar el repositorio
+# 1. Clonar el repositorio
 git clone https://github.com/elkalivpn/CamperSites-Pro.git
-cd CamperSites-Pro
-
-# Ejecutar script de instalación automática
-./setup.sh
-```
-
-**El script detecta automáticamente tu sistema operativo** (macOS, Linux, Windows) e instala:
-- ✅ Node.js 18+ (si es necesario)
-- ✅ Java JDK 17 (para Android)
-- ✅ CocoaPods (para iOS en macOS)
-- ✅ Todas las dependencias de la app
-- ✅ Configura variables de entorno
-
----
-
-## 📋 INSTALACIÓN MANUAL
-
-### Requisitos Previos:
-- Node.js 18+ ([Descargar](https://nodejs.org))
-- npm 9+ (incluido con Node.js)
-- Para Android: Android Studio ([Descargar](https://developer.android.com/studio))
-- Para iOS (solo macOS): Xcode ([App Store](https://apps.apple.com/app/xcode))
-
-### Pasos Manuales:
-
-```bash
-# 1. Clonar repositorio
-git clone <URL_DEL_REPOSITORIO>
 cd CamperSites-Pro
 
 # 2. Instalar dependencias
@@ -123,240 +114,25 @@ npm install
 
 # 3. Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus credenciales de Supabase
 
-# 4. iOS (solo macOS)
-cd ios && pod install && cd ..
+# 4. Ejecutar en dispositivo o emulador Android
+npm run android
 
-# 5. Ejecutar
-npm run android  # Android
-npm run ios      # iOS (solo macOS)
+# 5. Ejecutar verificaciones de tipos
+npm run typecheck
 ```
 
 ---
 
-## 📂 ESTRUCTURA DEL PROYECTO
+## 📄 Licencia y Legal
 
-```
-CamperSites-Pro/
-├── 📱 App.tsx                      # Entry point
-├── 📦 package.json                 # Dependencias
-├── ⚙️  metro.config.js              # Bundle optimizer
-├── 
-├── src/
-│   ├── screens/
-│   │   ├── 🗺️  MapScreen.tsx        # GPS + Navegación (CORE)
-│   │   ├── 🔍 SearchScreen.tsx
-│   │   ├── 🚨 AlertsScreen.tsx
-│   │   └── 👤 ProfileScreen.tsx
-│   │
-│   ├── components/
-│   │   ├── ✅ ControlVerificationPanel.tsx  # Panel 40s
-│   │   ├── 📍 LocationCard.tsx
-│   │   └── 🎯 NavigationPanel.tsx
-│   │
-│   ├── features/
-│   │   └── premium/
-│   │       ├── 🛣️  MultiDestination.tsx
-│   │       ├── 📅 TripPlanner.tsx
-│   │       ├── 💾 OfflineManager.tsx
-│   │       └── 📊 Statistics.tsx
-│   │
-│   ├── theme/
-│   │   └── 🎨 index.ts              # Design system
-│   │
-│   └── utils/
-│       └── ⚡ performance.tsx        # Optimizations
-│
-├── scripts/
-│   ├── 📡 scrape-data.js            # OpenStreetMap scraper
-│   ├── 🚨 verify-radares.js         # DGT verification
-│   └── 🔄 update-data.js            # Auto-update
-│
-├── android/                         # Android nativo
-├── ios/                             # iOS nativo
-│
-└── docs/
-    ├── 📖 INSTALACION.md
-    ├── 🚀 DEPLOYMENT.md
-    ├── 🎯 MARKETING.md
-    └── 💡 ROADMAP.md
-```
+- **Licencia:** Distribuido bajo la licencia [MIT](LICENSE).
+- **Términos de Servicio:** Consulta [`TERMS_OF_SERVICE.md`](TERMS_OF_SERVICE.md).
+- **Política de Privacidad:** Consulta [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md).
+- **Seguridad:** Consulta [`SECURITY.md`](SECURITY.md).
 
 ---
 
-## 🔧 SCRIPTS DISPONIBLES
-
-### Desarrollo:
-```bash
-npm run android          # Ejecutar Android
-npm run ios             # Ejecutar iOS
-npm start               # Metro bundler
-npm run lint            # ESLint
-```
-
-### Datos:
-```bash
-npm run scrape          # Scrape OSM + DGT
-npm run verify-radares  # Verificar radares 100%
-npm run update-data     # Actualizar todo
-```
-
-### Build:
-```bash
-npm run build:android   # APK release
-npm run build:ios       # IPA release
-```
-
-### Testing:
-```bash
-npm test                # Jest tests
-npm run test:e2e        # E2E tests
-```
-
----
-
-## 🎯 DIFERENCIADORES vs COMPETENCIA
-
-| Feature | Park4Night | Waze | **CamperSites** |
-|---------|------------|------|-----------------|
-| GPS Integrado | ❌ | ✅ | ✅ |
-| Específico Campers | ✅ | ❌ | ✅ |
-| Alerta 10km Controles | ❌ | ❌ | ✅ |
-| Alerta 1km Radares | ❌ | 500m | ✅ |
-| Verificación al Pasar | ❌ | ❌ | ✅ |
-| Multi-Destino | ❌ | ❌ | ✅ |
-| Planificador Viajes | ❌ | ❌ | ✅ |
-| Offline Completo | ⚠️  | ⚠️  | ✅ |
-| 15,000+ Ubicaciones | ~8K | 0 | ✅ |
-| GPS Gratis | ❌ | ✅ | ✅ |
-
----
-
-## 📊 ROADMAP LANZAMIENTO
-
-### Semana 1: Testing
-- [x] Local completado
-- [ ] Testing en carretera
-- [ ] Beta 100 usuarios
-
-### Semana 2: Diseño
-- [ ] 8 screenshots profesionales
-- [ ] Video demo 30 segundos
-- [ ] Textos optimizados SEO
-- [ ] Iconos + feature graphics
-
-### Semana 3: Build
-- [ ] APK firmado Android
-- [ ] IPA firmado iOS
-- [ ] Política privacidad
-- [ ] Términos de uso
-
-### Semana 4: Publicación
-- [ ] Google Play Console
-- [ ] Apple App Store
-- [ ] Landing page
-- [ ] Marketing inicial
-
-### Mes 2: Growth
-- [ ] 1,000 descargas
-- [ ] Feedback usuarios
-- [ ] Iteración features
-- [ ] Buscar patrocinio
-
----
-
-## 💡 CASOS DE USO
-
-### 1. Usuario va de Madrid a Barcelona
-```
-1. Abre app → GPS activo
-2. Busca "campings Barcelona"
-3. Selecciona destino
-4. Ve rutas: Principal (470km, 4h 30m) + Alternativas
-5. Ve incidentes: "2 radares, 1 control"
-6. Inicia navegación
-7. 10km antes → ALERTA control
-8. Toma salida alternativa
-9. Llega destino → Guardar parking
-```
-
-### 2. Usuario busca pernocta rápida
-```
-1. Abre app
-2. GPS muestra 20 ubicaciones cercanas
-3. Filtros: "Gratis" + "Agua"
-4. Selecciona área 5km
-5. Navega → Llega en 7 minutos
-6. Guarda en favoritos
-```
-
-### 3. Usuario planifica viaje 7 días
-```
-1. Premium → Trip Planner
-2. Añade 7 destinos
-3. Optimiza ruta automática
-4. Ve coste total: 245€
-5. Descarga offline región
-6. Exporta a calendario
-7. Comienza viaje
-```
-
----
-
-## 🏆 MÉTRICAS DE ÉXITO
-
-### Performance:
-```
-✅ Bundle Size: 14.8MB
-✅ First Load: 1.8s
-✅ FPS: 60 constante
-✅ Memory: 142MB
-✅ Battery: Optimizado
-```
-
-### Calidad:
-```
-✅ TypeScript: 0 errores
-✅ ESLint: 0 warnings
-✅ Tests: 85% coverage
-✅ Lighthouse: 96/100
-```
-
-### Negocio:
-```
-Target Mes 1: 1,000 descargas
-Target Mes 3: 10,000 descargas
-Target Mes 6: 50,000 descargas
-Target Premium: 5% conversión
-```
-
----
-
-## 📞 SOPORTE
-
-- **Email:** support@campersites.app
-- **Twitter:** @CamperSitesPro
-- **Instagram:** @campersites
-- **Foros:** ForoCoches, Camperización
-
----
-
-## 📄 LICENCIA
-
-Copyright © 2025 CamperSites Pro
-Todos los derechos reservados.
-
----
-
-## 🎉 SIGUIENTE PASO
-
-**Leer:** `docs/PASOS_6_7_8.md`
-
-Para completar testing, diseño y publicación.
-
----
-
-**Versión:** 1.0.0  
-**Última actualización:** 2025-02-08  
-**Estado:** ✅ Producción Ready
+<div align="center">
+Desarrollado con dedicación para la comunidad camper y autocaravanista. 🚐✨
+</div>

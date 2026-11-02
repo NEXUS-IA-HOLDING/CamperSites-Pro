@@ -25,6 +25,8 @@ export const OfflineVaultManager: React.FC = () => {
   const [downloadingPackId, setDownloadingPackId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [totalSpots, setTotalSpots] = useState<number>(0);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadAllProgressText, setDownloadAllProgressText] = useState('');
 
   useEffect(() => {
     refreshInstalledPacks();
@@ -34,6 +36,37 @@ export const OfflineVaultManager: React.FC = () => {
     const installed = offlineSpotVault.getInstalledPackIds();
     setInstalledPacks(installed);
     setTotalSpots(offlineSpotVault.getTotalOfflineSpotsCount());
+  };
+
+  const handleDownloadAll = async () => {
+    const uninstalled = REGIONAL_OFFLINE_PACKS.filter(p => !installedPacks.includes(p.id));
+    if (uninstalled.length === 0) {
+      Alert.alert('¡Todo al día!', 'Ya tienes todos los paquetes de España y Europa instalados en tu dispositivo.');
+      return;
+    }
+
+    setIsDownloadingAll(true);
+    let installedCount = 0;
+
+    for (let i = 0; i < uninstalled.length; i++) {
+      const pack = uninstalled[i];
+      setDownloadAllProgressText(`Descargando ${pack.name} (${i + 1}/${uninstalled.length})...`);
+      setDownloadingPackId(pack.id);
+      await offlineSpotVault.installPack(pack.id, (p) => {
+        setDownloadProgress(p);
+      });
+      installedCount++;
+      refreshInstalledPacks();
+    }
+
+    setIsDownloadingAll(false);
+    setDownloadingPackId(null);
+    setDownloadProgress(0);
+    setDownloadAllProgressText('');
+    Alert.alert(
+      '¡Descarga Completa!',
+      `Se han instalado ${installedCount} regiones. Ahora tienes ${offlineSpotVault.getTotalOfflineSpotsCount()} puntos disponibles 100% offline para viajar sin cobertura.`
+    );
   };
 
   const handleInstall = async (packId: string) => {
@@ -94,6 +127,34 @@ export const OfflineVaultManager: React.FC = () => {
           </Text>
         </View>
       </View>
+
+      {/* Botón Maestro: Descargar Todo en 1 Clic */}
+      <TouchableOpacity
+        style={[styles.downloadAllBtn, isDownloadingAll && styles.downloadAllBtnDisabled]}
+        onPress={handleDownloadAll}
+        disabled={isDownloadingAll}
+        activeOpacity={0.85}>
+        <View style={styles.downloadAllIconPod}>
+          {isDownloadingAll ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Icon name="cloud-download" size={22} color="#FFFFFF" />
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.downloadAllTitle}>
+            {isDownloadingAll ? 'DESCARGANDO BÓVEDA COMPLETA...' : 'DESCARGAR TODO OFFLINE (1 CLIC)'}
+          </Text>
+          <Text style={styles.downloadAllSub}>
+            {isDownloadingAll
+              ? downloadAllProgressText
+              : 'Instala todas las regiones de España y Europa para viajar sin cobertura'}
+          </Text>
+        </View>
+        {!isDownloadingAll && (
+          <Icon name="arrow-right-circle" size={22} color="#38BDF8" />
+        )}
+      </TouchableOpacity>
 
       <Text style={styles.sectionHeader}>PAQUETES REGIONALES DISPONIBLES</Text>
 
@@ -210,6 +271,43 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     marginTop: 4,
+  },
+  downloadAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(14, 116, 144, 0.9)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#06B6D4',
+  },
+  downloadAllBtnDisabled: {
+    opacity: 0.75,
+    backgroundColor: '#334155',
+    borderColor: '#475569',
+  },
+  downloadAllIconPod: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(6, 182, 212, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  downloadAllTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  downloadAllSub: {
+    color: '#E0F2FE',
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '500',
   },
   sectionHeader: {
     fontSize: 11,
