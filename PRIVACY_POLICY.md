@@ -1,19 +1,22 @@
-# Politica de Privacidad - CamperSites Pro
+# Política de Privacidad — CamperSites Pro
 
-**Desarrolladora:** YRYS
-**Ultima actualizacion:** 11 de febrero de 2026
-**Aplicacion:** CamperSites Pro (iOS / Android)
+**Desarrolladora y Responsable:** Nexus Studio (Nexus AI Holding)  
+**Sitio Web:** https://nexusaiholding.com  
+**Última actualización:** 2 de noviembre de 2026  
+**Aplicación:** CamperSites Pro (iOS / Android)  
+**Contacto DPO / Privacidad:** privacy@nexusaiholding.com / equipo-ia@proton.me  
 
 ---
 
-## 1. Introduccion
+## 1. Introducción
 
-YRYS ("nosotros", "la empresa") se compromete a proteger la privacidad de los usuarios de CamperSites Pro ("la aplicacion"). Esta politica describe como recopilamos, usamos, almacenamos y protegemos los datos personales conforme al Reglamento General de Proteccion de Datos (RGPD/GDPR - UE 2016/679) y la Ley Organica 3/2018 de Proteccion de Datos (LOPDGDD) de Espana.
+Nexus Studio / Nexus AI Holding ("nosotros", "la empresa") se compromete a proteger la privacidad de los usuarios de CamperSites Pro ("la aplicación"). Esta política describe cómo recopilamos, usamos, almacenamos y protegemos los datos personales conforme al Reglamento General de Protección de Datos (RGPD/GDPR - UE 2016/679) y la Ley Orgánica 3/2018 de Protección de Datos (LOPDGDD) de España.
 
 ## 2. Responsable del Tratamiento
 
-- **Empresa:** YRYS
-- **Contacto DPO:** privacy@yrys.dev
+- **Empresa:** Nexus Studio (Nexus AI Holding)
+- **Web:** https://nexusaiholding.com
+- **Contacto DPO:** privacy@nexusaiholding.com / equipo-ia@proton.me
 - **Finalidad:** Prestacion del servicio de navegacion GPS, alertas de trafico y localizacion de campings/parkings para vehiculos.
 
 ## 3. Datos que Recopilamos

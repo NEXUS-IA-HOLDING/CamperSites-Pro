@@ -1,7 +1,9 @@
 # Términos y Condiciones de Uso — CamperSites Pro
 
-**Última actualización:** 30 de octubre de 2026  
-**Empresa desarrolladora:** YRYS / CamperSites Pro Team  
+**Última actualización:** 2 de noviembre de 2026  
+**Empresa desarrolladora / Operadora:** Nexus Studio (Nexus AI Holding)  
+**Sitio Web:** https://nexusaiholding.com  
+**Contacto Legal:** legal@nexusaiholding.com / equipo-ia@proton.me  
 **Aplicación:** CamperSites Pro (Android / iOS)  
 
 ---

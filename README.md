@@ -2,13 +2,15 @@
 
 <div align="center">
 
-[![Descargar APK](https://img.shields.io/badge/DESCARGAR%20APK-v1.0.0%20(Directo)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/elkalivpn/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)
-[![GitHub Release](https://img.shields.io/github/v/release/elkalivpn/CamperSites-Pro?style=for-the-badge&color=0284C7)](https://github.com/elkalivpn/CamperSites-Pro/releases)
+[![Descargar APK](https://img.shields.io/badge/DESCARGAR%20APK-v1.0.0%20(Directo)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)
+[![GitHub Release](https://img.shields.io/github/v/release/NEXUS-IA-HOLDING/CamperSites-Pro?style=for-the-badge&color=0284C7)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases)
+[![Organization](https://img.shields.io/badge/Nexus%20Studio-Nexus%20AI%20Holding-6366F1?style=for-the-badge&logo=github)](https://github.com/NEXUS-IA-HOLDING)
 [![License](https://img.shields.io/badge/Licencia-MIT-amber?style=for-the-badge)](LICENSE)
 [![React Native](https://img.shields.io/badge/React%20Native-0.72.6-61DAFB?style=for-the-badge&logo=react)](https://reactnative.dev/)
 [![Offline Spots](https://img.shields.io/badge/Puntos%20Verificados-%2B517.000%20Spots-10B981?style=for-the-badge&logo=openstreetmap)](https://openstreetmap.org)
 
-**La suite de navegación GPS de cabina y cartografía libre más completa para furgonetas camper, autocaravanas y vehículos habitables en España y Europa.**
+**La suite de navegación GPS de cabina y cartografía libre más completa para furgonetas camper, autocaravanas y vehículos habitables en España y Europa.**  
+*Un producto desarrollado por **Nexus Studio** (Nexus AI Holding).*
 
 [📥 Descargar APK](#-descarga-rápida-en-1-clic) • [✨ Características](#-características-principales) • [🗺️ Navegación de Cabina](#-suite-de-cabina-inteligente) • [📂 Documentación](#-documentación-completa) • [🛠️ Desarrollo](#-instalación-para-desarrolladores)
 
@@ -20,8 +22,8 @@
 
 Para instalar y probar **CamperSites Pro** directamente en cualquier smartphone o tablet Android:
 
-1. Haz clic en el botón de descarga:
-   👉 **[Descargar CamperSites-Pro-v1.0.apk (45 MB)](https://github.com/elkalivpn/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)**
+1. Haz clic en el botón de descarga directa:
+   👉 **[Descargar CamperSites-Pro-v1.0.apk (43.3 MB)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)**
 2. Abre el archivo descargado en tu dispositivo móvil.
 3. Pulsa **Instalar** (permite *"Instalar aplicaciones de fuentes desconocidas"* si tu sistema lo solicita).
 4. ¡Listo! La app abrirá con acceso completo a los mapas, radares DGT y pernoctas.
@@ -106,7 +108,7 @@ Toda la documentación técnica, arquitectónica y de negocio está organizada e
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/elkalivpn/CamperSites-Pro.git
+git clone https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro.git
 cd CamperSites-Pro
 
 # 2. Instalar dependencias
