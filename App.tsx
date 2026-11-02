@@ -11,11 +11,20 @@
  * - Gráficos y animaciones fluidas
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
+import { UpdateService } from './src/services/UpdateService';
 
 function App(): React.JSX.Element {
+  useEffect(() => {
+    // Comprobar actualizaciones automáticas de versión tras iniciar la app
+    const timer = setTimeout(() => {
+      UpdateService.promptIfUpdateAvailable();
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AppNavigator />
