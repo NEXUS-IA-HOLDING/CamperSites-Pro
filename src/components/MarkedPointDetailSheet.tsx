@@ -21,10 +21,12 @@ import {
   TextInput,
   Modal,
   Clipboard,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { camperWeatherService, CamperWeatherReport } from '../services/CamperWeatherService';
 import { AudioAlertService } from '../services/AudioAlertService';
+import { TikTokService } from '../services/TikTokService';
 
 export interface MarkedPointItem {
   id: string;
@@ -90,6 +92,16 @@ export const MarkedPointDetailSheet: React.FC<MarkedPointDetailSheetProps> = ({
     } catch {}
   };
 
+  const handleShareTikTok = async () => {
+    const res = await TikTokService.shareSpot({
+      title: point.name,
+      latitude: point.latitude,
+      longitude: point.longitude,
+      city: point.address,
+    });
+    Alert.alert('🎵 Compartir en TikTok', res.message);
+  };
+
   const handleOpenExternal = () => {
     const url = Platform.select({
       ios: `maps:0,0?q=${point.latitude},${point.longitude}(${encodeURIComponent(point.name)})`,
@@ -130,6 +142,13 @@ export const MarkedPointDetailSheet: React.FC<MarkedPointDetailSheetProps> = ({
               size={21}
               color={isFavorite ? '#F59E0B' : '#94A3B8'}
             />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleShareTikTok}
+            style={[styles.actionIconBtn, { backgroundColor: 'rgba(254, 44, 85, 0.12)', borderColor: 'rgba(254, 44, 85, 0.35)' }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="music-note" size={19} color="#FE2C55" />
           </TouchableOpacity>
 
           <TouchableOpacity

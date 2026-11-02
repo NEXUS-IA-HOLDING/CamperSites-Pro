@@ -26,6 +26,7 @@ import {
   camperWeatherService,
   CamperWeatherReport,
 } from '../services/CamperWeatherService';
+import { TikTokService } from '../services/TikTokService';
 
 const FAVORITES_KEY = '@campersites_favorites';
 
@@ -108,6 +109,19 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
         message: `🚐 ¡Mira este punto en CamperSites Pro!\n\n📍 ${location.name}\nCoordenadas: ${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}\n\nVer en mapa: ${mapsUrl}`,
       });
     } catch {}
+  };
+
+  const handleShareTikTok = async () => {
+    if (!location) return;
+    const res = await TikTokService.shareSpot({
+      title: location.name,
+      description: location.description,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      category: location.category,
+      city: location.address,
+    });
+    Alert.alert('🎵 Compartir en TikTok', res.message);
   };
 
   const handleOpenExternalMaps = () => {
@@ -208,6 +222,13 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
               size={20}
               color={isFavorite ? '#EF4444' : '#94A3B8'}
             />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleShareTikTok}
+            style={[styles.actionIconBtn, { backgroundColor: 'rgba(254, 44, 85, 0.12)', borderColor: 'rgba(254, 44, 85, 0.35)' }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="music-note" size={19} color="#FE2C55" />
           </TouchableOpacity>
 
           <TouchableOpacity
