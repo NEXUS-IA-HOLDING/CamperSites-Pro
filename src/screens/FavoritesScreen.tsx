@@ -98,6 +98,8 @@ const getCategoryIcon = (category: string) => {
     case 'PARKING_PERMITIDO': return 'parking';
     case 'AREA_DESCANSO': return 'bench';
     case 'AREA_SERVICIOS': return 'water-pump';
+    case 'PUNTO_PERSONALIZADO':
+    case 'FAVORITO': return 'crosshairs-gps';
     default: return 'map-marker';
   }
 };
@@ -108,6 +110,8 @@ const getCategoryColor = (category: string) => {
     case 'PARKING_PERMITIDO': return '#38BDF8';
     case 'AREA_DESCANSO': return '#F59E0B';
     case 'AREA_SERVICIOS': return '#818CF8';
+    case 'PUNTO_PERSONALIZADO':
+    case 'FAVORITO': return '#F59E0B';
     default: return '#94A3B8';
   }
 };
@@ -144,12 +148,32 @@ export default function FavoritesScreen() {
         .select('*')
         .in('id', ids);
 
-      if (error) {
+      let loadedList: Location[] = data || [];
+
+      // Cargar también puntos personalizados marcados por el usuario
+      try {
+        const customStored = await AsyncStorage.getItem('@campersites_custom_locations');
+        if (customStored) {
+          const customLocs: Location[] = JSON.parse(customStored);
+          const customMatches = customLocs.filter(c => ids.includes(c.id));
+          // Evitar duplicados por id
+          const existingIds = new Set(loadedList.map(l => l.id));
+          customMatches.forEach(cm => {
+            if (!existingIds.has(cm.id)) {
+              loadedList.push(cm);
+            }
+          });
+        }
+      } catch (customErr) {
+        console.warn('Error reading custom locations for favorites:', customErr);
+      }
+
+      if (loadedList.length === 0) {
         // Fallback a los recomendados que coincidan
         const localMatches = CURATED_RECOMMENDED_SPOTS.filter(s => ids.includes(s.id));
         setFavorites(localMatches);
       } else {
-        setFavorites(data || []);
+        setFavorites(loadedList);
       }
     } catch (err) {
       console.error('Error loading favorites:', err);
@@ -180,6 +204,16 @@ export default function FavoritesScreen() {
       await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(newIds));
       setFavoriteIds(newIds);
       setFavorites(prev => prev.filter(loc => loc.id !== locationId));
+
+      // Limpiar también de ubicaciones personalizadas si existía allí
+      try {
+        const customStored = await AsyncStorage.getItem('@campersites_custom_locations');
+        if (customStored) {
+          const customLocs: Location[] = JSON.parse(customStored);
+          const updatedCustom = customLocs.filter(c => c.id !== locationId);
+          await AsyncStorage.setItem('@campersites_custom_locations', JSON.stringify(updatedCustom));
+        }
+      } catch {}
     } catch (err) {
       console.error('Error removing favorite:', err);
     }

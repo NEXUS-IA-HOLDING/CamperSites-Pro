@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   FlatList,
+  Vibration,
 } from 'react-native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import Geolocation from 'react-native-geolocation-service';
@@ -30,6 +31,7 @@ import { VehicleMapCursor } from '../components/VehicleMapCursor';
 import { VehicleCursorSelectorModal } from '../components/VehicleCursorSelectorModal';
 import { CockpitSearchBar, QUICK_FILTERS, QuickFilter } from '../components/CockpitSearchBar';
 import { CockpitLocationDetailSheet } from '../components/CockpitLocationDetailSheet';
+import { MarkedPointDetailSheet, MarkedPointItem } from '../components/MarkedPointDetailSheet';
 import { CockpitTurnByTurnHUD } from '../components/CockpitTurnByTurnHUD';
 import { LaneGuidanceHUD } from '../components/LaneGuidanceHUD';
 import { CockpitSectionRadarHUD } from '../components/CockpitSectionRadarHUD';
@@ -331,8 +333,20 @@ const MapScreen = () => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isAwayFromUser, setIsAwayFromUser] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
+  const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
+  const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
   const currentMapCenterRef = useRef<[number, number]>(DEFAULT_CENTER);
   const lastStableHeading = useRef<number>(0);
+
+  const loadSavedCustomPoints = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem('@campersites_custom_locations');
+      if (raw) {
+        setSavedCustomPoints(JSON.parse(raw));
+      }
+    } catch {}
+  }, []);
 
   const handleToggleFullScreen = useCallback(() => {
     setIsFullScreen(prev => {
@@ -514,6 +528,7 @@ const MapScreen = () => {
   // Al enfocarse en el mapa, comprobar si viene de Favoritos o Explorar para centrar en el punto
   useFocusEffect(
     useCallback(() => {
+      loadSavedCustomPoints();
       const checkJumpLocation = async () => {
         try {
           const raw = await AsyncStorage.getItem('@campersites_jump_to_location');
@@ -977,6 +992,40 @@ const MapScreen = () => {
         Logger.warn('MapScreen', 'OSRM server offline o timeout, activando fallback');
       }
 
+      // Si solo devolvió 1 ruta, calcular una segunda ruta alternativa paisajística
+      if (calculatedRoutes.length === 1) {
+        try {
+          const midLat = (fromLat + toLat) / 2;
+          const midLng = (fromLng + toLng) / 2;
+          const dLat = toLat - fromLat;
+          const dLng = toLng - fromLng;
+          const detourLat = midLat - dLng * 0.15;
+          const detourLng = midLng + dLat * 0.15;
+          const altUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${detourLng.toFixed(5)},${detourLat.toFixed(5)};${toLng},${toLat}?overview=full&geometries=geojson&steps=true&annotations=true`;
+          const altController = new AbortController();
+          const altTimeout = setTimeout(() => altController.abort(), 3500);
+          const altRes = await fetch(altUrl, { signal: altController.signal });
+          clearTimeout(altTimeout);
+          if (altRes.ok) {
+            const altData = await altRes.json();
+            if (altData.routes && altData.routes.length > 0) {
+              const alt = altData.routes[0];
+              calculatedRoutes.push({
+                coordinates: alt.geometry.coordinates.map((coord: number[]) => ({
+                  latitude: coord[1],
+                  longitude: coord[0],
+                })),
+                distance: alt.distance,
+                duration: alt.duration,
+                incidents: detectIncidents(alt.geometry.coordinates),
+                type: 'alternative',
+                rawRoute: alt,
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
       // Si OSRM falló o no devolvió rutas, crear una ruta suave interpolada de navegación segura
       if (calculatedRoutes.length === 0) {
         const straightDistM = haversine({ latitude: fromLat, longitude: fromLng }, { latitude: toLat, longitude: toLng });
@@ -1017,6 +1066,9 @@ const MapScreen = () => {
       }
 
       setRoutes(calculatedRoutes);
+      if (calculatedRoutes.length > 0) {
+        setSelectedRoute(calculatedRoutes[0]);
+      }
 
       // Si ya estábamos navegando (recálculo automático), actualizar de inmediato sin interrumpir
       if (isNavigatingRef.current && calculatedRoutes.length > 0) {
@@ -1122,6 +1174,161 @@ const MapScreen = () => {
       animationDuration: 600,
     });
   };
+
+  // Interceptar pulsación larga libre en cualquier lugar del mapa
+  const handleMapLongPress = useCallback(async (feature: any) => {
+    try {
+      const coords = feature?.geometry?.coordinates || feature?.coordinates;
+      if (!coords || coords.length < 2) return;
+      const lng = Number(coords[0]);
+      const lat = Number(coords[1]);
+      if (isNaN(lng) || isNaN(lat)) return;
+
+      // Vibración táctil háptica inmediata
+      try {
+        Vibration.vibrate([0, 50, 40, 50]);
+      } catch {}
+
+      const pointId = `custom_pt_${Date.now()}`;
+      const defaultName = `Punto GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+
+      const newPoint: MarkedPointItem = {
+        id: pointId,
+        latitude: lat,
+        longitude: lng,
+        name: defaultName,
+        address: `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        category: 'PUNTO_PERSONALIZADO',
+      };
+
+      setMarkedPoint(newPoint);
+      setSelectedLocation(null);
+
+      // Comprobar si ya existe en favoritos
+      const favStored = await AsyncStorage.getItem('@campersites_favorites');
+      if (favStored) {
+        const favIds: string[] = JSON.parse(favStored);
+        setIsMarkedPointFavorite(favIds.includes(newPoint.id));
+      } else {
+        setIsMarkedPointFavorite(false);
+      }
+
+      // Centrar suavemente en el punto pulsado
+      cameraRef.current?.setCamera({
+        centerCoordinate: [lng, lat],
+        animationDuration: 450,
+      });
+
+      AudioAlertService.speak('Punto marcado en el mapa');
+    } catch (err) {
+      Logger.error('MapScreen', 'Error en handleMapLongPress', err);
+    }
+  }, []);
+
+  // Guardar o retirar punto marcado de favoritos
+  const handleToggleMarkedPointFavorite = useCallback(async (point: MarkedPointItem) => {
+    try {
+      const favStored = await AsyncStorage.getItem('@campersites_favorites');
+      let favIds: string[] = favStored ? JSON.parse(favStored) : [];
+
+      const customStored = await AsyncStorage.getItem('@campersites_custom_locations');
+      let customLocs: any[] = customStored ? JSON.parse(customStored) : [];
+
+      const isFav = favIds.includes(point.id);
+
+      if (isFav) {
+        favIds = favIds.filter(id => id !== point.id);
+        customLocs = customLocs.filter(c => c.id !== point.id);
+        setIsMarkedPointFavorite(false);
+        AudioAlertService.speak('Punto quitado de favoritos');
+      } else {
+        favIds.push(point.id);
+        const customObj = {
+          id: point.id,
+          name: point.name,
+          latitude: point.latitude,
+          longitude: point.longitude,
+          category: 'PUNTO_PERSONALIZADO',
+          city: 'Coordenadas GPS',
+          province: 'Ubicación Propia',
+          has_water: false,
+          has_electricity: false,
+          price: 0,
+          description: `Punto personalizado en mapa (${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)})`,
+        };
+        customLocs = customLocs.filter(c => c.id !== point.id);
+        customLocs.push(customObj);
+        setIsMarkedPointFavorite(true);
+        try {
+          Vibration.vibrate([0, 80]);
+        } catch {}
+        AudioAlertService.speak('Punto guardado en tus favoritos');
+        Alert.alert('⭐ Guardado en Favoritos', `"${point.name}" se ha añadido a tu lista de favoritos.`);
+      }
+
+      await AsyncStorage.setItem('@campersites_favorites', JSON.stringify(favIds));
+      await AsyncStorage.setItem('@campersites_custom_locations', JSON.stringify(customLocs));
+      setSavedCustomPoints(customLocs);
+    } catch (err) {
+      Logger.error('MapScreen', 'Error toggling marked point favorite', err);
+    }
+  }, []);
+
+  // Calcular varias rutas alternativas hacia el punto marcado
+  const handleCalculateRoutesForMarkedPoint = useCallback(async (point: MarkedPointItem) => {
+    const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+    const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+
+    AudioAlertService.speak(`Calculando varias rutas hacia ${point.name}`);
+    await calculateRoutes(
+      fromLat,
+      fromLng,
+      point.latitude,
+      point.longitude,
+      false,
+      true // autoShowModal: abre modal de rutas alternativas comparativas
+    );
+  }, [currentLocation]);
+
+  // Iniciar navegación directa inmediata hacia el punto marcado
+  const handleStartDirectRouteForMarkedPoint = useCallback(async (point: MarkedPointItem) => {
+    const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+    const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+
+    AudioAlertService.speak(`Iniciando ruta hacia ${point.name}`);
+    const calcRoutes = await calculateRoutes(
+      fromLat,
+      fromLng,
+      point.latitude,
+      point.longitude,
+      false,
+      false
+    );
+
+    if (calcRoutes && calcRoutes.length > 0) {
+      startNavigation(calcRoutes[0]);
+      setMarkedPoint(null);
+    }
+  }, [currentLocation]);
+
+  // Renombrar punto marcado
+  const handleUpdatePointName = useCallback(async (point: MarkedPointItem, newName: string) => {
+    const updated = { ...point, name: newName };
+    setMarkedPoint(updated);
+
+    try {
+      const customStored = await AsyncStorage.getItem('@campersites_custom_locations');
+      if (customStored) {
+        const customLocs: any[] = JSON.parse(customStored);
+        const idx = customLocs.findIndex(c => c.id === point.id);
+        if (idx !== -1) {
+          customLocs[idx].name = newName;
+          await AsyncStorage.setItem('@campersites_custom_locations', JSON.stringify(customLocs));
+          setSavedCustomPoints(customLocs);
+        }
+      }
+    } catch {}
+  }, []);
 
   const toggleCameraMode = () => {
     const nextMode = !camera3DMode;
@@ -1512,6 +1719,7 @@ const MapScreen = () => {
         mapStyle={MAP_STYLES[currentMapStyle] || MAP_STYLES.satellite}
         logoEnabled={false}
         attributionEnabled={false}
+        onLongPress={handleMapLongPress}
         onRegionDidChange={handleRegionDidChange}>
 
         <MapLibreGL.Camera
@@ -1521,6 +1729,39 @@ const MapScreen = () => {
             zoomLevel: cameraZoom,
           }}
         />
+
+        {/* Marcador del Punto Seleccionado con Pulsación Larga */}
+        {markedPoint && (
+          <MapLibreGL.PointAnnotation
+            key={`marked-pin-${markedPoint.id}`}
+            id={`marked-pin-${markedPoint.id}`}
+            coordinate={[markedPoint.longitude, markedPoint.latitude]}>
+            <View style={styles.markedPinWrapper}>
+              <View style={styles.markedPinPulseRing} />
+              <View style={styles.markedPinHead}>
+                <Icon name="crosshairs-gps" size={20} color="#FFFFFF" />
+              </View>
+              <View style={styles.markedPinArrow} />
+            </View>
+          </MapLibreGL.PointAnnotation>
+        )}
+
+        {/* Puntos Personalizados Guardados en Favoritos */}
+        {savedCustomPoints.map((cp) => (
+          <MapLibreGL.PointAnnotation
+            key={`saved-cp-${cp.id}`}
+            id={`saved-cp-${cp.id}`}
+            coordinate={[cp.longitude, cp.latitude]}
+            onSelected={() => {
+              setMarkedPoint(cp);
+              setIsMarkedPointFavorite(true);
+              setSelectedLocation(null);
+            }}>
+            <View style={styles.savedCustomPin}>
+              <Icon name="star" size={15} color="#FBBF24" />
+            </View>
+          </MapLibreGL.PointAnnotation>
+        ))}
 
         {/* Usuario - marcador con vehículo personalizado y orientación 360° con Snap-to-Road */}
         {currentLocation && (
@@ -1724,6 +1965,29 @@ const MapScreen = () => {
             setReviewsLocation(loc);
             setReviewsModalVisible(true);
           }}
+        />
+      )}
+
+      {/* Ficha Deslizable de Punto Marcado en el Mapa (Pulsación Larga) */}
+      {markedPoint && !isNavigating && (
+        <MarkedPointDetailSheet
+          point={markedPoint}
+          distanceKm={
+            currentLocation
+              ? Math.round(
+                  (haversine(
+                    { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
+                    { latitude: markedPoint.latitude, longitude: markedPoint.longitude }
+                  ) / 1000) * 10
+                ) / 10
+              : undefined
+          }
+          isFavorite={isMarkedPointFavorite}
+          onClose={() => setMarkedPoint(null)}
+          onSaveFavorite={handleToggleMarkedPointFavorite}
+          onCalculateRoutes={handleCalculateRoutesForMarkedPoint}
+          onStartDirectRoute={handleStartDirectRouteForMarkedPoint}
+          onUpdatePointName={handleUpdatePointName}
         />
       )}
 
@@ -2112,6 +2376,65 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     zIndex: 118,
+  },
+  markedPinWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 48,
+    height: 56,
+  },
+  markedPinPulseRing: {
+    position: 'absolute',
+    top: 4,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(245, 158, 11, 0.35)',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+  },
+  markedPinHead: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#D97706',
+    borderWidth: 2.5,
+    borderColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 10,
+    zIndex: 2,
+  },
+  markedPinArrow: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#D97706',
+    marginTop: -2,
+    zIndex: 1,
+  },
+  savedCustomPin: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 4,
+    elevation: 8,
   },
 });
 
