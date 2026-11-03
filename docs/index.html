@@ -284,6 +284,135 @@
         .btn-tiktok-cta { display: inline-flex; align-items: center; gap: 12px; background: #FE2C55; color: #fff; font-weight: 800; font-size: 1.1rem; padding: 16px 36px; border-radius: 12px; text-decoration: none; box-shadow: 0 10px 25px rgba(254, 44, 85, 0.4); transition: transform 0.2s, background 0.2s; }
         .btn-tiktok-cta:hover { transform: translateY(-2px); background: #e0264b; }
 
+        /* SECCIÓN DE VÍDEOS VIRALES PARA TIKTOK / CREATOR HUB */
+        .video-showcase-section {
+            margin-bottom: 90px;
+        }
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 28px;
+            margin-top: 30px;
+        }
+        @media (max-width: 992px) {
+            .video-grid {
+                grid-template-columns: 1fr;
+                max-width: 480px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+        }
+        .video-card {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 20px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(12px);
+            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .video-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(254, 44, 85, 0.6);
+            box-shadow: 0 16px 36px rgba(254, 44, 85, 0.15);
+        }
+        .video-wrapper {
+            width: 100%;
+            aspect-ratio: 9 / 16;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #020617;
+            position: relative;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .video-wrapper video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .video-info {
+            padding-top: 14px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            justify-content: space-between;
+        }
+        .video-badge-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .video-pill {
+            background: rgba(254, 44, 85, 0.15);
+            color: #FE2C55;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(254, 44, 85, 0.3);
+        }
+        .video-duration {
+            font-size: 0.75rem;
+            color: #94A3B8;
+            font-weight: 600;
+        }
+        .video-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #FFFFFF;
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+        .video-desc {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        .video-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .btn-download-video {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: #0284C7;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-download-video:hover {
+            background: #0369A1;
+        }
+        .btn-copy-caption {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #E2E8F0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .btn-copy-caption:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #38BDF8;
+            color: #38BDF8;
+        }
+
         /* FOOTER */
         footer { border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 50px 0 35px; text-align: center; color: var(--text-muted); font-size: 0.92rem; }
         .footer-links { margin-bottom: 20px; }
@@ -308,6 +437,7 @@
             </a>
             <div class="nav-links">
                 <a href="#capturas" class="nav-link">Capturas</a>
+                <a href="#videos" class="nav-link">Vídeos TikTok</a>
                 <a href="#instalacion" class="nav-link">Instalación</a>
                 <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk" class="nav-cta">
                     Descargar APK (43 MB)
@@ -530,6 +660,106 @@
             </div>
         </section>
 
+        <!-- SECCIÓN DE VÍDEOS VIRALES PARA TIKTOK / CREATOR HUB -->
+        <section id="videos" class="video-showcase-section">
+            <div class="section-header">
+                <div class="hero-badge" style="margin-bottom: 12px;">
+                    <div class="hero-badge-dot" style="background: #FE2C55;"></div>
+                    Material Oficial de Campaña • @campersites_oficial_es
+                </div>
+                <h2>Vídeos Virales Oficiales para TikTok & Reels</h2>
+                <p>Reproduce aquí mismo las animaciones cinemáticas con locución en español o descárgalas en alta resolución (1080x1920) para publicarlas en tus redes con 1 clic.</p>
+            </div>
+
+            <div class="video-grid">
+
+                <!-- VÍDEO 1: RADARES DGT -->
+                <div class="video-card">
+                    <div class="video-wrapper">
+                        <video controls playsinline preload="metadata">
+                            <source src="assets/tiktok_video_1_radares_dgt.mp4" type="video/mp4">
+                            Tu navegador no soporta vídeo HTML5.
+                        </video>
+                    </div>
+                    <div class="video-info">
+                        <div>
+                            <div class="video-badge-row">
+                                <span class="video-pill">RADAR DGT</span>
+                                <span class="video-duration">⏱️ 13.3s • 1080x1920</span>
+                            </div>
+                            <div class="video-title">Radar de Tramo y Velocidad Media</div>
+                            <div class="video-desc">Animación del velocímetro digital GPS (84 a 90 km/h) y barra de progreso del tramo con avisador sonoro.</div>
+                        </div>
+                        <div class="video-actions">
+                            <a href="assets/tiktok_video_1_radares_dgt.mp4" download="tiktok_radares_dgt_campersites.mp4" class="btn-download-video">
+                                <span>📥</span> Descargar Vídeo MP4
+                            </a>
+                            <button type="button" class="btn-copy-caption" onclick="copyCaption(this, '🚨 ¡Ojo con los radares de tramo de la DGT en tu viaje en furgo! CamperSites Pro te calcula la velocidad media exacta en tiempo real para no llevarte multas innecesarias 🚐💨 Descarga el APK directo en el link de la bio. #furgoneta #campervan #camperlife #dgt #radares #autocaravana #campersitespro #vanlifeespaña')">
+                                📋 Copiar Texto y Hashtags
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VÍDEO 2: TOLDO Y RACHAS DE VIENTO -->
+                <div class="video-card">
+                    <div class="video-wrapper">
+                        <video controls playsinline preload="metadata">
+                            <source src="assets/tiktok_video_2_toldo_viento.mp4" type="video/mp4">
+                            Tu navegador no soporta vídeo HTML5.
+                        </video>
+                    </div>
+                    <div class="video-info">
+                        <div>
+                            <div class="video-badge-row">
+                                <span class="video-pill" style="color: #F59E0B; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.15);">SEGURIDAD TOLDO</span>
+                                <span class="video-duration">⏱️ 15.1s • 1080x1920</span>
+                            </div>
+                            <div class="video-title">Alarma Acústica de Rachas de Viento</div>
+                            <div class="video-desc">Sensor de micro-clima que detecta rachas de más de 45 km/h para evitar que el viento te arranque el toldo.</div>
+                        </div>
+                        <div class="video-actions">
+                            <a href="assets/tiktok_video_2_toldo_viento.mp4" download="tiktok_toldo_viento_campersites.mp4" class="btn-download-video">
+                                <span>📥</span> Descargar Vídeo MP4
+                            </a>
+                            <button type="button" class="btn-copy-caption" onclick="copyCaption(this, '💨 ¿Sabes cuánto cuesta reparar un toldo camper arrancado por una racha nocturna? 😱 CamperSites Pro monitoriza el micro-clima y te despierta con alarma sonora antes de que sea tarde. Descárgala gratis en el link de la bio. #toldo #furgocamper #autocaravana #camperhacks #viajarenfurgo #campersitespro #vanlife')">
+                                📋 Copiar Texto y Hashtags
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VÍDEO 3: CALAS SECRETAS Y MODO OFFLINE -->
+                <div class="video-card">
+                    <div class="video-wrapper">
+                        <video controls playsinline preload="metadata">
+                            <source src="assets/tiktok_video_3_calas_offline.mp4" type="video/mp4">
+                            Tu navegador no soporta vídeo HTML5.
+                        </video>
+                    </div>
+                    <div class="video-info">
+                        <div>
+                            <div class="video-badge-row">
+                                <span class="video-pill" style="color: #38BDF8; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.15);">CALAS & OFFLINE</span>
+                                <span class="video-duration">⏱️ 15.3s • 1080x1920</span>
+                            </div>
+                            <div class="video-title">Marcado Libre y 100% Sin Cobertura</div>
+                            <div class="video-desc">Mantén pulsado en cualquier acantilado para guardar el spot, calcular ruta alternativa y consultar +517.000 áreas offline.</div>
+                        </div>
+                        <div class="video-actions">
+                            <a href="assets/tiktok_video_3_calas_offline.mp4" download="tiktok_calas_offline_campersites.mp4" class="btn-download-video">
+                                <span>📥</span> Descargar Vídeo MP4
+                            </a>
+                            <button type="button" class="btn-copy-caption" onclick="copyCaption(this, '🌊 Deja de ir a las mismas áreas masificadas de siempre. Mantén pulsado en cualquier cala con CamperSites Pro y viaja 100% offline sin cobertura móvil 🛰️🏔️ Consigue el APK en el enlace del perfil. #calassecretas #lugaresincreibles #camperlife #acampada #furgoneteros #campersitespro')">
+                                📋 Copiar Texto y Hashtags
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
         <!-- BANNER OFICIAL TIKTOK -->
         <section class="tiktok-box">
             <h2>🎵 Síguenos en TikTok: @campersites_oficial_es</h2>
@@ -555,6 +785,26 @@
             </p>
         </div>
     </footer>
+
+    <script>
+        function copyCaption(button, text) {
+            navigator.clipboard.writeText(text).then(function() {
+                const originalText = button.innerHTML;
+                button.innerHTML = '✅ ¡Copiado al Portapapeles!';
+                button.style.background = 'rgba(16, 185, 129, 0.25)';
+                button.style.borderColor = '#10B981';
+                button.style.color = '#34D399';
+                setTimeout(function() {
+                    button.innerHTML = originalText;
+                    button.style.background = '';
+                    button.style.borderColor = '';
+                    button.style.color = '';
+                }, 2500);
+            }).catch(function(err) {
+                console.error('Error copying to clipboard', err);
+            });
+        }
+    </script>
 
 </body>
 </html>

@@ -47,6 +47,7 @@ import {
   SectionRadarStatus,
 } from '../services/SectionRadarTracker';
 import { offlineSpotVault } from '../services/OfflineSpotVaultService';
+import { affiliatePartnerService } from '../services/AffiliatePartnerService';
 import {
   navigationEngine,
   NavigationProgress,
@@ -2035,6 +2036,38 @@ const MapScreen = () => {
                 )}
               </TouchableOpacity>
             ))}
+            {/* Banner de Seguridad en Ruta: Seguro Camper IATI 5% Dto */}
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                borderWidth: 1,
+                borderColor: 'rgba(16, 185, 129, 0.35)',
+                borderRadius: 12,
+                padding: 12,
+                marginTop: 10,
+                marginBottom: 6,
+              }}
+              activeOpacity={0.85}
+              onPress={async () => {
+                const partner = affiliatePartnerService.getPartnerById('iati_escapadas_camper');
+                if (partner) {
+                  await affiliatePartnerService.openPartner(partner);
+                }
+              }}>
+              <Icon name="shield-check" size={22} color="#10B981" style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981' }}>
+                  🛡️ Asistencia Médica y Grúa en Ruta
+                </Text>
+                <Text style={{ fontSize: 11, color: '#94A3B8' }}>
+                  5% Dto. exclusivo en IATI Escapadas para tu viaje
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={18} color="#10B981" />
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRouteSelector(false)}>
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
