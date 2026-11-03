@@ -40,6 +40,7 @@ import Geolocation from 'react-native-geolocation-service';
 import { AffiliatePartnersModal } from '../components/AffiliatePartnersModal';
 import { CamperBookingModal } from '../components/CamperBookingModal';
 import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
+import { GooglePlaySupportCard } from '../components/GooglePlaySupportCard';
 import { AdminDashboardModal } from '../components/AdminDashboardModal';
 import { adminService } from '../services/AdminService';
 
@@ -595,6 +596,9 @@ export default function ProfileScreen() {
             <Text style={styles.premiumPriceText}>9,99€/mes</Text>
           </View>
         </TouchableOpacity>
+
+        {/* Tarjeta de Apoyo Comunitario & Meta Google Play */}
+        <GooglePlaySupportCard onOpenIati={() => setShowAffiliatesModal(true)} />
 
         {/* Puntos */}
         <View style={styles.section}>

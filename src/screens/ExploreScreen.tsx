@@ -32,6 +32,7 @@ import {
 import { offlineSpotVault } from '../services/OfflineSpotVaultService';
 import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
 import { CamperAdBanner } from '../components/CamperAdBanner';
+import { AffiliatePartnersModal } from '../components/AffiliatePartnersModal';
 
 interface Location {
   id: string;
@@ -145,6 +146,7 @@ export default function ExploreScreen() {
   };
   const [showCategoryGrid, setShowCategoryGrid] = useState(false);
   const [showTravelPlanner, setShowTravelPlanner] = useState(false);
+  const [showAffiliatesModal, setShowAffiliatesModal] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedLocationForReviews, setSelectedLocationForReviews] = useState<Location | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -563,6 +565,33 @@ export default function ExploreScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Banner Monetización: Club Descuentos Camper & Seguros IATI */}
+      {!showCategoryGrid && (
+        <TouchableOpacity
+          style={[styles.travelPlannerBanner, { borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}
+          onPress={() => setShowAffiliatesModal(true)}
+          activeOpacity={0.88}>
+          <View style={styles.travelPlannerBannerLeft}>
+            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+              <Icon name="shield-car" size={24} color="#10B981" />
+            </View>
+            <View style={styles.travelPlannerTextBox}>
+              <View style={styles.travelPlannerBadgeRow}>
+                <Text style={[styles.travelPlannerBadge, { color: '#10B981' }]}>CLUB DESCUENTOS CAMPER</Text>
+                <View style={[styles.proTag, { backgroundColor: '#10B981' }]}>
+                  <Text style={styles.proTagText}>5% DTO</Text>
+                </View>
+              </View>
+              <Text style={styles.travelPlannerTitle}>Seguro Camper IATI & GLP Repsol</Text>
+              <Text style={styles.travelPlannerSub}>
+                Ahorra en combustible, ferries marítimos y asistencia médica en viaje
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={22} color="#10B981" />
+        </TouchableOpacity>
+      )}
+
       {/* Sponsor / Google Ads Banner for Free Users */}
       {!showCategoryGrid && <CamperAdBanner placement="feed" />}
 
@@ -703,6 +732,12 @@ export default function ExploreScreen() {
       <CamperTravelPlannerModal
         visible={showTravelPlanner}
         onClose={() => setShowTravelPlanner(false)}
+      />
+
+      {/* Modal de Afiliados y Descuentos Camper */}
+      <AffiliatePartnersModal
+        visible={showAffiliatesModal}
+        onClose={() => setShowAffiliatesModal(false)}
       />
     </View>
   );
