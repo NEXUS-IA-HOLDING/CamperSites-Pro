@@ -387,27 +387,36 @@ const MapScreen = () => {
     if (currentLocation) {
       const targetCoords: [number, number] = [currentLocation.longitude, currentLocation.latitude];
       currentMapCenterRef.current = targetCoords;
+      const speedKmH = (currentLocation.speed || 0) * 3.6;
+      const adaptiveCam = calculateSpeedAdaptiveCamera(speedKmH);
+
       cameraRef.current?.setCamera({
         centerCoordinate: targetCoords,
-        zoomLevel: 15.5,
-        pitch: isNavigating ? 60 : 0,
-        heading: isNavigating ? (currentLocation.heading || 0) : 0,
+        zoomLevel: adaptiveCam.zoom,
+        pitch: 60,
+        heading: isNavigating
+          ? (navProgress?.snappedPosition?.bearing ?? currentLocation.heading ?? 0)
+          : (currentLocation.heading || 0),
         animationDuration: 800,
       });
       setIsAwayFromUser(false);
-      AudioAlertService.speak('Centrando en tu vehículo');
+      setCamera3DMode(true);
+      AudioAlertService.speak('Modo conducción 3D activo');
     } else {
       cameraRef.current?.setCamera({
         centerCoordinate: DEFAULT_CENTER,
         zoomLevel: DEFAULT_ZOOM,
+        pitch: 0,
+        heading: 0,
         animationDuration: 800,
       });
       setIsAwayFromUser(false);
     }
-  }, [currentLocation, isNavigating]);
+  }, [currentLocation, isNavigating, navProgress]);
 
   const isNavigatingRef = useRef(false);
   const camera3DModeRef = useRef(false);
+  const isAwayFromUserRef = useRef(false);
 
   useEffect(() => {
     isNavigatingRef.current = isNavigating;
@@ -416,6 +425,10 @@ const MapScreen = () => {
   useEffect(() => {
     camera3DModeRef.current = camera3DMode;
   }, [camera3DMode]);
+
+  useEffect(() => {
+    isAwayFromUserRef.current = isAwayFromUser;
+  }, [isAwayFromUser]);
 
   const mapRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
@@ -627,7 +640,7 @@ const MapScreen = () => {
           );
           setNavProgress(progress);
 
-          if (camera3DModeRef.current) {
+          if (!isAwayFromUserRef.current) {
             const adaptiveCam = calculateSpeedAdaptiveCamera(
               currentSpeedKmH,
               progress.distanceToTurnMeters
@@ -644,11 +657,24 @@ const MapScreen = () => {
               zoomLevel: adaptiveCam.zoom,
               pitch: adaptiveCam.pitch,
               heading: safeHeading,
-              animationDuration: 400,
+              animationDuration: 450,
+            });
+          }
+        } else {
+          // 1B. MODO LIBRE DE CONDUCCIÓN 3D (Simulador estilo Google Maps / Waze):
+          // En cuanto el usuario empieza a moverse por la carretera (>= 3.0 km/h) y no está alejando el mapa a mano,
+          // la pantalla desciende a ras de calzada (zoom 18.2), se inclina en perspectiva 3D (pitch 58-62°) y rota siguiendo la carretera
+          if (currentSpeedKmH >= 3.0 && !isAwayFromUserRef.current) {
+            const adaptiveCam = calculateSpeedAdaptiveCamera(currentSpeedKmH);
+            cameraRef.current?.setCamera({
+              centerCoordinate: [longitude, latitude],
+              zoomLevel: adaptiveCam.zoom,
+              pitch: adaptiveCam.pitch,
+              heading: lastStableHeading.current,
+              animationDuration: 500,
             });
           }
         }
-        // En modo libre (!isNavigating), la cámara no se rota automáticamente, permitiendo explorar en calma.
 
         // 2. Control y Seguimiento de Radares de Tramo DGT
         const secStatus = sectionRadarTracker.updatePosition(latitude, longitude, speed || 0);
@@ -1141,9 +1167,11 @@ const MapScreen = () => {
 
     // Activar modo cámara de cabina 3D (pitch: 60)
     setCamera3DMode(true);
+    camera3DModeRef.current = true;
+    setIsAwayFromUser(false);
     cameraRef.current?.setCamera({
       centerCoordinate: [startLng, startLat],
-      zoomLevel: 17.5,
+      zoomLevel: 18.2,
       pitch: 60,
       heading: currentLocation?.heading || 0,
       animationDuration: 800,
@@ -1894,13 +1922,13 @@ const MapScreen = () => {
       />
 
       {/* Botón Flotante de Recentrado Rápido en Vehículo (Aparece cuando el usuario desplaza el mapa) */}
-      {isAwayFromUser && !isNavigating && (
+      {isAwayFromUser && (
         <TouchableOpacity
           style={styles.floatingRecenterBtn}
           onPress={handleRecenter}
           activeOpacity={0.85}>
-          <Icon name="crosshairs-gps" size={18} color="#38BDF8" style={{ marginRight: 6 }} />
-          <Text style={styles.floatingRecenterText}>Centrar en mi vehículo</Text>
+          <Icon name="navigation-variant" size={18} color="#38BDF8" style={{ marginRight: 6 }} />
+          <Text style={styles.floatingRecenterText}>Modo Conducción 3D</Text>
         </TouchableOpacity>
       )}
 
