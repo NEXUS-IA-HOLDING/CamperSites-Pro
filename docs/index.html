@@ -4,192 +4,554 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="tiktok-developers-site-verification" content="fVBSFOCq0sieKsCssUtbJf9WSeA8GXpC">
-    <title>CamperSites Pro — Navegación GPS & Cartografía Camper</title>
+    <title>CamperSites Pro — La App Definitiva para Caravaning y Campers</title>
     <link rel="icon" type="image/png" href="assets/google-play-icon-512.png">
     <style>
         :root {
-            --primary: #10b981;
+            --primary: #10B981;
             --primary-hover: #059669;
-            --accent-blue: #38bdf8;
-            --bg-dark: #0b1120;
-            --card-bg: #1e293b;
-            --card-border: #334155;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            --accent-blue: #38BDF8;
+            --accent-amber: #F59E0B;
+            --accent-red: #EF4444;
+            --bg-dark: #070D18;
+            --card-bg: rgba(19, 29, 49, 0.75);
+            --card-border: rgba(56, 189, 248, 0.15);
+            --text-main: #FFFFFF;
+            --text-muted: #94A3B8;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
-            background: var(--bg-dark);
+            background-color: var(--bg-dark);
             color: var(--text-main);
+            overflow-x: hidden;
+            position: relative;
         }
-        .container { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
-        
-        /* HEADER */
-        header { padding: 24px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        /* AMBIENT LOGO GLOW BACKDROP */
+        .ambient-bg {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100vw;
+            max-width: 1400px;
+            height: 850px;
+            background: 
+                radial-gradient(circle at 50% 25%, rgba(56, 189, 248, 0.18) 0%, transparent 60%),
+                radial-gradient(circle at 20% 40%, rgba(16, 185, 129, 0.14) 0%, transparent 50%),
+                radial-gradient(circle at 80% 35%, rgba(245, 158, 11, 0.12) 0%, transparent 50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+        .watermark-logo {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 720px;
+            height: 720px;
+            background: url('assets/logo-original.png') center/contain no-repeat;
+            opacity: 0.04;
+            filter: blur(2px);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+        /* NAVBAR */
+        header { padding: 20px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; background: rgba(7, 13, 24, 0.85); }
         .nav-content { display: flex; justify-content: space-between; align-items: center; }
-        .brand { font-size: 1.25rem; font-weight: 800; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 10px; }
-        .brand-badge { background: #3b82f6; font-size: 0.75rem; padding: 2px 8px; border-radius: 9999px; text-transform: uppercase; font-weight: 700; }
+        .brand { font-size: 1.35rem; font-weight: 900; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 12px; }
+        .brand-logo-img { width: 38px; height: 38px; border-radius: 8px; box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+        .brand-pill { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--accent-blue); font-size: 0.72rem; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; font-weight: 700; }
+        .nav-links { display: flex; align-items: center; gap: 20px; }
+        .nav-link { color: var(--text-muted); text-decoration: none; font-size: 0.92rem; font-weight: 600; transition: color 0.2s; }
+        .nav-link:hover { color: #fff; }
+        .nav-cta { background: var(--primary); color: #fff; text-decoration: none; padding: 8px 18px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .nav-cta:hover { background: var(--primary-hover); transform: translateY(-1px); }
 
         /* HERO */
-        .hero { padding: 70px 0 50px; text-align: center; }
-        .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--accent-blue); padding: 6px 16px; border-radius: 9999px; font-size: 0.88rem; font-weight: 600; margin-bottom: 24px; }
-        h1 { font-size: 3.2rem; font-weight: 900; line-height: 1.15; margin-bottom: 20px; background: linear-gradient(135deg, #ffffff 40%, #38bdf8 80%, #34d399 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero-subtitle { font-size: 1.25rem; color: var(--text-muted); max-width: 760px; margin: 0 auto 36px; }
+        .hero { padding: 75px 0 50px; text-align: center; }
+        .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: #34D399; padding: 6px 18px; border-radius: 9999px; font-size: 0.88rem; font-weight: 700; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .hero-badge-dot { width: 8px; height: 8px; background: #10B981; border-radius: 50%; box-shadow: 0 0 8px #10B981; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
 
-        /* CTA BUTTONS */
-        .cta-container { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 40px; }
-        .btn-download { display: inline-flex; align-items: center; gap: 12px; background: var(--primary); color: #fff; font-size: 1.2rem; font-weight: 800; padding: 18px 36px; border-radius: 12px; text-decoration: none; box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4); transition: all 0.2s ease; }
-        .btn-download:hover { background: var(--primary-hover); transform: translateY(-3px); box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.5); }
-        .download-meta { font-size: 0.85rem; color: var(--text-muted); }
+        h1 { font-size: 3.6rem; font-weight: 900; line-height: 1.12; margin-bottom: 22px; letter-spacing: -0.02em; }
+        .gradient-text { background: linear-gradient(135deg, #FFFFFF 30%, #38BDF8 70%, #34D399 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero-subtitle { font-size: 1.25rem; color: var(--text-muted); max-width: 820px; margin: 0 auto 38px; line-height: 1.6; }
 
-        /* 3-STEP INSTALL GUIDE */
-        .install-guide { background: #131d31; border: 1px solid var(--card-border); border-radius: 16px; padding: 32px 28px; margin: 40px auto 70px; max-width: 860px; }
-        .install-guide h3 { font-size: 1.3rem; margin-bottom: 20px; text-align: center; color: #fff; }
-        .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
-        .step-item { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
-        .step-number { width: 32px; height: 32px; background: #3b82f6; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem; margin-bottom: 12px; }
-        .step-item h4 { font-size: 1rem; margin-bottom: 6px; color: #fff; }
-        .step-item p { font-size: 0.88rem; color: var(--text-muted); }
+        /* HERO CTA */
+        .hero-cta-box { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 60px; }
+        .btn-download-hero { display: inline-flex; align-items: center; gap: 14px; background: linear-gradient(135deg, #10B981, #059669); color: #fff; font-size: 1.25rem; font-weight: 800; padding: 20px 42px; border-radius: 14px; text-decoration: none; box-shadow: 0 12px 30px -6px rgba(16, 185, 129, 0.5); transition: all 0.25s ease; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-download-hero:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 18px 36px -6px rgba(16, 185, 129, 0.6); }
+        .hero-meta { font-size: 0.9rem; color: #64748B; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: center; }
+        .meta-item { display: inline-flex; align-items: center; gap: 6px; }
 
-        /* FEATURES */
-        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 80px; }
-        .feature-card { background: var(--card-bg); padding: 30px; border-radius: 16px; border: 1px solid var(--card-border); transition: transform 0.2s ease; }
-        .feature-card:hover { transform: translateY(-4px); }
-        .feature-icon { font-size: 2rem; margin-bottom: 16px; display: inline-block; }
-        .feature-card h3 { font-size: 1.25rem; margin-bottom: 10px; color: #fff; }
-        .feature-card p { font-size: 0.95rem; color: var(--text-muted); line-height: 1.5; }
+        /* LIVE MOCKUP SHOWCASE (3 PHONE COCKPIT VIEWS) */
+        .showcase-section { margin-bottom: 90px; }
+        .section-header { text-align: center; margin-bottom: 45px; }
+        .section-header h2 { font-size: 2.2rem; font-weight: 800; margin-bottom: 12px; }
+        .section-header p { color: var(--text-muted); font-size: 1.1rem; max-width: 650px; margin: 0 auto; }
 
-        /* TIKTOK BANNER */
-        .tiktok-banner { background: linear-gradient(135deg, rgba(254, 44, 85, 0.15), rgba(37, 244, 238, 0.15)); border: 1px solid rgba(254, 44, 85, 0.4); border-radius: 16px; padding: 36px; text-align: center; margin-bottom: 80px; }
-        .tiktok-banner h2 { font-size: 1.8rem; margin-bottom: 12px; }
-        .tiktok-banner p { color: #cbd5e1; font-size: 1.05rem; margin-bottom: 24px; max-width: 600px; margin-left: auto; margin-right: auto; }
-        .btn-tiktok { display: inline-flex; align-items: center; gap: 10px; background: #FE2C55; color: #fff; font-weight: 700; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 1rem; transition: background 0.2s; }
-        .btn-tiktok:hover { background: #e0264b; }
+        .phones-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            justify-content: center;
+        }
+
+        /* PHONE FRAME MOCKUP */
+        .phone-mockup {
+            background: #0F172A;
+            border: 4px solid #334155;
+            border-radius: 36px;
+            padding: 14px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(56, 189, 248, 0.15);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .phone-mockup:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.8), 0 0 40px rgba(56, 189, 248, 0.3);
+            border-color: #38BDF8;
+        }
+        .phone-notch {
+            width: 120px;
+            height: 18px;
+            background: #1E293B;
+            border-radius: 0 0 12px 12px;
+            margin: 0 auto 12px;
+        }
+        .phone-screen {
+            background: #020617;
+            border-radius: 24px;
+            padding: 16px;
+            min-height: 520px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* MOCKUP 1: CABINA GPS & RADARES */
+        .cockpit-hud-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .cockpit-speed-badge { background: #0F172A; border: 2px solid #38BDF8; border-radius: 12px; padding: 8px 14px; text-align: center; }
+        .speed-val { font-size: 1.8rem; font-weight: 900; color: #38BDF8; line-height: 1; }
+        .speed-unit { font-size: 0.65rem; color: #94A3B8; text-transform: uppercase; font-weight: 700; }
+        .cockpit-radar-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .radar-icon-box { background: #EF4444; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .radar-text-title { font-weight: 800; color: #FCA5A5; font-size: 0.85rem; }
+        .radar-text-sub { font-size: 0.75rem; color: #CBD5E1; }
+        .mock-map-bg {
+            flex: 1;
+            background: url('assets/satellite_map_real.jpg') center/cover no-repeat;
+            border-radius: 14px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 14px;
+            min-height: 220px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .mock-route-line {
+            position: absolute;
+            top: 25%;
+            left: 20%;
+            width: 60%;
+            height: 55%;
+            border: 4px dashed #38BDF8;
+            border-radius: 50%;
+            transform: rotate(-25deg);
+            pointer-events: none;
+        }
+        .mock-pin {
+            position: absolute;
+            background: #F59E0B;
+            color: #000;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .mock-wind-badge {
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #34D399;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* MOCKUP 2: CALA SECRETA & SPOT COMPARTIDO */
+        .spot-sheet-mock {
+            background: #0F172A;
+            border: 1px solid #1E293B;
+            border-radius: 16px;
+            padding: 14px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .spot-tag-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .spot-verified-pill { background: rgba(56, 189, 248, 0.2); color: #38BDF8; font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+        .spot-title { font-size: 1.15rem; font-weight: 800; color: #fff; margin-bottom: 4px; }
+        .spot-coords { font-size: 0.75rem; color: #94A3B8; font-family: monospace; margin-bottom: 12px; }
+        .spot-perks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+        .perk-pill { background: #1E293B; padding: 6px 8px; border-radius: 6px; font-size: 0.72rem; color: #E2E8F0; }
+        .btn-calc-routes { background: #0284C7; color: #fff; font-size: 0.85rem; font-weight: 700; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 8px; }
+        .btn-tiktok-share-mock { background: rgba(254, 44, 85, 0.2); border: 1px solid rgba(254, 44, 85, 0.5); color: #FE2C55; font-size: 0.82rem; font-weight: 700; padding: 8px; border-radius: 8px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+        /* MOCKUP 3: BÓVEDA 100% OFFLINE */
+        .vault-mock {
+            background: #0F172A;
+            border-radius: 16px;
+            padding: 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .vault-stat-box { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 14px; text-align: center; margin-bottom: 16px; }
+        .vault-number { font-size: 2.2rem; font-weight: 900; color: #10B981; line-height: 1; margin-bottom: 4px; }
+        .vault-label { font-size: 0.75rem; color: #A7F3D0; font-weight: 700; text-transform: uppercase; }
+        .vault-pack-item { background: #1E293B; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; }
+        .vault-progress-bar { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+        .vault-progress-fill { height: 100%; width: 100%; background: #10B981; }
+
+        /* MOCKUP CAPTIONS */
+        .mockup-caption { text-align: center; margin-top: 14px; }
+        .mockup-caption h4 { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+        .mockup-caption p { font-size: 0.82rem; color: var(--text-muted); }
+
+        /* 3-STEP INSTALLATION CARD */
+        .install-section { background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9)); border: 1px solid var(--card-border); border-radius: 20px; padding: 40px; margin-bottom: 80px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+        .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+        @media (max-width: 768px) { .install-grid { grid-template-columns: 1fr; text-align: center; } }
+        .install-text h3 { font-size: 1.8rem; font-weight: 800; margin-bottom: 14px; }
+        .install-text p { color: var(--text-muted); font-size: 1rem; margin-bottom: 24px; }
+        .install-steps-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+        .install-step-row { display: flex; align-items: flex-start; gap: 14px; text-align: left; }
+        .step-badge-num { width: 30px; height: 30px; background: #0284C7; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0; font-size: 0.9rem; }
+        .step-row-content strong { display: block; color: #fff; font-size: 0.98rem; }
+        .step-row-content span { font-size: 0.85rem; color: var(--text-muted); }
+
+        .install-card-action { background: #0F172A; border: 1px solid #334155; border-radius: 16px; padding: 28px; text-align: center; }
+        .qr-placeholder { width: 140px; height: 140px; margin: 0 auto 16px; background: #fff; padding: 8px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .qr-placeholder img { width: 100%; height: 100%; }
+
+        /* TIKTOK VIRAL BANNER */
+        .tiktok-box {
+            background: linear-gradient(135deg, rgba(254, 44, 85, 0.12), rgba(37, 244, 238, 0.08));
+            border: 1px solid rgba(254, 44, 85, 0.35);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 80px;
+            position: relative;
+            overflow: hidden;
+        }
+        .tiktok-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(254, 44, 85, 0.08) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        .tiktok-box h2 { font-size: 2.2rem; font-weight: 900; margin-bottom: 12px; }
+        .tiktok-box p { font-size: 1.1rem; color: #E2E8F0; max-width: 680px; margin: 0 auto 28px; }
+        .btn-tiktok-cta { display: inline-flex; align-items: center; gap: 12px; background: #FE2C55; color: #fff; font-weight: 800; font-size: 1.1rem; padding: 16px 36px; border-radius: 12px; text-decoration: none; box-shadow: 0 10px 25px rgba(254, 44, 85, 0.4); transition: transform 0.2s, background 0.2s; }
+        .btn-tiktok-cta:hover { transform: translateY(-2px); background: #e0264b; }
 
         /* FOOTER */
-        footer { border-top: 1px solid var(--card-border); padding: 40px 0; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
-        footer a { color: var(--accent-blue); text-decoration: none; margin: 0 12px; }
-        footer a:hover { text-decoration: underline; }
-        .footer-company { margin-top: 12px; font-size: 0.8rem; color: #64748b; }
+        footer { border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 50px 0 35px; text-align: center; color: var(--text-muted); font-size: 0.92rem; }
+        .footer-links { margin-bottom: 20px; }
+        .footer-links a { color: var(--accent-blue); text-decoration: none; margin: 0 14px; font-weight: 600; }
+        .footer-links a:hover { text-decoration: underline; }
+        .copyright { color: #64748B; font-size: 0.82rem; }
     </style>
 </head>
 <body>
 
+    <!-- AMBIENT GLOW BACKDROP CON LOGOTIPO ORIGINAL -->
+    <div class="ambient-bg"></div>
+    <div class="watermark-logo"></div>
+
+    <!-- NAVBAR -->
     <header>
         <div class="container nav-content">
             <a href="#" class="brand">
-                🚐 CamperSites Pro
-                <span class="brand-badge">Nexus Studio</span>
+                <img src="assets/google-play-icon-512.png" alt="CamperSites Pro" class="brand-logo-img">
+                <span>CamperSites Pro</span>
+                <span class="brand-pill">Nexus Studio</span>
             </a>
-            <div>
-                <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro" target="_blank" style="color: var(--accent-blue); text-decoration: none; font-weight: 600; font-size: 0.95rem;">GitHub Repo &rarr;</a>
+            <div class="nav-links">
+                <a href="#capturas" class="nav-link">Capturas</a>
+                <a href="#instalacion" class="nav-link">Instalación</a>
+                <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk" class="nav-cta">
+                    Descargar APK (43 MB)
+                </a>
             </div>
         </div>
     </header>
 
     <main class="container">
-        <!-- HERO -->
+
+        <!-- HERO SECTION -->
         <section class="hero">
             <div class="hero-badge">
-                ✨ Versión v1.0.0 Oficial Disponible
+                <div class="hero-badge-dot"></div>
+                Lanzamiento Oficial v1.0.0 • Cockpit Edition
             </div>
-            <h1>La Navegación GPS de Cabina para Caravaning y Campers</h1>
+            
+            <h1>
+                La Suite de Navegación GPS de Cabina<br>
+                <span class="gradient-text">para Furgonetas Camper y Autocaravanas</span>
+            </h1>
+
             <p class="hero-subtitle">
-                Cartografía offline, avisador oficial de radares DGT, sensores de racha de viento para toldo y más de 517.000 spots de pernocta verificados en toda Europa.
+                Cartografía 100% offline, avisador oficial de radares DGT, sensores de micro-clima para toldo exterior y más de 517.000 áreas de pernocta verificadas en España y Europa.
             </p>
 
-            <div class="cta-container">
-                <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk" class="btn-download">
-                    <span>📲</span> Descargar APK Directo v1.0.0 (43.3 MB)
+            <div class="hero-cta-box">
+                <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk" class="btn-download-hero">
+                    <span style="font-size: 1.5rem;">📥</span>
+                    <span>Descargar APK Directo (v1.0.0)</span>
                 </a>
-                <p class="download-meta">
-                    Compatible con Android 8.0+ &bull; Sin publicidad invasiva &bull; Instalación directa
-                </p>
-            </div>
-        </section>
-
-        <!-- INSTALACIÓN EN 3 PASOS -->
-        <section class="install-guide">
-            <h3>⚡ Cómo instalar en tu teléfono o tablet en 1 minuto</h3>
-            <div class="steps-grid">
-                <div class="step-item">
-                    <div class="step-number">1</div>
-                    <h4>Descarga el APK</h4>
-                    <p>Haz clic en el botón verde superior para descargar el archivo en tu dispositivo.</p>
-                </div>
-                <div class="step-item">
-                    <div class="step-number">2</div>
-                    <h4>Abre el archivo</h4>
-                    <p>Toca la notificación de descarga o abre el archivo desde tu carpeta de Descargas.</p>
-                </div>
-                <div class="step-item">
-                    <div class="step-number">3</div>
-                    <h4>Pulsa Instalar</h4>
-                    <p>Permite "Instalar apps de fuentes desconocidas" si tu sistema lo solicita y ¡listo para rodar!</p>
+                <div class="hero-meta">
+                    <span class="meta-item">✅ Compatible con Android 8.0+</span>
+                    <span class="meta-item">⚡ 43.3 MB (Instalación en 1 toque)</span>
+                    <span class="meta-item">🛡️ Código Verificado y Libre de Publicidad</span>
                 </div>
             </div>
         </section>
 
-        <!-- FEATURES -->
-        <section class="features-grid">
-            <div class="feature-card">
-                <span class="feature-icon">🗺️</span>
-                <h3>+517.000 Puntos en Europa</h3>
-                <p>Campings verificados, áreas de autocaravanas con vaciado de aguas y recarga de electricidad, y zonas de pernocta libre autorizadas.</p>
+        <!-- SECCIÓN DE CAPTURAS REALES DE LA APP EN MOCKUPS 3D -->
+        <section id="capturas" class="showcase-section">
+            <div class="section-header">
+                <h2>Diseñada Específicamente para la Cabina de Conducción</h2>
+                <p>Olvídate de apps genéricas de mapas. Toda la interfaz ha sido optimizada con alto contraste para visibilidad con luz diurna y visión nocturna.</p>
             </div>
 
-            <div class="feature-card">
-                <span class="feature-icon">📍</span>
-                <h3>Marcado Libre (Pulsación Larga)</h3>
-                <p>Mantén pulsado cualquier rincón secreto en el mapa para calcular rutas alternativas, consultar rachas de viento y guardarlo en favoritos.</p>
-            </div>
+            <div class="phones-container">
 
-            <div class="feature-card">
-                <span class="feature-icon">🚨</span>
-                <h3>Radares DGT y Modo Cabina</h3>
-                <p>Avisos de voz para radares fijos y de tramo de fuentes oficiales de tráfico (DGT/SCT), con cálculo de velocidad media en túneles.</p>
-            </div>
+                <!-- CAPTURA 1: NAVEGACIÓN Y RADARES DGT -->
+                <div class="phone-mockup">
+                    <div class="phone-notch"></div>
+                    <div class="phone-screen">
+                        <!-- HEADER HUD -->
+                        <div class="cockpit-hud-header">
+                            <div class="cockpit-speed-badge">
+                                <div class="speed-val">87</div>
+                                <div class="speed-unit">KM/H GPS</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.7rem; color: #94A3B8;">LÍMITE VÍA</div>
+                                <div style="font-size: 1.2rem; font-weight: 900; color: #F59E0B;">90</div>
+                            </div>
+                        </div>
 
-            <div class="feature-card">
-                <span class="feature-icon">💨</span>
-                <h3>Alerta de Viento y Toldo Seguro</h3>
-                <p>Micro-clima en tiempo real con sensores de ráfagas laterales y recomendación de seguridad para recogida inmediata del toldo exterior.</p>
-            </div>
+                        <!-- ALERTA RADAR DE TRAMO -->
+                        <div class="cockpit-radar-alert">
+                            <div class="radar-icon-box">🚨</div>
+                            <div>
+                                <div class="radar-text-title">RADAR DE TRAMO A 400m</div>
+                                <div class="radar-text-sub">Velocidad media: 86 km/h • Legal</div>
+                            </div>
+                        </div>
 
-            <div class="feature-card">
-                <span class="feature-icon">⚡</span>
-                <h3>Bóveda 100% Offline</h3>
-                <p>Descarga la base de datos completa de mapas y pernoctas con 1 solo clic para viajar por puertos de montaña sin cobertura.</p>
-            </div>
+                        <!-- MAPA SATELITAL REAL -->
+                        <div class="mock-map-bg">
+                            <div class="mock-route-line"></div>
+                            <div class="mock-pin" style="top: 25px; left: 30px;">🅿️ Área Gratuita</div>
+                            <div class="mock-pin" style="bottom: 35px; right: 25px;">⛺ Camping Sierra</div>
+                        </div>
 
-            <div class="feature-card">
-                <span class="feature-icon">🔄</span>
-                <h3>Actualizaciones Automáticas</h3>
-                <p>La aplicación comprueba internamente nuevas versiones de la comunidad y te notifica para actualizar con un solo toque.</p>
+                        <!-- MICROCLIMA VIENTO -->
+                        <div class="mock-wind-badge">
+                            <span>💨 Rachas: 14 km/h (Bajo)</span>
+                            <span style="color: #34D399;">🛡️ TOLDO SEGURO</span>
+                        </div>
+                    </div>
+                    <div class="mockup-caption">
+                        <h4>HUD de Cabina y Radares DGT</h4>
+                        <p>Avisos por voz a 1.000 m y cálculo continuo de velocidad media en túneles.</p>
+                    </div>
+                </div>
+
+                <!-- CAPTURA 2: SPOT DETALLE Y COMPARTIR TIKTOK -->
+                <div class="phone-mockup">
+                    <div class="phone-notch"></div>
+                    <div class="phone-screen">
+                        <div class="spot-sheet-mock">
+                            <div>
+                                <div class="spot-tag-row">
+                                    <span class="spot-verified-pill">🛡️ VERIFICADO</span>
+                                    <span style="font-size: 0.8rem; color: #F59E0B;">★ 4.9 (142 reseñas)</span>
+                                </div>
+                                <div class="spot-title">Cala Secreta del Cabo</div>
+                                <div class="spot-coords">36.72145 N, -2.14890 W</div>
+
+                                <div class="spot-perks-grid">
+                                    <div class="perk-pill">💧 Agua Potable</div>
+                                    <div class="perk-pill">🚿 Vaciado Aguas</div>
+                                    <div class="perk-pill">⚡ Conexión 220V</div>
+                                    <div class="perk-pill">🌊 Vista al Mar</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="btn-calc-routes">
+                                    🛣️ CALCULAR VARIAS RUTAS (OSRM)
+                                </div>
+                                <div class="btn-tiktok-share-mock">
+                                    <span>🎵</span> Compartir Spot en TikTok
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mockup-caption">
+                        <h4>Marcado Libre y Rutas Alternativas</h4>
+                        <p>Mantén pulsado en cualquier lugar para comparar rutas y compartir en TikTok.</p>
+                    </div>
+                </div>
+
+                <!-- CAPTURA 3: BÓVEDA 100% OFFLINE -->
+                <div class="phone-mockup">
+                    <div class="phone-notch"></div>
+                    <div class="phone-screen">
+                        <div class="vault-mock">
+                            <div class="vault-stat-box">
+                                <div class="vault-number">+517.000</div>
+                                <div class="vault-label">Spots y Campings Offline</div>
+                            </div>
+
+                            <div>
+                                <div class="vault-pack-item">
+                                    <div>
+                                        <div style="font-weight: 700; color: #fff;">🇪🇸 España & Portugal</div>
+                                        <div style="font-size: 0.7rem; color: #94A3B8;">42.800 áreas • Listo</div>
+                                    </div>
+                                    <span style="color: #10B981; font-weight: 800;">100%</span>
+                                </div>
+                                <div class="vault-progress-bar">
+                                    <div class="vault-progress-fill"></div>
+                                </div>
+
+                                <div class="vault-pack-item" style="margin-top: 14px;">
+                                    <div>
+                                        <div style="font-weight: 700; color: #fff;">🇫🇷 Francia & Pirineos</div>
+                                        <div style="font-size: 0.7rem; color: #94A3B8;">88.500 áreas • Listo</div>
+                                    </div>
+                                    <span style="color: #10B981; font-weight: 800;">100%</span>
+                                </div>
+                                <div class="vault-progress-bar">
+                                    <div class="vault-progress-fill"></div>
+                                </div>
+                            </div>
+
+                            <div style="background: rgba(56, 189, 248, 0.15); padding: 12px; border-radius: 10px; text-align: center; font-size: 0.8rem; color: #38BDF8; font-weight: 700;">
+                                📡 Modo Avión Activo: 0 Datos Móviles
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mockup-caption">
+                        <h4>Bóveda 100% Fuera de Cobertura</h4>
+                        <p>Descarga toda Europa con 1 clic para viajar por puertos de montaña sin señal.</p>
+                    </div>
+                </div>
+
             </div>
         </section>
 
-        <!-- TIKTOK BANNER -->
-        <section class="tiktok-banner">
-            <h2>🎵 Únete a la Comunidad en TikTok</h2>
-            <p>Descubre rutas secretas, miradores recomendados por viajeros y consejos de mantenimiento camper en nuestra cuenta oficial.</p>
-            <a href="https://www.tiktok.com/@campersites_oficial_es" target="_blank" class="btn-tiktok">
-                Ver perfil @campersites_oficial_es &rarr;
+        <!-- GUÍA DE INSTALACIÓN RÁPIDA -->
+        <section id="instalacion" class="install-section">
+            <div class="install-grid">
+                <div class="install-text">
+                    <h3>📲 Instalación Directa en Android en 1 Minuto</h3>
+                    <p>No necesitas esperar a tiendas ni crear cuentas de pago. El APK oficial se instala directamente en cualquier smartphone o tablet.</p>
+                    
+                    <ul class="install-steps-list">
+                        <li class="install-step-row">
+                            <div class="step-badge-num">1</div>
+                            <div class="step-row-content">
+                                <strong>Descarga el archivo APK</strong>
+                                <span>Pulsa el botón de descarga para guardar `CamperSites-Pro-v1.0.apk` (43 MB).</span>
+                            </div>
+                        </li>
+                        <li class="install-step-row">
+                            <div class="step-badge-num">2</div>
+                            <div class="step-row-content">
+                                <strong>Abre el archivo en tu dispositivo</strong>
+                                <span>Toca la notificación de descarga en tu móvil o encuéntralo en tu carpeta de "Descargas".</span>
+                            </div>
+                        </li>
+                        <li class="install-step-row">
+                            <div class="step-badge-num">3</div>
+                            <div class="step-row-content">
+                                <strong>Pulsa Instalar</strong>
+                                <span>Si Android te lo pide, marca "Permitir instalar aplicaciones de esta fuente" ¡y listo!</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="install-card-action">
+                    <div class="qr-placeholder">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk" alt="Código QR Descarga Directa">
+                    </div>
+                    <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 6px;">Escanea con tu Móvil</div>
+                    <p style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 20px;">Apunta con la cámara de tu smartphone para descargar el APK directamente al dispositivo.</p>
+                    <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk" class="nav-cta" style="display: block; padding: 12px;">
+                        Descargar APK Directo
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- BANNER OFICIAL TIKTOK -->
+        <section class="tiktok-box">
+            <h2>🎵 Síguenos en TikTok: @campersites_oficial_es</h2>
+            <p>Descubre calas secretas de España, comparativas de radares, trucos de acampada y novedades de cada actualización en nuestro canal oficial.</p>
+            <a href="https://www.tiktok.com/@campersites_oficial_es" target="_blank" class="btn-tiktok-cta">
+                <span>▶️</span> Ir al TikTok Oficial (@campersites_oficial_es)
             </a>
         </section>
+
     </main>
 
+    <!-- FOOTER -->
     <footer>
         <div class="container">
-            <p>
-                <a href="terms.html">Términos de Servicio</a> &bull;
-                <a href="privacy.html">Política de Privacidad</a> &bull;
+            <div class="footer-links">
+                <a href="terms.html">Términos de Servicio</a>
+                <a href="privacy.html">Política de Privacidad</a>
                 <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro" target="_blank">Repositorio en GitHub</a>
-            </p>
-            <p class="footer-company">
-                &copy; 2026 Nexus Studio — Una iniciativa de <strong>Nexus AI Holding</strong>. Todos los derechos reservados.
+                <a href="https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases" target="_blank">Historial de Versiones</a>
+            </div>
+            <p class="copyright">
+                &copy; 2026 Nexus Studio — Un proyecto impulsado por <strong>Nexus AI Holding</strong>. Todos los derechos reservados.
             </p>
         </div>
     </footer>
