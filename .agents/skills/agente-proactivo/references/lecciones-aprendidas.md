@@ -56,3 +56,22 @@ Este documento registra los fallos encontrados durante el ciclo de vida del proy
     1. Distribución directa del APK mediante TikTok (`@campersites_oficial_es`) y Landing Page.
     2. Tarjeta de crowdfunding dentro de la app con barra de progreso.
     3. Integración de afiliado de seguros camper IATI (5% dto.), donde cada póliza contratada genera entre 6 € y 18 € de comisión. Con sólo 2-3 pólizas se cubre el coste total de la licencia de Google Play.
+
+---
+
+## 6. Composición Visual de Vídeos y Reels para TikTok
+
+* **Problema:** Fragmentación visual del texto del gancho (*hook*) en vídeos promocionales, con títulos separados entre la zona superior y media de la pantalla que restan profesionalidad.
+* **Causa Raíz:** Mezclar bloques de texto explicativo en el encabezado y en el cuerpo del vídeo rompe la jerarquía visual de TikTok.
+* **Solución Permanente:** 
+  1. Unificar todo el gancho textual en una única tarjeta superior compacta y limpia (`y=135` a `y=365`) con borde de alerta y subtítulo explicativo.
+  2. Dedicar toda la zona central (`y=390` a `y=1440`) a la simulación gráfica realista (chasis de cabina, mapa satelital oscuro, pórticos de entrada/salida de radar con haces luminosos, autocaravana detallada con faros y velocímetros HUD).
+  3. Replicar siempre la salida del vídeo automáticamente en el Escritorio del usuario para su acceso inmediato sin búsquedas en carpetas.
+
+---
+
+## 7. Modo Conducción y Restricciones de Seguridad en Vídeo Móvil
+
+* **Problema:** Bloqueo de reproducción de vídeo con mensaje *"No puedes ver vídeos porque estás conduciendo"*.
+* **Causa Raíz:** Servicios de seguridad del sistema operativo (Google Play Services / Android Auto / Digital Wellbeing / Bluetooth de vehículo) que detectan movimiento o emparejamiento con el sistema del coche y bloquean reproductores multimedia por normativa de seguridad vial.
+* **Solución Permanente:** Guiar al usuario para desconectar temporalmente el Bluetooth del coche o desactivar el "Modo Conducción" en los ajustes de Bienestar Digital / Google de su dispositivo Android para visualizar demos y previsualizaciones.
