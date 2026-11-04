@@ -41,6 +41,11 @@ import {
   SUPPORTED_LANGUAGES,
   SupportedLanguage,
 } from '../services/LanguageService';
+import {
+  routeHistoryService,
+  RouteHistorySettings,
+} from '../services/RouteHistoryService';
+import { AdminDashboardModal, AdminTab } from '../components/AdminDashboardModal';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 const PREFERENCES_STORAGE_KEY = '@camper_driving_preferences';
@@ -61,15 +66,20 @@ export interface VehicleConfig {
 }
 
 const VEHICLE_TYPES = [
-  { key: 'coche', label: 'Coche', emoji: '🚗', maxHeight: 1.5, maxWidth: 1.9, maxLength: 4.5 },
   { key: 'furgoneta', label: 'Furgoneta Camper', emoji: '🚐', maxHeight: 2.6, maxWidth: 2.0, maxLength: 6.0 },
   { key: 'autocaravana_s', label: 'Autocaravana <6m', emoji: '🏕️', maxHeight: 3.0, maxWidth: 2.3, maxLength: 5.9 },
   { key: 'autocaravana_m', label: 'Autocaravana 6-7m', emoji: '🚌', maxHeight: 3.2, maxWidth: 2.3, maxLength: 7.0 },
   { key: 'autocaravana_l', label: 'Autocaravana >7m', emoji: '🚍', maxHeight: 3.5, maxWidth: 2.5, maxLength: 9.0 },
   { key: 'caravana', label: 'Coche + Caravana', emoji: '🏠', maxHeight: 2.8, maxWidth: 2.3, maxLength: 10.0 },
+  { key: 'moto_trail', label: 'Moto Trail / Monte', emoji: '🏍️', maxHeight: 1.4, maxWidth: 0.95, maxLength: 2.2 },
+  { key: 'moto_carretera', label: 'Moto Carretera / Sport', emoji: '🏁', maxHeight: 1.25, maxWidth: 0.85, maxLength: 2.1 },
+  { key: 'offroad_4x4', label: '4x4 Off-Road / Overland', emoji: '🚙', maxHeight: 2.15, maxWidth: 2.0, maxLength: 4.9 },
+  { key: 'coche', label: 'Coche Turismo / SUV', emoji: '🚗', maxHeight: 1.6, maxWidth: 1.9, maxLength: 4.5 },
+  { key: 'bicicleta_mtb', label: 'Bicicleta MTB / Gravel', emoji: '🚵', maxHeight: 1.2, maxWidth: 0.7, maxLength: 1.8 },
   { key: 'camion_rigido', label: 'Camión Rígido / Pesado', emoji: '🚚', maxHeight: 3.8, maxWidth: 2.5, maxLength: 10.0 },
   { key: 'camion_trailer', label: 'Tráiler / Articulado', emoji: '🚛', maxHeight: 4.0, maxWidth: 2.55, maxLength: 16.5 },
-  { key: 'furgon_reparto', label: 'Courier / Furgón Profesional', emoji: '🚐💨', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
+  { key: 'furgon_reparto', label: 'Courier / Furgón Pro', emoji: '🚐💨', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
+  { key: 'sos_rescate', label: 'Modo SOS / Perdido', emoji: '🆘', maxHeight: 0, maxWidth: 0, maxLength: 0 },
   { key: 'custom', label: 'Personalizado', emoji: '📐', maxHeight: 0, maxWidth: 0, maxLength: 0 },
 ];
 
@@ -102,6 +112,17 @@ export default function ConfigScreen() {
   const [voicePrefs, setVoicePrefs] = useState<VoicePreferences>(AudioAlertService.getVoicePreferences());
   const [currentLang, setCurrentLang] = useState<SupportedLanguage>(languageService.getLanguage());
 
+  // Configuración de Historial de Rutas y Panel Admin
+  const [historySettings, setHistorySettings] = useState<RouteHistorySettings>({
+    enabled: true,
+    maxEntries: 50,
+    autoCleanDays: 90,
+    saveCustomWaypoints: true,
+  });
+  const [historyCount, setHistoryCount] = useState<number>(0);
+  const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
+  const [adminInitialTab, setAdminInitialTab] = useState<AdminTab>('servers');
+
   const handleUpdateVoicePref = (key: keyof VoicePreferences, val: any) => {
     const updated = { ...voicePrefs, [key]: val };
     setVoicePrefs(updated);
@@ -113,9 +134,26 @@ export default function ConfigScreen() {
     loadVehicleConfig();
     loadDrivingPreferences();
     loadVehicleCursor();
+    loadHistoryConfig();
     const unsub = languageService.subscribe(l => setCurrentLang(l));
     return () => unsub();
   }, []);
+
+  const loadHistoryConfig = async () => {
+    try {
+      const [s, h] = await Promise.all([
+        routeHistoryService.getSettings(),
+        routeHistoryService.getHistory(),
+      ]);
+      setHistorySettings(s);
+      setHistoryCount(h.length);
+    } catch {}
+  };
+
+  const handleUpdateHistorySetting = async (patch: Partial<RouteHistorySettings>) => {
+    const updated = await routeHistoryService.updateSettings(patch);
+    setHistorySettings(updated);
+  };
 
   const loadVehicleCursor = async () => {
     try {
@@ -635,7 +673,165 @@ export default function ConfigScreen() {
           </View>
         </View>
 
-        {/* 5. SECCIÓN MAPAS OFFLINE */}
+        {/* 5. SECCIÓN HISTORIAL DE RUTAS Y PRIVACIDAD */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📜 Historial de Rutas y Privacidad</Text>
+          <View style={styles.cardBox}>
+            <View style={styles.settingRow}>
+              <View style={[styles.iconPod, { backgroundColor: '#38BDF815' }]}>
+                <Icon name="history" size={22} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.settingTitle}>Guardar Historial de Rutas Automáticamente</Text>
+                <Text style={styles.settingSubtitle}>
+                  Rutas guardadas actualmente: {historyCount} trayectos
+                </Text>
+              </View>
+              <Switch
+                value={historySettings.enabled}
+                onValueChange={v => handleUpdateHistorySetting({ enabled: v })}
+                trackColor={{ false: '#CBD5E1', true: theme.colors.primary.light }}
+                thumbColor={historySettings.enabled ? theme.colors.primary.main : '#F8FAFC'}
+              />
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={{ paddingVertical: 8 }}>
+              <Text style={styles.subHeading}>Retención Automática del Historial:</Text>
+              <View style={styles.btnRow}>
+                {[
+                  { days: 7, label: '7 días' },
+                  { days: 30, label: '30 días' },
+                  { days: 90, label: '90 días' },
+                  { days: 365, label: '1 año' },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.days}
+                    style={[
+                      styles.choiceBtn,
+                      historySettings.autoCleanDays === opt.days && styles.choiceBtnActive,
+                    ]}
+                    onPress={() => handleUpdateHistorySetting({ autoCleanDays: opt.days })}>
+                    <Text
+                      style={[
+                        styles.choiceBtnText,
+                        historySettings.autoCleanDays === opt.days && styles.choiceBtnTextActive,
+                      ]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={{ paddingVertical: 8 }}>
+              <Text style={styles.subHeading}>Máximo de Rutas Guardadas:</Text>
+              <View style={styles.btnRow}>
+                {[25, 50, 100].map(limit => (
+                  <TouchableOpacity
+                    key={limit}
+                    style={[
+                      styles.choiceBtn,
+                      historySettings.maxEntries === limit && styles.choiceBtnActive,
+                    ]}
+                    onPress={() => handleUpdateHistorySetting({ maxEntries: limit })}>
+                    <Text
+                      style={[
+                        styles.choiceBtnText,
+                        historySettings.maxEntries === limit && styles.choiceBtnTextActive,
+                      ]}>
+                      {limit} rutas
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {historyCount > 0 && (
+              <>
+                <View style={styles.divider} />
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingVertical: 10,
+                    gap: 6,
+                  }}
+                  onPress={() => {
+                    Alert.alert(
+                      'Borrar Historial de Rutas',
+                      '¿Seguro que deseas eliminar todas las rutas guardadas?',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Borrar Todo',
+                          style: 'destructive',
+                          onPress: async () => {
+                            await routeHistoryService.clearAllHistory();
+                            setHistoryCount(0);
+                            Alert.alert('Historial limpio', 'Se han eliminado todas las rutas.');
+                          },
+                        },
+                      ]
+                    );
+                  }}>
+                  <Icon name="trash-can-outline" size={18} color="#EF4444" />
+                  <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 13 }}>
+                    Vaciar Historial de Rutas ({historyCount})
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* 5.5 CENTRO DE MANDO ADMIN Y SOPORTE EN TIEMPO REAL */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🛡️ Panel de Admin y Estado de Servidores</Text>
+          <TouchableOpacity
+            style={[styles.card, { borderColor: '#F59E0B', borderWidth: 1.5 }]}
+            onPress={() => {
+              setAdminInitialTab('servers');
+              setShowAdminModal(true);
+            }}
+            activeOpacity={0.75}>
+            <View style={[styles.iconPod, { backgroundColor: '#F59E0B20' }]}>
+              <Icon name="shield-crown" size={24} color="#F59E0B" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.cardTitle}>Abrir Panel de Administración (Tiempo Real)</Text>
+              <Text style={styles.cardSubtitle}>
+                Estado de servidores en vivo, latencia, incidencias de usuarios, KPIs y finanzas
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={22} color="#F59E0B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.card, { marginTop: 10 }]}
+            onPress={() => {
+              setAdminInitialTab('incidents');
+              setShowAdminModal(true);
+            }}
+            activeOpacity={0.75}>
+            <View style={[styles.iconPod, { backgroundColor: '#EF444418' }]}>
+              <Icon name="alert-octagon" size={24} color="#EF4444" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.cardTitle}>Reportar Problema, Incidencia o Alerta SOS</Text>
+              <Text style={styles.cardSubtitle}>
+                Envía un reporte inmediato al Centro de Mando si detectas un fallo o peligro
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={22} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
+
+        {/* 6. SECCIÓN MAPAS OFFLINE */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🗺️ Mapas Offline y Rendimiento</Text>
           <TouchableOpacity style={styles.card} onPress={() => setShowOfflineModal(true)} activeOpacity={0.7}>
@@ -650,7 +846,7 @@ export default function ConfigScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 6. SECCIÓN ACTUALIZACIONES Y ESTADO DEL SISTEMA */}
+        {/* 7. SECCIÓN ACTUALIZACIONES Y ESTADO DEL SISTEMA */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🔄 Actualizaciones del Asistente</Text>
           <TouchableOpacity
@@ -796,6 +992,13 @@ export default function ConfigScreen() {
           <OfflineVaultManager />
         </View>
       </Modal>
+
+      {/* Modal Centro de Mando Admin en Tiempo Real */}
+      <AdminDashboardModal
+        visible={showAdminModal}
+        initialTab={adminInitialTab}
+        onClose={() => setShowAdminModal(false)}
+      />
     </View>
   );
 }

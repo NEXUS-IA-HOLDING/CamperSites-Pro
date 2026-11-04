@@ -86,3 +86,12 @@ Este documento registra los fallos encontrados durante el ciclo de vida del proy
 * **Problema:** Bloqueo de reproducción de vídeo con mensaje *"No puedes ver vídeos porque estás conduciendo"*.
 * **Causa Raíz:** Servicios de seguridad del sistema operativo (Google Play Services / Android Auto / Digital Wellbeing / Bluetooth de vehículo) que detectan movimiento o emparejamiento con el sistema del coche y bloquean reproductores multimedia por normativa de seguridad vial.
 * **Solución Permanente:** Guiar al usuario para desconectar temporalmente el Bluetooth del coche o desactivar el "Modo Conducción" en los ajustes de Bienestar Digital / Google de su dispositivo Android para visualizar demos y previsualizaciones.
+
+---
+
+## 8. Sincronización entre Tabs con `useFocusEffect` y Centro de Mando en Tiempo Real
+
+* **Problema:** En React Navigation Bottom Tabs, las pantallas permanecen montadas en memoria; usar solo `useEffect(..., [])` en `FavoritesScreen` impedía que nuevos favoritos o rutas del historial aparecieran al cambiar de pestaña.
+* **Solución Permanente:**
+  1. Usar siempre `useFocusEffect` en `FavoritesScreen` y `MapScreen` para recargar favoritos (`@campersites_favorites`), historial de rutas (`@campersites_route_history`) y saltos directos al mapa (`@campersites_jump_to_location` con flag `autoStartRoute`).
+  2. En el Panel de Administración (`AdminService.ts` / `AdminDashboardModal.tsx` / `docs/admin.html`), realizar siempre sondeos HTTP reales (`fetch` con medición de latencia en `ms` y `AbortController`) contra Supabase, OSRM, Open-Meteo, Nominatim, Esri y GitHub OTA, registrando automáticamente incidencias si algún servidor pasa a estado `DOWN`.

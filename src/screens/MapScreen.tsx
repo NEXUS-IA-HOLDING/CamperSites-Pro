@@ -50,6 +50,7 @@ import {
 import { offlineSpotVault } from '../services/OfflineSpotVaultService';
 import { affiliatePartnerService } from '../services/AffiliatePartnerService';
 import { drivingSimulationService } from '../services/DrivingSimulationService';
+import { routeHistoryService } from '../services/RouteHistoryService';
 import {
   navigationEngine,
   NavigationProgress,
@@ -599,7 +600,7 @@ const MapScreen = () => {
           const raw = await AsyncStorage.getItem('@campersites_jump_to_location');
           if (raw) {
             await AsyncStorage.removeItem('@campersites_jump_to_location');
-            const target: Location = JSON.parse(raw);
+            const target: Location & { _autoCalculateRoute?: boolean } = JSON.parse(raw);
             setSelectedLocation(target);
             const targetCoord: [number, number] = [target.longitude, target.latitude];
             currentMapCenterRef.current = targetCoord;
@@ -611,6 +612,10 @@ const MapScreen = () => {
               animationDuration: 1000,
             });
             AudioAlertService.speak(`Destino seleccionado: ${target.name}`);
+            // Pre-calcular opciones de ruta hacia el destino seleccionado
+            const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+            const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+            calculateRoutes(fromLat, fromLng, target.latitude, target.longitude, false, !!target._autoCalculateRoute);
           }
         } catch {}
       };
@@ -1357,6 +1362,22 @@ const MapScreen = () => {
       pitch: 60,
       heading: initialBearing,
       animationDuration: 800,
+    });
+
+    // Registrar automáticamente la ruta en el Historial de Rutas del usuario
+    const destCoord = route.coordinates[route.coordinates.length - 1];
+    routeHistoryService.recordRoute({
+      destinationName: selectedLocation?.name || markedPoint?.name || route.name || 'Ruta de Navegación',
+      destinationCategory: selectedLocation?.category || markedPoint?.category || 'RUTA',
+      fromLat: startLat,
+      fromLng: startLng,
+      toLat: selectedLocation?.latitude ?? markedPoint?.latitude ?? destCoord?.latitude ?? startLat,
+      toLng: selectedLocation?.longitude ?? markedPoint?.longitude ?? destCoord?.longitude ?? startLng,
+      distanceMeters: route.distance || 0,
+      durationSeconds: route.duration || 0,
+      routeName: route.name,
+      vehicleMode: profileMode,
+      vehicleCursor: selectedCursor,
     });
 
     Logger.info('MapScreen', `NAV START: ${selectedLocation?.name}`);

@@ -86,11 +86,19 @@ export const VehicleMapCursor: React.FC<VehicleMapCursorProps> = ({
         {/* 2. SOMBRA REALISTA DE CONTACTO CON EL ASFALTO */}
         <View style={styles.groundShadow} />
 
-        {/* 3. RUEDAS LATERALES */}
-        <View style={[styles.wheel, styles.wheelFrontLeft]} />
-        <View style={[styles.wheel, styles.wheelFrontRight]} />
-        <View style={[styles.wheel, styles.wheelRearLeft]} />
-        <View style={[styles.wheel, styles.wheelRearRight]} />
+        {/* 3. RUEDAS LATERALES (Ocultas en moto, bici, SOS o flecha) */}
+        {cursorType !== 'arrow' &&
+          cursorType !== 'moto_trail' &&
+          cursorType !== 'moto_sport' &&
+          cursorType !== 'bicycle_mtb' &&
+          cursorType !== 'sos_beacon' && (
+            <>
+              <View style={[styles.wheel, styles.wheelFrontLeft]} />
+              <View style={[styles.wheel, styles.wheelFrontRight]} />
+              <View style={[styles.wheel, styles.wheelRearLeft]} />
+              <View style={[styles.wheel, styles.wheelRearRight]} />
+            </>
+          )}
 
         {/* 4. MODELO DE VEHÍCULO SEGÚN TIPO */}
         {cursorType === 'arrow' ? (
@@ -100,13 +108,59 @@ export const VehicleMapCursor: React.FC<VehicleMapCursorProps> = ({
               <Icon name="navigation" size={32} color="#38BDF8" />
             </View>
           </View>
+        ) : cursorType === 'sos_beacon' ? (
+          // BALIZA TÁCTICA SOS / EXPLORADOR A PIE ("ME HE PERDIDO")
+          <View style={styles.sosBeaconWrap}>
+            <View style={styles.sosOuterRing}>
+              <View style={styles.sosInnerCore}>
+                <Icon name="lifebuoy" size={24} color="#FFFFFF" />
+              </View>
+            </View>
+          </View>
+        ) : cursorType === 'moto_trail' || cursorType === 'moto_sport' || cursorType === 'bicycle_mtb' ? (
+          // MOTO TRAIL / MOTO TOURING / BICICLETA MTB 3D
+          <View style={styles.motoContainer}>
+            {/* Rueda delantera */}
+            <View style={styles.motoWheelFront} />
+            {/* Manillar ancho con paramanos */}
+            <View
+              style={[
+                styles.motoHandlebar,
+                cursorType === 'moto_sport' && { width: 22 },
+              ]}
+            />
+            {/* Depósito y chasis central */}
+            <View
+              style={[
+                styles.motoBody,
+                cursorType === 'moto_trail' && { backgroundColor: '#F97316' },
+                cursorType === 'moto_sport' && { backgroundColor: '#EC4899' },
+                cursorType === 'bicycle_mtb' && { backgroundColor: '#14B8A6', width: 10 },
+              ]}>
+              {/* Casco del piloto visto desde arriba */}
+              <View style={styles.motoHelmet} />
+              {/* Maletas laterales de aluminio en Moto Trail */}
+              {cursorType === 'moto_trail' && (
+                <View style={styles.motoPanniersRow}>
+                  <View style={styles.motoPannier} />
+                  <View style={styles.motoPannier} />
+                </View>
+              )}
+            </View>
+            {/* Rueda trasera + piloto LED rojo */}
+            <View style={styles.motoWheelRear} />
+            <View style={styles.rearLedTaillight} />
+          </View>
         ) : (
-          // MODELOS AUTOMOTRICES 3D: AUTOCARAVANA / CAMPER / 4x4 / CAMIÓN
+          // MODELOS AUTOMOTRICES 3D: AUTOCARAVANA / CAMPER / 4x4 / TURISMO / CAMIÓN
           <View
             style={[
               styles.vehicleChassis,
               cursorType === 'camper_arca' && styles.chassisArca,
+              cursorType === 'vw_california' && styles.chassisCalifornia,
               cursorType === 'overland_4x4' && styles.chassis4x4,
+              cursorType === 'car_suv' && styles.chassisSuv,
+              cursorType === 'car_sport' && styles.chassisSport,
               cursorType === 'truck_hgv' && styles.chassisTruck,
             ]}>
 
@@ -155,6 +209,15 @@ export const VehicleMapCursor: React.FC<VehicleMapCursorProps> = ({
                 </>
               )}
 
+              {cursorType === 'vw_california' && (
+                <>
+                  {/* Techo Elevable Pop-Top Bicolor */}
+                  <View style={styles.californiaPopTop}>
+                    <View style={styles.roofVent} />
+                  </View>
+                </>
+              )}
+
               {cursorType === 'overland_4x4' && (
                 <>
                   {/* Baca Safari Expedition con Planchas de Desatasco */}
@@ -162,6 +225,20 @@ export const VehicleMapCursor: React.FC<VehicleMapCursorProps> = ({
                     <View style={styles.rackBar} />
                     <View style={styles.rackBar} />
                   </View>
+                </>
+              )}
+
+              {cursorType === 'car_suv' && (
+                <>
+                  {/* Techo Solar Panorámico de Cristal */}
+                  <View style={styles.suvSunroof} />
+                </>
+              )}
+
+              {cursorType === 'car_sport' && (
+                <>
+                  {/* Franja Racing Deportiva y Alerón Trasero */}
+                  <View style={styles.sportStripe} />
                 </>
               )}
 
@@ -529,6 +606,144 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 10,
     elevation: 8,
+  },
+
+  /* BALIZA TÁCTICA SOS / EXPLORADOR A PIE */
+  sosBeaconWrap: {
+    position: 'absolute',
+    top: 30,
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosOuterRing: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
+    borderWidth: 2,
+    borderColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosInnerCore: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+
+  /* MOTO TRAIL / MOTO SPORT / BICICLETA MTB 3D */
+  motoContainer: {
+    position: 'absolute',
+    top: 24,
+    width: 34,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  motoWheelFront: {
+    width: 5,
+    height: 11,
+    backgroundColor: '#1E293B',
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#64748B',
+  },
+  motoHandlebar: {
+    width: 28,
+    height: 4,
+    backgroundColor: '#94A3B8',
+    borderRadius: 2,
+    marginTop: -2,
+    zIndex: 5,
+  },
+  motoBody: {
+    width: 14,
+    height: 32,
+    backgroundColor: '#F97316',
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    marginTop: -1,
+  },
+  motoHelmet: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#0F172A',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+  },
+  motoPanniersRow: {
+    position: 'absolute',
+    bottom: 2,
+    width: 26,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  motoPannier: {
+    width: 5,
+    height: 11,
+    backgroundColor: '#CBD5E1',
+    borderRadius: 2,
+    borderWidth: 0.8,
+    borderColor: '#475569',
+  },
+  motoWheelRear: {
+    width: 6,
+    height: 11,
+    backgroundColor: '#1E293B',
+    borderRadius: 3,
+    marginTop: -1,
+  },
+
+  /* CHASIS ADICIONALES (CALIFORNIA / SUV / DEPORTIVO) */
+  chassisCalifornia: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#0284C7',
+  },
+  chassisSuv: {
+    backgroundColor: '#312E81',
+    borderColor: '#818CF8',
+  },
+  chassisSport: {
+    backgroundColor: '#991B1B',
+    borderColor: '#EF4444',
+  },
+  californiaPopTop: {
+    width: '84%',
+    height: 22,
+    backgroundColor: '#0284C7',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  suvSunroof: {
+    width: '78%',
+    height: 16,
+    backgroundColor: '#0F172A',
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#6366F1',
+  },
+  sportStripe: {
+    width: 6,
+    height: 26,
+    backgroundColor: '#FBBF24',
+    borderRadius: 2,
   },
 });
 

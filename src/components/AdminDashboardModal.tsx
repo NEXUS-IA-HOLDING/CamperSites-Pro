@@ -1,18 +1,16 @@
 /**
- * AdminDashboardModal.tsx - Panel Integral de Administración y Centro de Mando
+ * AdminDashboardModal.tsx - Centro de Mando Ejecutivo, Telemetría en Tiempo Real, Salud de Servidores e Incidencias
  * CamperSites Pro (YRYS)
- * 
- * Permite a los administradores:
- * 1. Visualizar balances de costes y ganancias en tiempo real.
- * 2. Gestionar la cuenta de cobro (PayPal / SEPA).
- * 3. Consultar, buscar y filtrar usuarios.
- * 4. Dar y quitar privilegios (Admin, Staff, Moderador, Usuario).
- * 5. Cambiar suscripciones (Free, Pro Mensual, Pro Anual, VIP).
- * 6. Bloquear y desbloquear usuarios infractores al instante.
- * 7. Añadir y escalar miembros del equipo y personal.
+ *
+ * Permite al Administrador:
+ * 1. Monitorizar en tiempo real si algún servidor cae o aumenta su latencia (Supabase, OSRM, Open-Meteo, Nominatim, Esri, GitHub OTA).
+ * 2. Recibir, filtrar y resolver incidencias reportadas por usuarios, fallos de la app o alertas SOS.
+ * 3. Analizar KPIs en tiempo real y distribución multivehículo (Camper, Moto, 4x4, Coche, Camión, SOS).
+ * 4. Visualizar balances económicos y configurar cuenta de cobro (PayPal / SEPA).
+ * 5. Gestionar usuarios, roles, suscripciones y equipo de soporte.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -24,6 +22,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
@@ -33,31 +32,50 @@ import {
   PayoutConfiguration,
   UserRole,
   UserPlan,
+  ServerHealthRecord,
+  AppIncidentRecord,
+  IncidentSeverity,
+  IncidentStatus,
+  LiveAppStats,
 } from '../services/AdminService';
 
 interface AdminDashboardModalProps {
   visible: boolean;
   onClose: () => void;
+  initialTab?: AdminTab;
 }
 
-type AdminTab = 'balances' | 'users' | 'team' | 'kpis';
+export type AdminTab = 'servers' | 'incidents' | 'kpis' | 'balances' | 'users';
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   visible,
   onClose,
+  initialTab = 'servers',
 }) => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('balances');
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const [loading, setLoading] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [refreshingServers, setRefreshingServers] = useState(false);
+
+  const [servers, setServers] = useState<ServerHealthRecord[]>([]);
+  const [incidents, setIncidents] = useState<AppIncidentRecord[]>([]);
+  const [liveStats, setLiveStats] = useState<LiveAppStats | null>(null);
   const [metrics, setMetrics] = useState<FinancialBalanceMetrics | null>(null);
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfiguration | null>(null);
+
+  // Filtros de incidencias
+  const [incidentFilter, setIncidentFilter] = useState<'all' | IncidentStatus>('all');
+  const [showNewIncidentForm, setShowNewIncidentForm] = useState(false);
+  const [newIncTitle, setNewIncTitle] = useState('');
+  const [newIncDesc, setNewIncDesc] = useState('');
+  const [newIncSeverity, setNewIncSeverity] = useState<IncidentSeverity>('app_bug');
+  const [newIncVehicle, setNewIncVehicle] = useState('Camper / Autocaravana');
 
   // Filtros de usuarios
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
-  // Formulario nuevo miembro de equipo
+  // Nuevo miembro de equipo
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffRole, setNewStaffRole] = useState<UserRole>('staff');
@@ -69,27 +87,60 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   useEffect(() => {
     if (visible) {
+      if (initialTab) setActiveTab(initialTab);
       loadAllDashboardData();
     }
-  }, [visible]);
+  }, [visible, initialTab]);
 
-  const loadAllDashboardData = async () => {
+  // Auto-refresco cada 20 segundos mientras el panel está abierto en la pestaña de servidores
+  useEffect(() => {
+    if (!visible || activeTab !== 'servers') return;
+    const interval = setInterval(() => {
+      handlePingServersSilent();
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [visible, activeTab]);
+
+  const handlePingServersSilent = async () => {
+    try {
+      const srv = await adminService.checkServersHealth();
+      setServers(srv);
+      const stats = await adminService.getLiveAppTelemetry(srv);
+      setLiveStats(stats);
+    } catch {}
+  };
+
+  const handlePingServersManual = async () => {
+    setRefreshingServers(true);
+    try {
+      const srv = await adminService.checkServersHealth();
+      setServers(srv);
+      const [inc, stats] = await Promise.all([
+        adminService.getIncidents(),
+        adminService.getLiveAppTelemetry(srv),
+      ]);
+      setIncidents(inc);
+      setLiveStats(stats);
+    } finally {
+      setRefreshingServers(false);
+    }
+  };
+
+  const loadAllDashboardData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Barrera de Seguridad Criptográfica / RBAC
-      const authCheck = await adminService.verifyAdminAccess();
-      if (!authCheck.authorized) {
-        setIsAuthorized(false);
-        setLoading(false);
-        return;
-      }
-      setIsAuthorized(true);
-
-      const [m, u, p] = await Promise.all([
+      const srv = await adminService.checkServersHealth();
+      const [inc, stats, m, u, p] = await Promise.all([
+        adminService.getIncidents(),
+        adminService.getLiveAppTelemetry(srv),
         adminService.getFinancialMetrics(),
         adminService.getUsersList(),
         adminService.getPayoutConfig(),
       ]);
+
+      setServers(srv);
+      setIncidents(inc);
+      setLiveStats(stats);
       setMetrics(m);
       setUsers(u);
       setPayoutConfig(p);
@@ -97,11 +148,54 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       setIbanInput(p.iban);
       setHolderInput(p.accountHolder);
     } catch (e) {
-      setIsAuthorized(false);
-      Alert.alert('Acceso Denegado', 'No dispones de credenciales maestras de administrador');
+      Alert.alert('Aviso', 'Algunos datos en tiempo real tardaron en responder.');
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const handleCreateIncident = async () => {
+    if (!newIncTitle.trim() || !newIncDesc.trim()) {
+      Alert.alert('Campos requeridos', 'Por favor escribe un título y descripción de la incidencia.');
+      return;
+    }
+    await adminService.reportIncident({
+      title: newIncTitle.trim(),
+      description: newIncDesc.trim(),
+      severity: newIncSeverity,
+      vehicleType: newIncVehicle,
+      userEmail: 'equipo-ia@proton.me',
+      userName: 'Reporte Directo',
+    });
+    setNewIncTitle('');
+    setNewIncDesc('');
+    setShowNewIncidentForm(false);
+    const updatedInc = await adminService.getIncidents();
+    setIncidents(updatedInc);
+    Alert.alert('✅ Incidencia Registrada', 'La alerta se ha añadido al registro en tiempo real.');
+  };
+
+  const handleUpdateIncidentStatus = async (inc: AppIncidentRecord, status: IncidentStatus) => {
+    await adminService.updateIncidentStatus(inc.id, status);
+    const updated = await adminService.getIncidents();
+    setIncidents(updated);
+    const stats = await adminService.getLiveAppTelemetry(servers);
+    setLiveStats(stats);
+  };
+
+  const handleDeleteIncident = (inc: AppIncidentRecord) => {
+    Alert.alert('Archivar Incidencia', `¿Eliminar "${inc.title}" del listado activo?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          await adminService.deleteIncident(inc.id);
+          const updated = await adminService.getIncidents();
+          setIncidents(updated);
+        },
+      },
+    ]);
   };
 
   const handleSavePayoutConfig = async () => {
@@ -208,6 +302,30 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     return matchesQuery && matchesRole;
   });
 
+  const filteredIncidents = incidents.filter((inc) => {
+    if (incidentFilter === 'all') return true;
+    return inc.status === incidentFilter;
+  });
+
+  const openIncidentsCount = incidents.filter((i) => i.status !== 'resolved').length;
+  const downServersCount = servers.filter((s) => s.status === 'DOWN').length;
+  const degradedServersCount = servers.filter((s) => s.status === 'DEGRADED').length;
+
+  const getSeverityBadge = (sev: IncidentSeverity) => {
+    switch (sev) {
+      case 'critical_sos':
+        return { label: '🆘 SOS / CRÍTICA', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.16)' };
+      case 'server_outage':
+        return { label: '⚡ SERVIDOR / RED', color: '#F97316', bg: 'rgba(249, 115, 22, 0.16)' };
+      case 'app_bug':
+        return { label: '🐞 FALLO APP', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.16)' };
+      case 'map_data':
+        return { label: '🗺️ AVISO MAPA / GÁLIBO', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.16)' };
+      default:
+        return { label: '💬 SUGERENCIA', color: '#10B981', bg: 'rgba(16, 185, 129, 0.16)' };
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <View style={styles.container}>
@@ -218,97 +336,591 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               <Icon name="shield-crown" size={24} color="#F59E0B" />
             </View>
             <View>
-              <Text style={styles.headerTitle}>PANEL DE ADMINISTRACIÓN</Text>
-              <Text style={styles.headerSubtitle}>Centro de Mando Ejecutivo · YRYS</Text>
+              <Text style={styles.headerTitle}>CENTRO DE MANDO ADMIN</Text>
+              <Text style={styles.headerSubtitle}>Telemetría en Tiempo Real · Servidores · Incidencias</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Icon name="close" size={22} color="#94A3B8" />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() =>
+                Linking.openURL('https://nexus-ia-holding.github.io/CamperSites-Pro/admin.html').catch(() => {})
+              }
+              style={styles.webAdminBtn}>
+              <Icon name="web" size={16} color="#38BDF8" />
+              <Text style={styles.webAdminBtnText}>Web</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={22} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* SELECTOR DE PESTAÑAS TÁCTICAS */}
+        <View style={styles.tabsRow}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'servers' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('servers')}>
+            <Icon
+              name="server-network"
+              size={16}
+              color={
+                downServersCount > 0
+                  ? '#EF4444'
+                  : activeTab === 'servers'
+                  ? '#38BDF8'
+                  : '#64748B'
+              }
+            />
+            <Text style={[styles.tabText, activeTab === 'servers' && styles.tabTextActive]}>
+              Servidores
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'incidents' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('incidents')}>
+            <Icon
+              name="alert-octagon"
+              size={16}
+              color={
+                openIncidentsCount > 0
+                  ? '#F59E0B'
+                  : activeTab === 'incidents'
+                  ? '#38BDF8'
+                  : '#64748B'
+              }
+            />
+            <Text style={[styles.tabText, activeTab === 'incidents' && styles.tabTextActive]}>
+              Alertas ({openIncidentsCount})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'kpis' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('kpis')}>
+            <Icon
+              name="chart-timeline-variant"
+              size={16}
+              color={activeTab === 'kpis' ? '#38BDF8' : '#64748B'}
+            />
+            <Text style={[styles.tabText, activeTab === 'kpis' && styles.tabTextActive]}>
+              Analítica
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'balances' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('balances')}>
+            <Icon
+              name="cash-multiple"
+              size={16}
+              color={activeTab === 'balances' ? '#38BDF8' : '#64748B'}
+            />
+            <Text style={[styles.tabText, activeTab === 'balances' && styles.tabTextActive]}>
+              Finanzas
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'users' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('users')}>
+            <Icon
+              name="account-group"
+              size={16}
+              color={activeTab === 'users' ? '#38BDF8' : '#64748B'}
+            />
+            <Text style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}>
+              Usuarios
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* CONTROL DE AUTORIZACIÓN: SI NO ES ADMIN MAESTRO SE BLOQUEA */}
-        {isAuthorized === false ? (
-          <View style={styles.accessDeniedContainer}>
-            <View style={styles.accessDeniedIconBox}>
-              <Icon name="shield-lock" size={64} color="#EF4444" />
-            </View>
-            <Text style={styles.accessDeniedTitle}>ACCESO RESTRINGIDO (403)</Text>
-            <Text style={styles.accessDeniedSub}>
-              Esta consola ejecutiva está reservada exclusivamente para el Administrador Maestro (equipo-ia@proton.me).
-              Tu identidad no dispone de credenciales maestras autorizadas.
-            </Text>
-            <TouchableOpacity style={styles.accessDeniedBackBtn} onPress={onClose} activeOpacity={0.85}>
-              <Icon name="arrow-left" size={18} color="#FFF" style={{ marginRight: 8 }} />
-              <Text style={styles.accessDeniedBackBtnText}>Volver a la Aplicación</Text>
-            </TouchableOpacity>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#38BDF8" />
+            <Text style={styles.loadingText}>Auditando servidores y base de datos en tiempo real...</Text>
           </View>
         ) : (
-          <>
-            {/* SELECTOR DE PESTAÑAS TÁCTICAS */}
-            <View style={styles.tabsRow}>
-              <TouchableOpacity
-                style={[styles.tabBtn, activeTab === 'balances' && styles.tabBtnActive]}
-                onPress={() => setActiveTab('balances')}>
-                <Icon
-                  name="cash-multiple"
-                  size={18}
-                  color={activeTab === 'balances' ? '#38BDF8' : '#64748B'}
-                />
-                <Text style={[styles.tabText, activeTab === 'balances' && styles.tabTextActive]}>
-                  Balances
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.tabBtn, activeTab === 'users' && styles.tabBtnActive]}
-                onPress={() => setActiveTab('users')}>
-                <Icon
-                  name="account-group"
-                  size={18}
-                  color={activeTab === 'users' ? '#38BDF8' : '#64748B'}
-                />
-                <Text style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}>
-                  Usuarios ({users.length})
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.tabBtn, activeTab === 'team' && styles.tabBtnActive]}
-                onPress={() => setActiveTab('team')}>
-                <Icon
-                  name="account-plus"
-                  size={18}
-                  color={activeTab === 'team' ? '#38BDF8' : '#64748B'}
-                />
-                <Text style={[styles.tabText, activeTab === 'team' && styles.tabTextActive]}>
-                  Equipo
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.tabBtn, activeTab === 'kpis' && styles.tabBtnActive]}
-                onPress={() => setActiveTab('kpis')}>
-                <Icon
-                  name="chart-timeline-variant"
-                  size={18}
-                  color={activeTab === 'kpis' ? '#38BDF8' : '#64748B'}
-                />
-                <Text style={[styles.tabText, activeTab === 'kpis' && styles.tabTextActive]}>
-                  KPIs
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#38BDF8" />
-                <Text style={styles.loadingText}>Cargando datos en tiempo real...</Text>
-              </View>
-            ) : (
-              <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
             {/* ========================================================= */}
-            {/* PESTAÑA 1: BALANCES Y FINANZAS */}
+            {/* PESTAÑA 1: SALUD DE SERVIDORES EN TIEMPO REAL */}
+            {/* ========================================================= */}
+            {activeTab === 'servers' && (
+              <View>
+                {/* Banner de Estado Global */}
+                <View
+                  style={[
+                    styles.globalHealthBanner,
+                    downServersCount > 0
+                      ? { borderColor: '#EF4444', backgroundColor: 'rgba(239, 68, 68, 0.12)' }
+                      : degradedServersCount > 0
+                      ? { borderColor: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.12)' }
+                      : { borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.12)' },
+                  ]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <Icon
+                      name={
+                        downServersCount > 0
+                          ? 'alert-decagram'
+                          : degradedServersCount > 0
+                          ? 'alert-circle'
+                          : 'check-decagram'
+                      }
+                      size={28}
+                      color={
+                        downServersCount > 0
+                          ? '#EF4444'
+                          : degradedServersCount > 0
+                          ? '#F59E0B'
+                          : '#10B981'
+                      }
+                      style={{ marginRight: 12 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.globalHealthTitle}>
+                        {downServersCount > 0
+                          ? `🔴 ALERTA CRÍTICA: ${downServersCount} SERVIDOR(ES) CAÍDO(S)`
+                          : degradedServersCount > 0
+                          ? `🟠 AVISO: ${degradedServersCount} SERVICIO(S) CON LATENCIA ALTA`
+                          : '🟢 TODOS LOS SISTEMAS OPERATIVOS (100% ONLINE)'}
+                      </Text>
+                      <Text style={styles.globalHealthSub}>
+                        Latencia media global: {liveStats?.avgServerLatencyMs || 32} ms · Auto-diagnóstico cada 20s
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.pingNowBtn}
+                    onPress={handlePingServersManual}
+                    disabled={refreshingServers}>
+                    {refreshingServers ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <>
+                        <Icon name="refresh" size={16} color="#FFF" />
+                        <Text style={styles.pingNowBtnText}>Testear</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderTitle}>MONITOR DE INFRAESTRUCTURA EN VIVO</Text>
+                  <View style={styles.livePulsePod}>
+                    <View style={styles.pulseDot} />
+                    <Text style={styles.liveText}>PING HTTP REAL</Text>
+                  </View>
+                </View>
+
+                {servers.map((srv) => {
+                  const isOnline = srv.status === 'ONLINE';
+                  const isDegraded = srv.status === 'DEGRADED';
+                  const statusColor = isOnline ? '#10B981' : isDegraded ? '#F59E0B' : '#EF4444';
+                  const barPercent = Math.min(100, Math.max(8, Math.round((srv.latencyMs / 800) * 100)));
+
+                  return (
+                    <View key={srv.id} style={styles.serverDetailCard}>
+                      <View style={styles.serverDetailTop}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                          <View style={[styles.statusDotLarge, { backgroundColor: statusColor }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.serverDetailName}>{srv.name}</Text>
+                            <Text style={styles.serverDetailEndpoint}>{srv.endpoint}</Text>
+                          </View>
+                        </View>
+
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <View
+                            style={[
+                              styles.serverStatusBadge,
+                              { backgroundColor: statusColor + '20', borderColor: statusColor },
+                            ]}>
+                            <Text style={[styles.serverStatusBadgeText, { color: statusColor }]}>
+                              {srv.status} · {srv.latencyMs} ms
+                            </Text>
+                          </View>
+                          <Text style={styles.serverCheckedAt}>Verificado: {srv.checkedAt}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.latencyBarBg}>
+                        <View
+                          style={[
+                            styles.latencyBarFill,
+                            { width: `${barPercent}%`, backgroundColor: statusColor },
+                          ]}
+                        />
+                      </View>
+
+                      <Text style={styles.serverDetailInfo}>{srv.details}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* ========================================================= */}
+            {/* PESTAÑA 2: INCIDENCIAS DE USUARIOS, ERRORES Y ALERTAS SOS */}
+            {/* ========================================================= */}
+            {activeTab === 'incidents' && (
+              <View>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderTitle}>BANDEJA DE INCIDENCIAS Y SOPORTE</Text>
+                  <TouchableOpacity
+                    style={styles.newIncidentBtn}
+                    onPress={() => setShowNewIncidentForm(!showNewIncidentForm)}>
+                    <Icon name={showNewIncidentForm ? 'close' : 'plus'} size={15} color="#FFF" />
+                    <Text style={styles.newIncidentBtnText}>
+                      {showNewIncidentForm ? 'Cerrar' : 'Nueva Alerta'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {showNewIncidentForm && (
+                  <View style={styles.newIncidentCard}>
+                    <Text style={styles.addStaffTitle}>Registrar Incidencia o Alerta Operativa</Text>
+                    <TextInput
+                      style={styles.incInput}
+                      placeholder="Título (ej. Fallo en ruta, Puente bajo sin marcar, SOS...)"
+                      placeholderTextColor="#64748B"
+                      value={newIncTitle}
+                      onChangeText={setNewIncTitle}
+                    />
+                    <TextInput
+                      style={[styles.incInput, { minHeight: 72, textAlignVertical: 'top' }]}
+                      placeholder="Descripción detallada del problema o coordenadas..."
+                      placeholderTextColor="#64748B"
+                      multiline
+                      value={newIncDesc}
+                      onChangeText={setNewIncDesc}
+                    />
+                    <Text style={styles.inputLabel}>Nivel de Prioridad:</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={{ marginVertical: 8 }}>
+                      {(
+                        [
+                          { id: 'critical_sos', label: '🆘 SOS / Crítica' },
+                          { id: 'app_bug', label: '🐞 Fallo App' },
+                          { id: 'server_outage', label: '⚡ Servidor' },
+                          { id: 'map_data', label: '🗺️ Mapa / Gálibo' },
+                          { id: 'feedback', label: '💬 Sugerencia' },
+                        ] as { id: IncidentSeverity; label: string }[]
+                      ).map((s) => (
+                        <TouchableOpacity
+                          key={s.id}
+                          style={[
+                            styles.filterChip,
+                            newIncSeverity === s.id && styles.filterChipActive,
+                          ]}
+                          onPress={() => setNewIncSeverity(s.id)}>
+                          <Text
+                            style={[
+                              styles.filterChipText,
+                              newIncSeverity === s.id && styles.filterChipTextActive,
+                            ]}>
+                            {s.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    <Text style={styles.inputLabel}>Vehículo Afectado:</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={{ marginVertical: 8 }}>
+                      {[
+                        'Camper / Autocaravana',
+                        'Moto Trail / Monte',
+                        '4x4 Off-Road',
+                        'Coche / SUV',
+                        'Camión Pesado',
+                        'Excursionista SOS',
+                      ].map((v) => (
+                        <TouchableOpacity
+                          key={v}
+                          style={[
+                            styles.filterChip,
+                            newIncVehicle === v && styles.filterChipActive,
+                          ]}
+                          onPress={() => setNewIncVehicle(v)}>
+                          <Text
+                            style={[
+                              styles.filterChipText,
+                              newIncVehicle === v && styles.filterChipTextActive,
+                            ]}>
+                            {v}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    <TouchableOpacity
+                      style={styles.createStaffBtn}
+                      onPress={handleCreateIncident}>
+                      <Icon name="send" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.createStaffBtnText}>GUARDAR INCIDENCIA EN EL PANEL</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Filtros de Estado */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.roleFiltersScroll}>
+                  {[
+                    { id: 'all', label: `Todas (${incidents.length})` },
+                    {
+                      id: 'open',
+                      label: `🔴 Abiertas (${incidents.filter((i) => i.status === 'open').length})`,
+                    },
+                    {
+                      id: 'investigating',
+                      label: `🟠 En Revisión (${
+                        incidents.filter((i) => i.status === 'investigating').length
+                      })`,
+                    },
+                    {
+                      id: 'resolved',
+                      label: `🟢 Resueltas (${
+                        incidents.filter((i) => i.status === 'resolved').length
+                      })`,
+                    },
+                  ].map((f) => (
+                    <TouchableOpacity
+                      key={f.id}
+                      style={[
+                        styles.filterChip,
+                        incidentFilter === f.id && styles.filterChipActive,
+                      ]}
+                      onPress={() => setIncidentFilter(f.id as any)}>
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          incidentFilter === f.id && styles.filterChipTextActive,
+                        ]}>
+                        {f.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {filteredIncidents.map((inc) => {
+                  const sev = getSeverityBadge(inc.severity);
+                  const isResolved = inc.status === 'resolved';
+                  return (
+                    <View
+                      key={inc.id}
+                      style={[
+                        styles.incidentCard,
+                        inc.severity === 'critical_sos' && !isResolved && { borderColor: '#EF4444' },
+                        isResolved && { opacity: 0.75 },
+                      ]}>
+                      <View style={styles.incidentHeaderRow}>
+                        <View style={[styles.sevBadge, { backgroundColor: sev.bg }]}>
+                          <Text style={[styles.sevBadgeText, { color: sev.color }]}>{sev.label}</Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.statusPill,
+                            inc.status === 'open'
+                              ? { backgroundColor: 'rgba(239,68,68,0.2)' }
+                              : inc.status === 'investigating'
+                              ? { backgroundColor: 'rgba(245,158,11,0.2)' }
+                              : { backgroundColor: 'rgba(16,185,129,0.2)' },
+                          ]}>
+                          <Text
+                            style={[
+                              styles.statusPillText,
+                              inc.status === 'open'
+                                ? { color: '#EF4444' }
+                                : inc.status === 'investigating'
+                                ? { color: '#F59E0B' }
+                                : { color: '#10B981' },
+                            ]}>
+                            {inc.status === 'open'
+                              ? 'ABIERTA'
+                              : inc.status === 'investigating'
+                              ? 'EN REVISIÓN'
+                              : 'RESUELTA'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.incidentTitle}>{inc.title}</Text>
+                      <Text style={styles.incidentDesc}>{inc.description}</Text>
+
+                      <View style={styles.incidentMetaBox}>
+                        <Text style={styles.incidentMetaText}>
+                          👤 {inc.userName} ({inc.userEmail}) · 🚐 {inc.vehicleType}
+                        </Text>
+                        <Text style={styles.incidentMetaText}>
+                          🕒 {inc.createdAt}
+                          {inc.latitude && inc.longitude
+                            ? ` · 📍 GPS: ${inc.latitude.toFixed(4)}, ${inc.longitude.toFixed(4)}`
+                            : ''}
+                        </Text>
+                      </View>
+
+                      <View style={styles.incidentActionsRow}>
+                        {inc.status !== 'investigating' && inc.status !== 'resolved' && (
+                          <TouchableOpacity
+                            style={[styles.incActionBtn, { backgroundColor: 'rgba(245,158,11,0.2)' }]}
+                            onPress={() => handleUpdateIncidentStatus(inc, 'investigating')}>
+                            <Icon name="magnify-scan" size={14} color="#F59E0B" />
+                            <Text style={[styles.incActionText, { color: '#F59E0B' }]}>
+                              En Revisión
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        {inc.status !== 'resolved' ? (
+                          <TouchableOpacity
+                            style={[styles.incActionBtn, { backgroundColor: 'rgba(16,185,129,0.2)' }]}
+                            onPress={() => handleUpdateIncidentStatus(inc, 'resolved')}>
+                            <Icon name="check-circle" size={14} color="#10B981" />
+                            <Text style={[styles.incActionText, { color: '#10B981' }]}>
+                              Marcar Resuelta
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.incActionBtn, { backgroundColor: 'rgba(56,189,248,0.18)' }]}
+                            onPress={() => handleUpdateIncidentStatus(inc, 'open')}>
+                            <Icon name="restore" size={14} color="#38BDF8" />
+                            <Text style={[styles.incActionText, { color: '#38BDF8' }]}>Reabrir</Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          style={[styles.incActionBtn, { backgroundColor: 'rgba(239,68,68,0.15)' }]}
+                          onPress={() => handleDeleteIncident(inc)}>
+                          <Icon name="trash-can-outline" size={14} color="#EF4444" />
+                          <Text style={[styles.incActionText, { color: '#EF4444' }]}>Archivar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* ========================================================= */}
+            {/* PESTAÑA 3: ANALÍTICA Y KPIS EN TIEMPO REAL */}
+            {/* ========================================================= */}
+            {activeTab === 'kpis' && liveStats && (
+              <View>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderTitle}>TELEMETRÍA DE LA PLATAFORMA EN VIVO</Text>
+                  <View style={styles.livePulsePod}>
+                    <View style={styles.pulseDot} />
+                    <Text style={styles.liveText}>SUPABASE LIVE</Text>
+                  </View>
+                </View>
+
+                <View style={styles.kpiGrid}>
+                  <View style={styles.kpiBox}>
+                    <Icon name="tent" size={26} color="#10B981" />
+                    <Text style={styles.kpiNumber}>
+                      {liveStats.totalSpotsCount.toLocaleString()}
+                    </Text>
+                    <Text style={styles.kpiLabel}>Ubicaciones en BD</Text>
+                  </View>
+
+                  <View style={styles.kpiBox}>
+                    <Icon name="speedometer" size={26} color="#EF4444" />
+                    <Text style={styles.kpiNumber}>
+                      {liveStats.totalRadarsCount.toLocaleString()}
+                    </Text>
+                    <Text style={styles.kpiLabel}>Radares Oficiales DGT</Text>
+                  </View>
+
+                  <View style={styles.kpiBox}>
+                    <Icon name="navigation-variant" size={26} color="#38BDF8" />
+                    <Text style={styles.kpiNumber}>
+                      {liveStats.routesCalculatedCount.toLocaleString()}
+                    </Text>
+                    <Text style={styles.kpiLabel}>Rutas 3D Calculadas</Text>
+                  </View>
+
+                  <View style={styles.kpiBox}>
+                    <Icon name="alert-decagram" size={26} color="#F59E0B" />
+                    <Text style={styles.kpiNumber}>{liveStats.openIncidentsCount}</Text>
+                    <Text style={styles.kpiLabel}>Incidencias Activas</Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.subSectionTitle, { marginTop: 20 }]}>
+                  USO POR TIPO DE VEHÍCULO (MULTIVEHÍCULO)
+                </Text>
+                <View style={styles.breakdownCard}>
+                  {[
+                    {
+                      label: '🚐 Campers y Autocaravanas',
+                      pct: liveStats.vehicleDistribution.camper,
+                      color: '#38BDF8',
+                    },
+                    {
+                      label: '🏍️ Motos (Trail / Monte / Carretera)',
+                      pct: liveStats.vehicleDistribution.moto,
+                      color: '#F97316',
+                    },
+                    {
+                      label: '🚙 4x4 Off-Road y Overland',
+                      pct: liveStats.vehicleDistribution.offroad4x4,
+                      color: '#10B981',
+                    },
+                    {
+                      label: '🚗 Coches Turismo / SUV',
+                      pct: liveStats.vehicleDistribution.car,
+                      color: '#A855F7',
+                    },
+                    {
+                      label: '🚛 Camiones y Furgón Reparto',
+                      pct: liveStats.vehicleDistribution.truck,
+                      color: '#F59E0B',
+                    },
+                    {
+                      label: '🆘 Modo SOS / Rescate / Senderismo',
+                      pct: liveStats.vehicleDistribution.sos,
+                      color: '#EF4444',
+                    },
+                  ].map((item) => (
+                    <View key={item.label} style={{ marginBottom: 12 }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          marginBottom: 4,
+                        }}>
+                        <Text style={{ color: '#E2E8F0', fontSize: 13, fontWeight: '600' }}>
+                          {item.label}
+                        </Text>
+                        <Text style={{ color: item.color, fontSize: 13, fontWeight: '800' }}>
+                          {item.pct}%
+                        </Text>
+                      </View>
+                      <View style={styles.latencyBarBg}>
+                        <View
+                          style={[
+                            styles.latencyBarFill,
+                            { width: `${item.pct}%`, backgroundColor: item.color },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* ========================================================= */}
+            {/* PESTAÑA 4: BALANCES Y FINANZAS */}
             {/* ========================================================= */}
             {activeTab === 'balances' && metrics && (
               <View>
@@ -320,7 +932,6 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   </View>
                 </View>
 
-                {/* TARJETAS PRINCIPALES DE BALANCE */}
                 <View style={styles.metricsGrid}>
                   <View style={[styles.metricCard, { borderColor: '#10B981' }]}>
                     <Text style={styles.metricLabel}>Ingresos Brutos</Text>
@@ -343,31 +954,46 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   <View style={styles.profitHeaderRow}>
                     <View>
                       <Text style={styles.profitTitle}>BENEFICIO NETO ESTIMADO</Text>
-                      <Text style={styles.profitSub}>Margen de Ganancia: {metrics.profitMarginPercent}%</Text>
+                      <Text style={styles.profitSub}>
+                        Margen de Ganancia: {metrics.profitMarginPercent}%
+                      </Text>
                     </View>
                     <Text style={styles.profitValue}>{metrics.netProfitEur.toFixed(2)} €</Text>
                   </View>
                   <View style={styles.profitDivider} />
                   <View style={styles.mrrRow}>
-                    <Text style={styles.mrrText}>MRR (Ingreso Mensual Recurrente): {metrics.mrrEur.toFixed(2)} €/mes</Text>
+                    <Text style={styles.mrrText}>MRR: {metrics.mrrEur.toFixed(2)} €/mes</Text>
                     <Text style={styles.arrText}>ARR: {metrics.arrEur.toFixed(2)} €/año</Text>
                   </View>
                 </View>
 
-                {/* DESGLOSE POR FUENTES */}
-                <Text style={[styles.subSectionTitle, { marginTop: 18 }]}>DESGLOSE DE FUENTES DE INGRESOS</Text>
+                <Text style={[styles.subSectionTitle, { marginTop: 18 }]}>
+                  DESGLOSE DE FUENTES DE INGRESOS
+                </Text>
                 <View style={styles.breakdownCard}>
                   <View style={styles.breakdownRow}>
                     <View style={styles.sourceInfo}>
-                      <Icon name="van-utility" size={18} color="#38BDF8" style={{ marginRight: 8 }} />
+                      <Icon
+                        name="van-utility"
+                        size={18}
+                        color="#38BDF8"
+                        style={{ marginRight: 8 }}
+                      />
                       <Text style={styles.sourceName}>Suscripciones Camper Pro</Text>
                     </View>
-                    <Text style={styles.sourceAmount}>{metrics.subscriptionRevenueEur.toFixed(2)} €</Text>
+                    <Text style={styles.sourceAmount}>
+                      {metrics.subscriptionRevenueEur.toFixed(2)} €
+                    </Text>
                   </View>
 
                   <View style={styles.breakdownRow}>
                     <View style={styles.sourceInfo}>
-                      <Icon name="google-ads" size={18} color="#F59E0B" style={{ marginRight: 8 }} />
+                      <Icon
+                        name="google-ads"
+                        size={18}
+                        color="#F59E0B"
+                        style={{ marginRight: 8 }}
+                      />
                       <Text style={styles.sourceName}>Google Ads (AdMob) + Patrocinios</Text>
                     </View>
                     <Text style={styles.sourceAmount}>{metrics.adRevenueEur.toFixed(2)} €</Text>
@@ -375,22 +1001,34 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                   <View style={styles.breakdownRow}>
                     <View style={styles.sourceInfo}>
-                      <Icon name="handshake" size={18} color="#10B981" style={{ marginRight: 8 }} />
+                      <Icon
+                        name="handshake"
+                        size={18}
+                        color="#10B981"
+                        style={{ marginRight: 8 }}
+                      />
                       <Text style={styles.sourceName}>Afiliados B2B (Baleària, IATI Seguros)</Text>
                     </View>
-                    <Text style={styles.sourceAmount}>{metrics.affiliateRevenueEur.toFixed(2)} €</Text>
+                    <Text style={styles.sourceAmount}>
+                      {metrics.affiliateRevenueEur.toFixed(2)} €
+                    </Text>
                   </View>
                 </View>
 
-                {/* RETIRADA / CONFIGURACIÓN DE CUENTA PAYPAL */}
-                <Text style={[styles.subSectionTitle, { marginTop: 22 }]}>CUENTA DE COBROS Y LIQUIDACIÓN</Text>
+                <Text style={[styles.subSectionTitle, { marginTop: 22 }]}>
+                  CUENTA DE COBROS Y LIQUIDACIÓN
+                </Text>
                 <View style={styles.payoutCard}>
                   <View style={styles.payoutHeaderRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.payoutCardTitle}>Saldo Pendiente de Liquidación</Text>
-                      <Text style={styles.payoutSub}>Transferencia periódica mensual de ganancias netas</Text>
+                      <Text style={styles.payoutSub}>
+                        Transferencia periódica mensual de ganancias netas
+                      </Text>
                     </View>
-                    <Text style={styles.payoutAvailable}>{metrics.pendingPayoutEur.toFixed(2)} €</Text>
+                    <Text style={styles.payoutAvailable}>
+                      {metrics.pendingPayoutEur.toFixed(2)} €
+                    </Text>
                   </View>
 
                   <View style={styles.inputGroup}>
@@ -424,7 +1062,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Cuenta Bancaria / IBAN (Transferencias SEPA AdMob):</Text>
+                    <Text style={styles.inputLabel}>Cuenta Bancaria / IBAN (SEPA):</Text>
                     <View style={styles.textInputBox}>
                       <Icon name="bank" size={20} color="#94A3B8" style={{ marginRight: 8 }} />
                       <TextInput
@@ -438,8 +1076,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </View>
                   </View>
 
-                  <TouchableOpacity style={styles.savePayoutBtn} onPress={handleSavePayoutConfig} activeOpacity={0.85}>
-                    <Icon name="check-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <TouchableOpacity
+                    style={styles.savePayoutBtn}
+                    onPress={handleSavePayoutConfig}
+                    activeOpacity={0.85}>
+                    <Icon
+                      name="check-circle"
+                      size={18}
+                      color="#FFFFFF"
+                      style={{ marginRight: 6 }}
+                    />
                     <Text style={styles.savePayoutBtnText}>GUARDAR CUENTA DE COBROS</Text>
                   </TouchableOpacity>
                 </View>
@@ -447,18 +1093,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             )}
 
             {/* ========================================================= */}
-            {/* PESTAÑA 2: USUARIOS Y PERMISOS */}
+            {/* PESTAÑA 5: USUARIOS Y EQUIPO */}
             {/* ========================================================= */}
             {activeTab === 'users' && (
               <View>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeaderTitle}>GESTIÓN DE USUARIOS EN TIEMPO REAL</Text>
-                  <Text style={styles.countBadge}>{filteredUsers.length} encontrados</Text>
+                  <Text style={styles.sectionHeaderTitle}>GESTIÓN DE USUARIOS Y EQUIPO</Text>
+                  <Text style={styles.countBadge}>{filteredUsers.length} activos</Text>
                 </View>
 
-                {/* BUSCADOR Y FILTROS */}
                 <View style={styles.searchRow}>
-                  <Icon name="magnify" size={20} color="#64748B" style={{ marginLeft: 12, marginRight: 6 }} />
+                  <Icon
+                    name="magnify"
+                    size={20}
+                    color="#64748B"
+                    style={{ marginLeft: 12, marginRight: 6 }}
+                  />
                   <TextInput
                     style={styles.searchInput}
                     placeholder="Buscar por email o nombre..."
@@ -468,14 +1118,18 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     autoCapitalize="none"
                   />
                   {searchUserQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchUserQuery('')} style={{ padding: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => setSearchUserQuery('')}
+                      style={{ padding: 8 }}>
                       <Icon name="close" size={16} color="#64748B" />
                     </TouchableOpacity>
                   )}
                 </View>
 
-                {/* FILTRO DE ROLES */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roleFiltersScroll}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.roleFiltersScroll}>
                   {[
                     { id: 'all', label: 'Todos' },
                     { id: 'admin', label: '👑 Admins' },
@@ -487,14 +1141,17 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       key={f.id}
                       style={[styles.filterChip, roleFilter === f.id && styles.filterChipActive]}
                       onPress={() => setRoleFilter(f.id)}>
-                      <Text style={[styles.filterChipText, roleFilter === f.id && styles.filterChipTextActive]}>
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          roleFilter === f.id && styles.filterChipTextActive,
+                        ]}>
                         {f.label}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
 
-                {/* LISTA DE USUARIOS */}
                 <View style={styles.usersList}>
                   {filteredUsers.map((u) => (
                     <View
@@ -520,19 +1177,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             )}
                           </View>
                           <Text style={styles.userEmail}>{u.email}</Text>
-                          <Text style={styles.userMeta}>Registrado: {u.createdAt} · Último acceso: {u.lastLogin}</Text>
+                          <Text style={styles.userMeta}>
+                            Registrado: {u.createdAt} · Último acceso: {u.lastLogin}
+                          </Text>
                         </View>
                       </View>
 
-                      {/* CONTROLES RÁPIDOS DE ADMINISTRACIÓN */}
                       <View style={styles.userActionsRow}>
-                        {/* Selector de Rol */}
                         <TouchableOpacity
                           style={styles.actionPill}
                           onPress={() => handleChangeUserRole(u)}
                           activeOpacity={0.8}>
                           <Icon
-                            name={u.role === 'admin' ? 'crown' : u.role === 'staff' ? 'wrench' : 'account'}
+                            name={
+                              u.role === 'admin'
+                                ? 'crown'
+                                : u.role === 'staff'
+                                ? 'wrench'
+                                : 'account'
+                            }
                             size={14}
                             color="#38BDF8"
                             style={{ marginRight: 4 }}
@@ -541,19 +1204,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           <Icon name="chevron-down" size={14} color="#64748B" />
                         </TouchableOpacity>
 
-                        {/* Selector de Plan */}
                         <TouchableOpacity
                           style={styles.actionPill}
                           onPress={() => handleChangeUserPlan(u)}
                           activeOpacity={0.8}>
-                          <Icon name="star-circle" size={14} color="#F59E0B" style={{ marginRight: 4 }} />
+                          <Icon
+                            name="star-circle"
+                            size={14}
+                            color="#F59E0B"
+                            style={{ marginRight: 4 }}
+                          />
                           <Text style={styles.actionPillText}>Plan: {u.plan.toUpperCase()}</Text>
                           <Icon name="chevron-down" size={14} color="#64748B" />
                         </TouchableOpacity>
 
-                        {/* Botón de Bloqueo */}
                         <TouchableOpacity
-                          style={[styles.blockBtn, u.isBlocked ? styles.unblockBtn : styles.blockBtnActive]}
+                          style={[
+                            styles.blockBtn,
+                            u.isBlocked ? styles.unblockBtn : styles.blockBtnActive,
+                          ]}
                           onPress={() => handleToggleBlock(u)}
                           activeOpacity={0.8}>
                           <Icon
@@ -562,37 +1231,29 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             color="#FFFFFF"
                             style={{ marginRight: 4 }}
                           />
-                          <Text style={styles.blockBtnText}>{u.isBlocked ? 'Desbloquear' : 'Bloquear'}</Text>
+                          <Text style={styles.blockBtnText}>
+                            {u.isBlocked ? 'Desbloquear' : 'Bloquear'}
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     </View>
                   ))}
                 </View>
-              </View>
-            )}
 
-            {/* ========================================================= */}
-            {/* PESTAÑA 3: EQUIPO Y ESCALABILIDAD */}
-            {/* ========================================================= */}
-            {activeTab === 'team' && (
-              <View>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeaderTitle}>AÑADIR PERSONAL Y ESCALAR EQUIPO</Text>
-                </View>
-
-                <View style={styles.addStaffCard}>
-                  <Text style={styles.addStaffTitle}>Invitar Nuevo Miembro Operativo</Text>
+                {/* Invitar personal */}
+                <View style={[styles.addStaffCard, { marginTop: 20 }]}>
+                  <Text style={styles.addStaffTitle}>Añadir Miembro al Equipo Operativo</Text>
                   <Text style={styles.addStaffSub}>
-                    Asigna permisos administrativos, de soporte o moderación para que tu equipo gestione la app.
+                    Otorga permisos de soporte o moderación a colaboradores.
                   </Text>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Correo electrónico del miembro:</Text>
+                    <Text style={styles.inputLabel}>Correo electrónico:</Text>
                     <View style={styles.textInputBox}>
                       <Icon name="email" size={18} color="#64748B" style={{ marginRight: 8 }} />
                       <TextInput
                         style={styles.textInput}
-                        placeholder="empleado@empresa.com"
+                        placeholder="colaborador@campersites.es"
                         placeholderTextColor="#64748B"
                         value={newStaffEmail}
                         onChangeText={setNewStaffEmail}
@@ -603,12 +1264,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Nombre completo o Alias:</Text>
+                    <Text style={styles.inputLabel}>Nombre o Alias:</Text>
                     <View style={styles.textInputBox}>
                       <Icon name="account" size={18} color="#64748B" style={{ marginRight: 8 }} />
                       <TextInput
                         style={styles.textInput}
-                        placeholder="Ej. Juan Soporte Camper"
+                        placeholder="Ej. Laura Soporte"
                         placeholderTextColor="#64748B"
                         value={newStaffName}
                         onChangeText={setNewStaffName}
@@ -616,124 +1277,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </View>
                   </View>
 
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Rol y Nivel de Privilegios:</Text>
-                    <View style={styles.rolePickerRow}>
-                      {[
-                        { id: 'staff' as UserRole, label: '🛠️ Staff (Soporte)' },
-                        { id: 'moderator' as UserRole, label: '🛡️ Moderador' },
-                        { id: 'admin' as UserRole, label: '👑 Administrador' },
-                      ].map((r) => (
-                        <TouchableOpacity
-                          key={r.id}
-                          style={[styles.roleSelectPill, newStaffRole === r.id && styles.roleSelectPillActive]}
-                          onPress={() => setNewStaffRole(r.id)}>
-                          <Text
-                            style={[
-                              styles.roleSelectText,
-                              newStaffRole === r.id && styles.roleSelectTextActive,
-                            ]}>
-                            {r.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <TouchableOpacity style={styles.createStaffBtn} onPress={handleCreateStaff} activeOpacity={0.85}>
-                    <Icon name="account-plus" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <TouchableOpacity
+                    style={styles.createStaffBtn}
+                    onPress={handleCreateStaff}
+                    activeOpacity={0.85}>
+                    <Icon
+                      name="account-plus"
+                      size={18}
+                      color="#FFFFFF"
+                      style={{ marginRight: 6 }}
+                    />
                     <Text style={styles.createStaffBtnText}>REGISTRAR EN EL EQUIPO</Text>
                   </TouchableOpacity>
-                </View>
-
-                {/* LISTA DEL EQUIPO ACTUAL */}
-                <Text style={[styles.subSectionTitle, { marginTop: 22 }]}>MIEMBROS ACTIVOS DEL EQUIPO</Text>
-                {users
-                  .filter((u) => u.role !== 'user')
-                  .map((m) => (
-                    <View key={m.id} style={styles.teamMemberRow}>
-                      <Icon
-                        name={m.role === 'admin' ? 'crown' : 'shield-account'}
-                        size={22}
-                        color={m.role === 'admin' ? '#F59E0B' : '#38BDF8'}
-                        style={{ marginRight: 10 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.teamMemberName}>{m.displayName}</Text>
-                        <Text style={styles.teamMemberEmail}>{m.email}</Text>
-                      </View>
-                      <View style={styles.teamRoleBadge}>
-                        <Text style={styles.teamRoleBadgeText}>{m.role.toUpperCase()}</Text>
-                      </View>
-                    </View>
-                  ))}
-              </View>
-            )}
-
-            {/* ========================================================= */}
-            {/* PESTAÑA 4: KPIS EN VIVO */}
-            {/* ========================================================= */}
-            {activeTab === 'kpis' && (
-              <View>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeaderTitle}>MÉTRICAS TÉCNICAS Y KPIS DE LA APP</Text>
-                  <View style={styles.livePulsePod}>
-                    <View style={styles.pulseDot} />
-                    <Text style={styles.liveText}>TIEMPO REAL</Text>
-                  </View>
-                </View>
-
-                <View style={styles.kpiGrid}>
-                  <View style={styles.kpiBox}>
-                    <Icon name="tent" size={28} color="#10B981" />
-                    <Text style={styles.kpiNumber}>517.363</Text>
-                    <Text style={styles.kpiLabel}>Puntos Camper en DB</Text>
-                  </View>
-
-                  <View style={styles.kpiBox}>
-                    <Icon name="speedometer" size={28} color="#EF4444" />
-                    <Text style={styles.kpiNumber}>2.257</Text>
-                    <Text style={styles.kpiLabel}>Radares Oficiales DGT</Text>
-                  </View>
-
-                  <View style={styles.kpiBox}>
-                    <Icon name="navigation-variant" size={28} color="#38BDF8" />
-                    <Text style={styles.kpiNumber}>1.840</Text>
-                    <Text style={styles.kpiLabel}>Rutas Navegadas Hoy</Text>
-                  </View>
-
-                  <View style={styles.kpiBox}>
-                    <Icon name="account-clock" size={28} color="#F59E0B" />
-                    <Text style={styles.kpiNumber}>{users.length}</Text>
-                    <Text style={styles.kpiLabel}>Usuarios Registrados</Text>
-                  </View>
-                </View>
-
-                <Text style={[styles.subSectionTitle, { marginTop: 22 }]}>SALUD DE LOS SERVIDORES</Text>
-                <View style={styles.serverStatusCard}>
-                  {[
-                    { name: 'Supabase Cloud Database & Auth', status: 'ONLINE', ping: '24ms' },
-                    { name: 'Servidor de Enrutamiento OSRM GPS', status: 'ONLINE', ping: '48ms' },
-                    { name: 'Mosaicos de Mapa Satelital Esri HD', status: 'ONLINE', ping: '18ms' },
-                    { name: 'Geocodificador OSM Photon Europa', status: 'ONLINE', ping: '62ms' },
-                  ].map((s, idx) => (
-                    <View key={idx} style={styles.serverRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={styles.greenDot} />
-                        <Text style={styles.serverName}>{s.name}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.serverPing}>{s.ping}</Text>
-                        <Text style={styles.serverStatusText}>{s.status}</Text>
-                      </View>
-                    </View>
-                  ))}
                 </View>
               </View>
             )}
           </ScrollView>
-        )}
-          </>
         )}
       </View>
     </Modal>
@@ -758,12 +1317,13 @@ const styles = StyleSheet.create({
   headerTitleBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    flex: 1,
   },
   shieldIconPod: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
     borderWidth: 1.5,
     borderColor: '#F59E0B',
@@ -771,14 +1331,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
     color: '#F8FAFC',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   headerSubtitle: {
     fontSize: 11,
     color: '#94A3B8',
+  },
+  webAdminBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(56, 189, 248, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  webAdminBtnText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '800',
   },
   closeBtn: {
     width: 36,
@@ -790,12 +1366,12 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     backgroundColor: '#1E293B',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-    gap: 6,
+    gap: 4,
   },
   tabBtn: {
     flex: 1,
@@ -803,17 +1379,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    gap: 6,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    gap: 4,
   },
   tabBtnActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.16)',
+    backgroundColor: 'rgba(56, 189, 248, 0.14)',
     borderWidth: 1,
-    borderColor: '#38BDF8',
+    borderColor: 'rgba(56, 189, 248, 0.4)',
   },
   tabText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: '#64748B',
   },
@@ -824,52 +1400,249 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 30,
+    gap: 12,
   },
   loadingText: {
     color: '#94A3B8',
-    marginTop: 12,
     fontSize: 13,
+    fontWeight: '600',
   },
   scrollArea: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 48,
+  },
+  globalHealthBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginBottom: 18,
+  },
+  globalHealthTitle: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  globalHealthSub: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  pingNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  pingNowBtnText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  serverDetailCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  serverDetailTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusDotLarge: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  serverDetailName: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  serverDetailEndpoint: {
+    color: '#64748B',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  serverStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  serverStatusBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  serverCheckedAt: {
+    color: '#64748B',
+    fontSize: 9,
+    marginTop: 3,
+  },
+  latencyBarBg: {
+    height: 6,
+    backgroundColor: '#0F172A',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginVertical: 6,
+  },
+  latencyBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  serverDetailInfo: {
+    color: '#94A3B8',
+    fontSize: 11,
+  },
+  newIncidentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  newIncidentBtnText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  newIncidentCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+  },
+  incInput: {
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    color: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  incidentCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  incidentHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sevBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  sevBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  incidentTitle: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  incidentDesc: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  incidentMetaBox: {
+    backgroundColor: '#0F172A',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  incidentMetaText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  incidentActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  incActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  incActionText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   sectionHeaderTitle: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#94A3B8',
     letterSpacing: 0.8,
   },
   livePulsePod: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 5,
   },
   pulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#10B981',
   },
   liveText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '900',
     color: '#10B981',
-    letterSpacing: 0.5,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -881,27 +1654,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E293B',
     borderRadius: 16,
     padding: 14,
-    borderWidth: 1.5,
+    borderLeftWidth: 4,
   },
   metricLabel: {
     fontSize: 11,
     color: '#94A3B8',
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: '700',
   },
   metricValue: {
     fontSize: 22,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    marginVertical: 4,
   },
   metricSub: {
-    fontSize: 9,
+    fontSize: 10,
     color: '#64748B',
-    marginTop: 4,
   },
   netProfitCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 18,
+    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1.5,
   },
@@ -911,14 +1682,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   profitTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#38BDF8',
-    letterSpacing: 0.6,
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#F8FAFC',
   },
   profitSub: {
-    fontSize: 10,
-    color: '#94A3B8',
+    fontSize: 11,
+    color: '#38BDF8',
     marginTop: 2,
   },
   profitValue: {
@@ -929,31 +1699,32 @@ const styles = StyleSheet.create({
   profitDivider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   mrrRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   mrrText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    fontSize: 11,
+    color: '#CBD5E1',
+    fontWeight: '600',
   },
   arrText: {
-    fontSize: 10,
-    color: '#94A3B8',
+    fontSize: 11,
+    color: '#F59E0B',
+    fontWeight: '800',
   },
   subSectionTitle: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#94A3B8',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     marginBottom: 10,
   },
   breakdownCard: {
     backgroundColor: '#1E293B',
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 14,
     gap: 12,
   },
@@ -967,21 +1738,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sourceName: {
-    fontSize: 12,
-    color: '#F1F5F9',
+    fontSize: 13,
+    color: '#E2E8F0',
     fontWeight: '600',
   },
   sourceAmount: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#10B981',
+    color: '#F8FAFC',
   },
   payoutCard: {
     backgroundColor: '#1E293B',
-    borderRadius: 18,
+    borderRadius: 16,
     padding: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   payoutHeaderRow: {
     flexDirection: 'row',
@@ -990,17 +1761,16 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   payoutCardTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
     color: '#F8FAFC',
   },
   payoutSub: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94A3B8',
-    marginTop: 2,
   },
   payoutAvailable: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     color: '#10B981',
   },
@@ -1008,39 +1778,39 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   inputLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: '#CBD5E1',
     marginBottom: 6,
   },
   textInputBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#0F172A',
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   textInput: {
     flex: 1,
-    height: 40,
+    height: 42,
     color: '#F8FAFC',
-    fontSize: 12,
+    fontSize: 13,
   },
   savePayoutBtn: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#0284C7',
     paddingVertical: 12,
     borderRadius: 12,
     marginTop: 6,
   },
   savePayoutBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
     color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
     letterSpacing: 0.5,
   },
   countBadge: {
@@ -1052,134 +1822,128 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1E293B',
-    borderRadius: 14,
-    marginBottom: 10,
+    borderRadius: 12,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   searchInput: {
     flex: 1,
     height: 42,
     color: '#F8FAFC',
-    fontSize: 12,
+    fontSize: 13,
   },
   roleFiltersScroll: {
-    flexDirection: 'row',
     marginBottom: 14,
   },
   filterChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 16,
     backgroundColor: '#1E293B',
     marginRight: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   filterChipActive: {
     backgroundColor: 'rgba(56, 189, 248, 0.2)',
     borderColor: '#38BDF8',
   },
   filterChipText: {
-    fontSize: 10,
+    fontSize: 11,
+    fontWeight: '700',
     color: '#94A3B8',
-    fontWeight: '600',
   },
   filterChipTextActive: {
     color: '#38BDF8',
-    fontWeight: '800',
   },
   usersList: {
     gap: 10,
   },
   userCard: {
     backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  userCardAdmin: {
-    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   userCardBlocked: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    opacity: 0.75,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+  },
+  userCardAdmin: {
+    borderColor: 'rgba(245, 158, 11, 0.5)',
   },
   userCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
+    marginBottom: 12,
   },
   userAvatarBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#334155',
     justifyContent: 'center',
     alignItems: 'center',
   },
   userAvatarText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#38BDF8',
-  },
-  userDisplayName: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '900',
     color: '#F8FAFC',
   },
-  blockedBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  blockedBadgeText: {
-    fontSize: 8,
-    color: '#EF4444',
+  userDisplayName: {
+    fontSize: 14,
     fontWeight: '800',
+    color: '#F8FAFC',
   },
   userEmail: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94A3B8',
   },
   userMeta: {
-    fontSize: 9,
+    fontSize: 10,
     color: '#64748B',
     marginTop: 2,
   },
+  blockedBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  blockedBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
   userActionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    paddingTop: 8,
   },
   actionPill: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#0F172A',
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    paddingHorizontal: 6,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   actionPillText: {
-    fontSize: 9,
-    color: '#E2E8F0',
+    fontSize: 11,
     fontWeight: '700',
-    marginRight: 2,
+    color: '#E2E8F0',
+    marginRight: 4,
   },
   blockBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
     paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   blockBtnActive: {
@@ -1189,208 +1953,67 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   blockBtnText: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '800',
     color: '#FFFFFF',
   },
   addStaffCard: {
     backgroundColor: '#1E293B',
-    borderRadius: 18,
+    borderRadius: 16,
     padding: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
   },
   addStaffTitle: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '800',
     color: '#F8FAFC',
     marginBottom: 4,
   },
   addStaffSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#94A3B8',
-    lineHeight: 14,
-    marginBottom: 12,
-  },
-  rolePickerRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  roleSelectPill: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  roleSelectPillActive: {
-    borderColor: '#38BDF8',
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-  },
-  roleSelectText: {
-    fontSize: 9,
-    color: '#94A3B8',
-    fontWeight: '600',
-  },
-  roleSelectTextActive: {
-    color: '#38BDF8',
-    fontWeight: '800',
+    marginBottom: 14,
   },
   createStaffBtn: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#10B981',
     paddingVertical: 12,
     borderRadius: 12,
     marginTop: 6,
   },
   createStaffBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  teamMemberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  teamMemberName: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#F8FAFC',
-  },
-  teamMemberEmail: {
-    fontSize: 10,
-    color: '#94A3B8',
-  },
-  teamRoleBadge: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  teamRoleBadgeText: {
-    fontSize: 9,
-    color: '#38BDF8',
-    fontWeight: '800',
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   kpiBox: {
     width: '48%',
     backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   kpiNumber: {
     fontSize: 22,
     fontWeight: '900',
     color: '#F8FAFC',
-    marginVertical: 4,
+    marginTop: 6,
   },
   kpiLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    textAlign: 'center',
-  },
-  serverStatusCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 14,
-    gap: 12,
-  },
-  serverRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  greenDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-    marginRight: 8,
-  },
-  serverName: {
     fontSize: 11,
-    color: '#F1F5F9',
-    fontWeight: '600',
-  },
-  serverPing: {
-    fontSize: 10,
-    color: '#64748B',
-  },
-  serverStatusText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  accessDeniedContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    backgroundColor: '#0F172A',
-  },
-  accessDeniedIconBox: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  accessDeniedTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#F8FAFC',
-    letterSpacing: 0.8,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  accessDeniedSub: {
-    fontSize: 14,
     color: '#94A3B8',
+    marginTop: 2,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  accessDeniedBackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#38BDF8',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: '#38BDF8',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  accessDeniedBackBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
   },
 });
-
-export default AdminDashboardModal;

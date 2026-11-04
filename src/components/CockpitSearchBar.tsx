@@ -53,6 +53,27 @@ export const QUICK_FILTERS: QuickFilter[] = [
     color: '#818CF8',
   },
   {
+    id: 'moto_trail',
+    label: '🏍️ Moto / Monte',
+    icon: 'motorbike',
+    categories: ['MONTANA', 'MIRADOR', 'CASCADA'],
+    color: '#EA580C',
+  },
+  {
+    id: 'offroad_4x4',
+    label: '🚙 Pistas 4x4',
+    icon: 'car-traction-control',
+    categories: ['MONTANA', 'LAGO', 'MIRADOR', 'CASCADA'],
+    color: '#4D7C0F',
+  },
+  {
+    id: 'sos_help',
+    label: '🆘 SOS / Ayuda',
+    icon: 'lifebuoy',
+    categories: ['FARMACIA', 'AREA_SERVICIOS', 'GASOLINERA_GLP', 'AREA_DESCANSO'],
+    color: '#DC2626',
+  },
+  {
     id: 'glp',
     label: '⛽ GLP / Autogas',
     icon: 'gas-station',

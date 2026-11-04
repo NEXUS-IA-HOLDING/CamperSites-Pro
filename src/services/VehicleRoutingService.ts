@@ -291,7 +291,31 @@ export class VehicleRoutingService {
           'SUPERMERCADO',
           'LAVANDERIA',
           'FARMACIA',
+          'PUNTO_PERSONALIZADO',
+          'FAVORITO',
         ];
+      case 'moto':
+      case 'offroad_4x4':
+        return [
+          'MIRADOR',
+          'CASCADA',
+          'LAGO',
+          'RUTA_MOTO_MONTE',
+          'PISTA_4X4',
+          'GASOLINERA_GLP',
+          'RESTAURANTE',
+          'BAR',
+          'BAR_CAFETERIA',
+          'CAMPING',
+          'AREA_DESCANSO',
+          'PARKING_PERMITIDO',
+          'HOTEL',
+          'PUNTO_PERSONALIZADO',
+          'FAVORITO',
+        ];
+      case 'car':
+      case 'sos_lost':
+        return []; // En modo coche o SOS mostrar todas las categorías cercanas sin restricción
       case 'truck':
         return [
           'AREA_DESCANSO',
@@ -304,6 +328,8 @@ export class VehicleRoutingService {
           'PARKING_PERMITIDO',
           'LAVADERO_COCHES',
           'SUPERMERCADO',
+          'PUNTO_PERSONALIZADO',
+          'FAVORITO',
         ];
       case 'delivery':
         return [
@@ -314,6 +340,8 @@ export class VehicleRoutingService {
           'BAR',
           'BAR_CAFETERIA',
           'RESTAURANTE',
+          'PUNTO_PERSONALIZADO',
+          'FAVORITO',
         ];
       default:
         return [];

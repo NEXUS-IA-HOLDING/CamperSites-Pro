@@ -89,6 +89,15 @@ const CATEGORY_SECTIONS = [
     ],
   },
   {
+    title: 'Rutas Moto, 4x4 y Rescate SOS',
+    emoji: '🏍️',
+    categories: [
+      { key: 'RUTA_MOTO_MONTE', label: 'Rutas Moto / Monte', emoji: '🏍️', icon: 'motorbike', color: '#EA580C' },
+      { key: 'PISTA_4X4', label: 'Pistas 4x4 Off-Road', emoji: '🚙', icon: 'car-traction-control', color: '#4D7C0F' },
+      { key: 'PUNTO_SOS', label: 'Refugio / Ayuda SOS', emoji: '🆘', icon: 'lifebuoy', color: '#DC2626' },
+    ],
+  },
+  {
     title: 'Naturaleza',
     emoji: '🌲',
     categories: [
@@ -208,7 +217,15 @@ export default function ExploreScreen() {
           .limit(150);
 
         if (category !== 'ALL') {
-          geoQuery = geoQuery.eq('category', category);
+          if (category === 'RUTA_MOTO_MONTE') {
+            geoQuery = geoQuery.in('category', ['MONTANA', 'MIRADOR', 'CASCADA']);
+          } else if (category === 'PISTA_4X4') {
+            geoQuery = geoQuery.in('category', ['MONTANA', 'LAGO', 'MIRADOR', 'CASCADA']);
+          } else if (category === 'PUNTO_SOS') {
+            geoQuery = geoQuery.in('category', ['FARMACIA', 'AREA_SERVICIOS', 'AREA_DESCANSO', 'GASOLINERA_GLP']);
+          } else {
+            geoQuery = geoQuery.eq('category', category);
+          }
         }
 
         const { data: geoData } = await geoQuery;
@@ -225,7 +242,15 @@ export default function ExploreScreen() {
           .limit(200);
 
         if (category !== 'ALL') {
-          q = q.eq('category', category);
+          if (category === 'RUTA_MOTO_MONTE') {
+            q = q.in('category', ['MONTANA', 'MIRADOR', 'CASCADA']);
+          } else if (category === 'PISTA_4X4') {
+            q = q.in('category', ['MONTANA', 'LAGO', 'MIRADOR', 'CASCADA']);
+          } else if (category === 'PUNTO_SOS') {
+            q = q.in('category', ['FARMACIA', 'AREA_SERVICIOS', 'AREA_DESCANSO', 'GASOLINERA_GLP']);
+          } else {
+            q = q.eq('category', category);
+          }
         }
 
         if (query.trim().length > 0) {

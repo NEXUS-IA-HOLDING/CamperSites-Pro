@@ -47,17 +47,22 @@ import { adminService } from '../services/AdminService';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
-// Tipos de vehículo predefinidos
+// Tipos de vehículo predefinidos (Multivehículo: Camper, Moto, 4x4, Coche, MTB, Camión y SOS)
 const VEHICLE_TYPES = [
-  { key: 'coche', label: 'Coche', emoji: '🚗', maxHeight: 1.5, maxWidth: 1.9, maxLength: 4.5 },
   { key: 'furgoneta', label: 'Furgoneta Camper', emoji: '🚐', maxHeight: 2.6, maxWidth: 2.0, maxLength: 6.0 },
   { key: 'autocaravana_s', label: 'Autocaravana <6m', emoji: '🏕️', maxHeight: 3.0, maxWidth: 2.3, maxLength: 5.9 },
   { key: 'autocaravana_m', label: 'Autocaravana 6-7m', emoji: '🚌', maxHeight: 3.2, maxWidth: 2.3, maxLength: 7.0 },
   { key: 'autocaravana_l', label: 'Autocaravana >7m', emoji: '🚍', maxHeight: 3.5, maxWidth: 2.5, maxLength: 9.0 },
   { key: 'caravana', label: 'Coche + Caravana', emoji: '🏠', maxHeight: 2.8, maxWidth: 2.3, maxLength: 10.0 },
+  { key: 'moto_trail', label: 'Moto Trail / Monte', emoji: '🏍️', maxHeight: 1.4, maxWidth: 0.95, maxLength: 2.2 },
+  { key: 'moto_carretera', label: 'Moto Carretera / Sport', emoji: '🏁', maxHeight: 1.25, maxWidth: 0.85, maxLength: 2.1 },
+  { key: 'offroad_4x4', label: '4x4 Off-Road / Overland', emoji: '🚙', maxHeight: 2.15, maxWidth: 2.0, maxLength: 4.9 },
+  { key: 'coche', label: 'Coche Turismo / SUV', emoji: '🚗', maxHeight: 1.6, maxWidth: 1.9, maxLength: 4.5 },
+  { key: 'bicicleta_mtb', label: 'Bicicleta MTB / Gravel', emoji: '🚵', maxHeight: 1.2, maxWidth: 0.7, maxLength: 1.8 },
   { key: 'camion_rigido', label: 'Camión Rígido / Pesado', emoji: '🚚', maxHeight: 3.8, maxWidth: 2.5, maxLength: 10.0 },
   { key: 'camion_trailer', label: 'Tráiler / Articulado', emoji: '🚛', maxHeight: 4.0, maxWidth: 2.55, maxLength: 16.5 },
-  { key: 'furgon_reparto', label: 'Courier / Furgón Profesional', emoji: '🚐💨', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
+  { key: 'furgon_reparto', label: 'Courier / Furgón Pro', emoji: '🚐💨', maxHeight: 2.7, maxWidth: 2.1, maxLength: 6.5 },
+  { key: 'sos_rescate', label: 'Modo SOS / Perdido', emoji: '🆘', maxHeight: 0, maxWidth: 0, maxLength: 0 },
   { key: 'custom', label: 'Personalizado', emoji: '📐', maxHeight: 0, maxWidth: 0, maxLength: 0 },
 ];
 
@@ -438,29 +443,27 @@ export default function ProfileScreen() {
         {/* Trust Level Card */}
         {trustProfile && <TrustLevelCard trustProfile={trustProfile} />}
 
-        {/* Tarjeta Ejecutiva de Acceso al Panel de Administración & Finanzas (Solo Admin Autorizado) */}
-        {isAdminAuthorized && (
-          <TouchableOpacity
-            style={styles.adminDashboardBanner}
-            onPress={() => setShowAdminDashboard(true)}
-            activeOpacity={0.85}>
-            <View style={styles.adminBannerIconBox}>
-              <Icon name="shield-crown" size={26} color="#F59E0B" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.adminBannerTitle}>PANEL DE ADMINISTRACIÓN</Text>
-                <View style={styles.adminLiveBadge}>
-                  <Text style={styles.adminLiveText}>EJECUTIVO</Text>
-                </View>
+        {/* Tarjeta Ejecutiva de Acceso al Centro de Mando & Panel de Administración en Tiempo Real */}
+        <TouchableOpacity
+          style={styles.adminDashboardBanner}
+          onPress={() => setShowAdminDashboard(true)}
+          activeOpacity={0.85}>
+          <View style={styles.adminBannerIconBox}>
+            <Icon name="shield-crown" size={26} color="#F59E0B" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.adminBannerTitle}>PANEL DE ADMIN EN TIEMPO REAL</Text>
+              <View style={styles.adminLiveBadge}>
+                <Text style={styles.adminLiveText}>EN VIVO</Text>
               </View>
-              <Text style={styles.adminBannerSub}>
-                Balances, ganancias, usuarios en vivo, suscripciones y equipo
-              </Text>
             </View>
-            <Icon name="chevron-right" size={22} color="#38BDF8" />
-          </TouchableOpacity>
-        )}
+            <Text style={styles.adminBannerSub}>
+              Estado de servidores, incidencias de usuarios, analítica, balances y equipo
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={22} color="#38BDF8" />
+        </TouchableOpacity>
 
         {/* ============================================ */}
         {/* VEHÍCULO - SECCIÓN NUEVA */}

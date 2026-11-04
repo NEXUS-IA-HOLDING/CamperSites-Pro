@@ -44,13 +44,13 @@ export const VehicleCursorSelectorModal: React.FC<VehicleCursorSelectorModalProp
           
           <View style={styles.header}>
             <Icon name="car-settings" size={24} color="#10B981" />
-            <Text style={styles.title}>Personalizar Icono en el Mapa</Text>
+            <Text style={styles.title}>Elegir Vehículo / Modo 3D (13 Modelos)</Text>
           </View>
           <Text style={styles.subtitle}>
-            Elige el vehículo que representa tu posición con orientación 360° en tiempo real
+            Camper, Autocaravana, Moto Trail/Monte, 4x4, Coche, Camión, Bici o Baliza SOS
           </Text>
 
-          <ScrollView contentContainerStyle={styles.grid}>
+          <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
             {cursorKeys.map(key => {
               const item = VEHICLE_CURSORS[key];
               const isSelected = selectedCursor === key;
@@ -59,7 +59,7 @@ export const VehicleCursorSelectorModal: React.FC<VehicleCursorSelectorModalProp
                   key={key}
                   style={[
                     styles.itemCard,
-                    isSelected && { borderColor: item.color, backgroundColor: item.color + '15' },
+                    isSelected && { borderColor: item.color, backgroundColor: item.color + '18' },
                   ]}
                   activeOpacity={0.75}
                   onPress={() => {
@@ -70,8 +70,13 @@ export const VehicleCursorSelectorModal: React.FC<VehicleCursorSelectorModalProp
                     <Icon name={item.icon} size={24} color="#FFFFFF" />
                   </View>
                   <Text style={[styles.itemLabel, isSelected && { color: item.color, fontWeight: '800' }]}>
-                    {item.label}
+                    {item.badge} {item.label}
                   </Text>
+                  {item.subtitle && (
+                    <Text style={styles.itemSubtitle} numberOfLines={2}>
+                      {item.subtitle}
+                    </Text>
+                  )}
                   {isSelected && (
                     <View style={styles.activeCheck}>
                       <Icon name="check" size={14} color="#10B981" />
@@ -169,6 +174,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
+  },
+  itemSubtitle: {
+    fontSize: 10,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 13,
   },
   activeCheck: {
     position: 'absolute',
