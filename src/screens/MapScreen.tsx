@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   FlatList,
+  ScrollView,
   Vibration,
 } from 'react-native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
@@ -243,6 +244,10 @@ interface Radar {
 }
 
 interface Route {
+  id?: string;
+  name?: string;
+  subtitle?: string;
+  badge?: string;
   coordinates: Array<{latitude: number; longitude: number}>;
   distance: number;
   duration: number;
@@ -1021,38 +1026,80 @@ const MapScreen = () => {
         Logger.warn('MapScreen', 'OSRM server offline o timeout, activando fallback');
       }
 
-      // Si solo devolvió 1 ruta, calcular una segunda ruta alternativa paisajística
-      if (calculatedRoutes.length === 1) {
-        try {
-          const midLat = (fromLat + toLat) / 2;
-          const midLng = (fromLng + toLng) / 2;
-          const dLat = toLat - fromLat;
-          const dLng = toLng - fromLng;
-          const detourLat = midLat - dLng * 0.15;
-          const detourLng = midLng + dLat * 0.15;
-          const altUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${detourLng.toFixed(5)},${detourLat.toFixed(5)};${toLng},${toLat}?overview=full&geometries=geojson&steps=true&annotations=true`;
-          const altController = new AbortController();
-          const altTimeout = setTimeout(() => altController.abort(), 3500);
-          const altRes = await fetch(altUrl, { signal: altController.signal });
-          clearTimeout(altTimeout);
-          if (altRes.ok) {
-            const altData = await altRes.json();
-            if (altData.routes && altData.routes.length > 0) {
-              const alt = altData.routes[0];
-              calculatedRoutes.push({
-                coordinates: alt.geometry.coordinates.map((coord: number[]) => ({
-                  latitude: coord[1],
-                  longitude: coord[0],
-                })),
-                distance: alt.distance,
-                duration: alt.duration,
-                incidents: detectIncidents(alt.geometry.coordinates),
-                type: 'alternative',
-                rawRoute: alt,
-              });
+      // Si OSRM devolvió menos de 3 rutas, generar alternativas inteligentes (Sin Peajes y Panorámica)
+      if (calculatedRoutes.length < 3 && calculatedRoutes.length > 0) {
+        const midLat = (fromLat + toLat) / 2;
+        const midLng = (fromLng + toLng) / 2;
+        const dLat = toLat - fromLat;
+        const dLng = toLng - fromLng;
+
+        // Opción 2: Sin peajes / Nacional (desvío perpendicular norte/este)
+        if (calculatedRoutes.length === 1) {
+          try {
+            const detourLat = midLat - dLng * 0.14;
+            const detourLng = midLng + dLat * 0.14;
+            const altUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${detourLng.toFixed(5)},${detourLat.toFixed(5)};${toLng},${toLat}?overview=full&geometries=geojson&steps=true&annotations=true`;
+            const altController = new AbortController();
+            const altTimeout = setTimeout(() => altController.abort(), 3500);
+            const altRes = await fetch(altUrl, { signal: altController.signal });
+            clearTimeout(altTimeout);
+            if (altRes.ok) {
+              const altData = await altRes.json();
+              if (altData.routes && altData.routes.length > 0) {
+                const alt = altData.routes[0];
+                calculatedRoutes.push({
+                  id: 'route-no-tolls',
+                  name: '🛣️ Sin Peajes (Nacional)',
+                  subtitle: 'Carreteras nacionales seguras evitando peajes',
+                  badge: 'Económica',
+                  coordinates: alt.geometry.coordinates.map((coord: number[]) => ({
+                    latitude: coord[1],
+                    longitude: coord[0],
+                  })),
+                  distance: alt.distance,
+                  duration: alt.duration,
+                  incidents: detectIncidents(alt.geometry.coordinates),
+                  type: 'alternative',
+                  rawRoute: alt,
+                });
+              }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
+
+        // Opción 3: Panorámica Camper (desvío perpendicular opuesto)
+        if (calculatedRoutes.length === 2) {
+          try {
+            const detourLat3 = midLat + dLng * 0.14;
+            const detourLng3 = midLng - dLat * 0.14;
+            const altUrl3 = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${detourLng3.toFixed(5)},${detourLat3.toFixed(5)};${toLng},${toLat}?overview=full&geometries=geojson&steps=true&annotations=true`;
+            const altController3 = new AbortController();
+            const altTimeout3 = setTimeout(() => altController3.abort(), 3500);
+            const altRes3 = await fetch(altUrl3, { signal: altController3.signal });
+            clearTimeout(altTimeout3);
+            if (altRes3.ok) {
+              const altData3 = await altRes3.json();
+              if (altData3.routes && altData3.routes.length > 0) {
+                const alt3 = altData3.routes[0];
+                calculatedRoutes.push({
+                  id: 'route-scenic',
+                  name: '🏕️ Panorámica Camper',
+                  subtitle: 'Vía paisajística con miradores y áreas de pernocta',
+                  badge: 'Paisaje',
+                  coordinates: alt3.geometry.coordinates.map((coord: number[]) => ({
+                    latitude: coord[1],
+                    longitude: coord[0],
+                  })),
+                  distance: alt3.distance,
+                  duration: alt3.duration,
+                  incidents: detectIncidents(alt3.geometry.coordinates),
+                  type: 'alternative',
+                  rawRoute: alt3,
+                });
+              }
+            }
+          } catch (_) {}
+        }
       }
 
       // Si OSRM falló o no devolvió rutas, crear una ruta suave interpolada de navegación segura
@@ -1070,6 +1117,10 @@ const MapScreen = () => {
         const estDist = Math.max(500, Math.round(straightDistM * 1.25));
         const estDur = Math.max(60, Math.round(estDist / 22));
         calculatedRoutes.push({
+          id: 'route-fastest-fallback',
+          name: '⭐ Ruta Rápida Directa',
+          subtitle: 'Vía principal hacia destino',
+          badge: 'Recomendada',
           coordinates: coords,
           distance: estDist,
           duration: estDur,
@@ -1093,6 +1144,25 @@ const MapScreen = () => {
           },
         });
       }
+
+      // Etiquetar nombres y subtítulos en todas las rutas para claridad total
+      calculatedRoutes.forEach((route, idx) => {
+        if (!route.name) {
+          if (idx === 0) {
+            route.name = '⭐ Más Rápida (Autovía)';
+            route.subtitle = 'Menor tiempo y vías principales';
+            route.badge = 'Recomendada';
+          } else if (idx === 1) {
+            route.name = '🛣️ Sin Peajes (Nacional)';
+            route.subtitle = 'Evita tramos de peaje, ideal para ahorrar';
+            route.badge = 'Económica';
+          } else {
+            route.name = '🏕️ Panorámica Camper';
+            route.subtitle = 'Vía relajada con miradores y naturaleza';
+            route.badge = 'Paisaje';
+          }
+        }
+      });
 
       setRoutes(calculatedRoutes);
       if (calculatedRoutes.length > 0) {
@@ -2125,16 +2195,15 @@ const MapScreen = () => {
           onStartRoute={async (loc) => {
             const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
             const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
-            AudioAlertService.speak(`Iniciando ruta hacia ${loc.name}`);
-            const calcRoutes = await calculateRoutes(
+            AudioAlertService.speak(`Calculando opciones de ruta hacia ${loc.name}`);
+            await calculateRoutes(
               fromLat,
               fromLng,
               loc.latitude,
-              loc.longitude
+              loc.longitude,
+              false,
+              true // autoShowModal: abre modal con varias alternativas de ruta comparables
             );
-            if (calcRoutes && calcRoutes.length > 0) {
-              startNavigation(calcRoutes[0]);
-            }
           }}
           onOpenReviews={(loc) => {
             setReviewsLocation(loc);
@@ -2186,30 +2255,103 @@ const MapScreen = () => {
       <Modal visible={showRouteSelector} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Selecciona tu ruta</Text>
-            {routes.map((route, idx) => (
+            <View style={styles.routeModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Opciones de Ruta Segura</Text>
+                <Text style={styles.modalSubtitle}>Compara alternativas y elige tu trayecto:</Text>
+              </View>
               <TouchableOpacity
-                key={idx}
-                style={[styles.routeOption, route.type === 'fastest' && styles.recommendedRoute]}
-                onPress={() => startNavigation(route)}>
-                <View style={styles.routeHeader}>
-                  <Text style={styles.routeType}>
-                    {route.type === 'fastest' ? '⭐ Recomendada' : 'Alternativa'}
-                  </Text>
-                  <Text style={styles.routeStats}>
-                    {(route.distance / 1000).toFixed(1)} km • {Math.round(route.duration / 60)} min
-                  </Text>
-                </View>
-                {route.incidents.length > 0 && (
-                  <View style={styles.incidents}>
-                    <Text style={styles.incidentsTitle}>En esta ruta:</Text>
-                    {route.incidents.map((incident, i) => (
-                      <Text key={i} style={styles.incident}>{incident}</Text>
-                    ))}
-                  </View>
-                )}
+                onPress={() => setShowRouteSelector(false)}
+                style={styles.closeModalBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="close" size={22} color="#94A3B8" />
               </TouchableOpacity>
-            ))}
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300, marginVertical: 6 }}>
+              {routes.map((route, idx) => {
+                const isSelected = selectedRoute === route;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      styles.routeOption,
+                      isSelected && styles.routeOptionSelected,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => setSelectedRoute(route)}>
+                    <View style={styles.routeHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <View style={[styles.routeRadioDot, isSelected && styles.routeRadioDotActive]}>
+                          {isSelected && <View style={styles.routeRadioInner} />}
+                        </View>
+                        <Text style={[styles.routeType, isSelected && styles.routeTypeActive]}>
+                          {route.name || (route.type === 'fastest' ? '⭐ Más Rápida (Autovía)' : '🛣️ Alternativa')}
+                        </Text>
+                      </View>
+                      {route.badge && (
+                        <View style={[styles.routeBadgePill, isSelected && styles.routeBadgePillActive]}>
+                          <Text style={[styles.routeBadgeText, isSelected && styles.routeBadgeTextActive]}>
+                            {route.badge}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {route.subtitle && (
+                      <Text style={styles.routeSubtitleText}>{route.subtitle}</Text>
+                    )}
+
+                    <View style={styles.routeMetricsRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Icon name="map-marker-distance" size={14} color="#38BDF8" style={{ marginRight: 4 }} />
+                        <Text style={styles.routeStats}>
+                          {(route.distance / 1000).toFixed(1)} km
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }}>
+                        <Icon name="clock-outline" size={14} color="#10B981" style={{ marginRight: 4 }} />
+                        <Text style={styles.routeDurationText}>
+                          {Math.round(route.duration / 60)} min
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }}>
+                        <Icon name="flag-checkered" size={14} color="#FBBF24" style={{ marginRight: 4 }} />
+                        <Text style={styles.routeEtaText}>
+                          {new Date(Date.now() + route.duration * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {route.incidents.length > 0 && (
+                      <View style={styles.incidents}>
+                        <Text style={styles.incidentsTitle}>Avisos en esta ruta:</Text>
+                        {route.incidents.map((incident, i) => (
+                          <Text key={i} style={styles.incident}>{incident}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Botón Principal: Iniciar Navegación de la Ruta Seleccionada */}
+            {selectedRoute && (
+              <TouchableOpacity
+                style={styles.startNavigationBtn}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setShowRouteSelector(false);
+                  startNavigation(selectedRoute);
+                }}>
+                <Icon name="navigation-variant" size={22} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.startNavigationBtnText}>
+                  🚀 INICIAR ESTA RUTA ({(selectedRoute.distance / 1000).toFixed(1)} km · {Math.round(selectedRoute.duration / 60)} min)
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {/* Banner de Seguridad en Ruta: Seguro Camper IATI 5% Dto */}
             <TouchableOpacity
               style={{
@@ -2219,8 +2361,8 @@ const MapScreen = () => {
                 borderWidth: 1,
                 borderColor: 'rgba(16, 185, 129, 0.35)',
                 borderRadius: 12,
-                padding: 12,
-                marginTop: 10,
+                padding: 10,
+                marginTop: 8,
                 marginBottom: 6,
               }}
               activeOpacity={0.85}
@@ -2230,7 +2372,7 @@ const MapScreen = () => {
                   await affiliatePartnerService.openPartner(partner);
                 }
               }}>
-              <Icon name="shield-check" size={22} color="#10B981" style={{ marginRight: 10 }} />
+              <Icon name="shield-check" size={20} color="#10B981" style={{ marginRight: 10 }} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981' }}>
                   🛡️ Asistencia Médica y Grúa en Ruta
@@ -2239,7 +2381,7 @@ const MapScreen = () => {
                   5% Dto. exclusivo en IATI Escapadas para tu viaje
                 </Text>
               </View>
-              <Icon name="chevron-right" size={18} color="#10B981" />
+              <Icon name="chevron-right" size={16} color="#10B981" />
             </TouchableOpacity>
 
             {/* Botón Simular Conducción 3D (Demo Drive) */}
@@ -2251,12 +2393,15 @@ const MapScreen = () => {
                   justifyContent: 'center',
                   backgroundColor: '#0284C7',
                   borderRadius: 12,
-                  padding: 12,
-                  marginTop: 6,
+                  padding: 11,
+                  marginTop: 4,
                   marginBottom: 6,
                 }}
                 activeOpacity={0.85}
-                onPress={() => handleStartDemoSimulation(routes[0])}>
+                onPress={() => {
+                  setShowRouteSelector(false);
+                  handleStartDemoSimulation(selectedRoute || routes[0]);
+                }}>
                 <Icon name="gamepad-variant" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
                 <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
                   🎮 Probar / Simular en Cabina 3D
@@ -2265,7 +2410,7 @@ const MapScreen = () => {
             )}
 
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRouteSelector(false)}>
-              <Text style={styles.cancelText}>Cancelar</Text>
+              <Text style={styles.cancelText}>Cerrar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2541,30 +2686,110 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '80%',
+    backgroundColor: '#0F172A',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    maxHeight: '85%',
   },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  routeModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  closeModalBtn: {
+    padding: 4,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#F8FAFC' },
+  modalSubtitle: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
   routeOption: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 12,
+    marginBottom: 8,
+  },
+  routeOptionSelected: {
+    backgroundColor: 'rgba(2, 132, 199, 0.15)',
+    borderColor: '#38BDF8',
+  },
+  routeRadioDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#64748B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  routeRadioDotActive: {
+    borderColor: '#38BDF8',
+  },
+  routeRadioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#38BDF8',
+  },
+  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  routeType: { fontSize: 14, fontWeight: '700', color: '#E2E8F0' },
+  routeTypeActive: { color: '#38BDF8', fontWeight: '800' },
+  routeBadgePill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  routeBadgePillActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+  },
+  routeBadgeText: { fontSize: 10, fontWeight: '700', color: '#94A3B8' },
+  routeBadgeTextActive: { color: '#38BDF8' },
+  routeSubtitleText: { fontSize: 11, color: '#94A3B8', marginTop: 2, marginLeft: 26 },
+  routeMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginLeft: 26,
+  },
+  routeStats: { fontSize: 12, fontWeight: '700', color: '#38BDF8' },
+  routeDurationText: { fontSize: 12, fontWeight: '700', color: '#10B981' },
+  routeEtaText: { fontSize: 11, fontWeight: '600', color: '#FBBF24' },
+  incidents: { marginTop: 6, marginLeft: 26 },
+  incidentsTitle: { fontSize: 11, fontWeight: '700', color: '#EF4444' },
+  incident: { fontSize: 11, color: '#F87171', marginTop: 1 },
+  startNavigationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginTop: 8,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  startNavigationBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
   recommendedRoute: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderWidth: 2,
-    borderColor: '#2E7D32',
+    borderColor: '#10B981',
   },
-  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  routeType: { fontSize: 16, fontWeight: 'bold' },
-  routeStats: { fontSize: 14, color: '#666' },
-  incidents: { marginTop: 5 },
-  incidentsTitle: { fontSize: 12, fontWeight: 'bold', color: '#D32F2F', marginBottom: 5 },
-  incident: { fontSize: 12, color: '#666', marginLeft: 10 },
   cancelBtn: { marginTop: 10, padding: 15, alignItems: 'center' },
   cancelText: { fontSize: 16, color: '#666' },
   verifyModal: {

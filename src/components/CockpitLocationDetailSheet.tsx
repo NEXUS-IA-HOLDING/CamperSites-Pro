@@ -58,6 +58,7 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
   const [occupancy, setOccupancy] = useState<LocationOccupancyData | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [weather, setWeather] = useState<CamperWeatherReport | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     if (location) {
@@ -176,11 +177,25 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
   };
 
   return (
-    <View style={styles.sheetContainer}>
-      {/* Barra superior de arrastre */}
-      <View style={styles.dragHandleContainer}>
+    <View style={[styles.sheetContainer, isExpanded && styles.sheetContainerExpanded]}>
+      {/* Barra superior de arrastre / expansión */}
+      <TouchableOpacity
+        style={styles.dragHandleContainer}
+        activeOpacity={0.7}
+        onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.dragHandle} />
-      </View>
+        <View style={styles.expandHintRow}>
+          <Icon
+            name={isExpanded ? 'chevron-down' : 'chevron-up'}
+            size={16}
+            color="#38BDF8"
+            style={{ marginRight: 4 }}
+          />
+          <Text style={styles.expandHintText}>
+            {isExpanded ? 'Contraer detalles' : 'Toca para expandir detalles y servicios'}
+          </Text>
+        </View>
+      </TouchableOpacity>
 
       {/* Cabecera con Categoría y Botón de Cierre */}
       <View style={styles.headerRow}>
@@ -254,170 +269,207 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
         </View>
       </View>
 
-      {/* Nombre y Dirección */}
-      <Text style={styles.title} numberOfLines={2}>
-        {location.name}
-      </Text>
-      {location.address && (
-        <View style={styles.addressRow}>
-          <Icon name="map-marker-outline" size={14} color="#64748B" style={{ marginRight: 4 }} />
-          <Text style={styles.addressText} numberOfLines={1}>
-            {location.address}
+      {/* Contenido scrolleable cuando está expandido */}
+      <ScrollView
+        showsVerticalScrollIndicator={isExpanded}
+        nestedScrollEnabled={true}
+        style={isExpanded ? styles.expandedContentScroll : undefined}
+        contentContainerStyle={isExpanded ? styles.expandedContentContainer : undefined}>
+        
+        {/* Nombre y Dirección */}
+        <TouchableOpacity activeOpacity={0.9} onPress={() => setIsExpanded(!isExpanded)}>
+          <Text style={styles.title} numberOfLines={isExpanded ? undefined : 2}>
+            {location.name}
           </Text>
-        </View>
-      )}
-
-      {/* Tarjeta de Clima y Rachas de Viento (Especial Camper/Autocaravana) */}
-      {weather && (
-        <View
-          style={[
-            styles.weatherCard,
-            weather.highProfileWindAlert && styles.weatherAlertCard,
-          ]}>
-          <View style={styles.weatherLeft}>
-            <Text style={styles.weatherEmoji}>{weather.weatherEmoji}</Text>
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.weatherTempText}>{weather.temperatureC}°C</Text>
-                <Text style={styles.weatherDescText}>{weather.weatherDescription}</Text>
-              </View>
-              <Text
-                style={[
-                  styles.weatherWindText,
-                  weather.highProfileWindAlert && { color: '#F87171', fontWeight: '800' },
-                ]}>
-                💨 Viento {weather.windSpeedKmH} km/h · Rachas {weather.windGustsKmH} km/h
+          {location.address && (
+            <View style={styles.addressRow}>
+              <Icon name="map-marker-outline" size={14} color="#64748B" style={{ marginRight: 4 }} />
+              <Text style={styles.addressText} numberOfLines={isExpanded ? undefined : 1}>
+                {location.address}
               </Text>
             </View>
-          </View>
-          <View
-            style={[
-              styles.awningBadge,
-              weather.awningSafe ? styles.awningBadgeSafe : styles.awningBadgeRisk,
-            ]}>
-            <Icon
-              name={weather.awningSafe ? 'umbrella-outline' : 'weather-windy'}
-              size={12}
-              color={weather.awningSafe ? '#10B981' : '#F59E0B'}
-              style={{ marginRight: 4 }}
-            />
-            <Text
-              style={[
-                styles.awningBadgeText,
-                { color: weather.awningSafe ? '#34D399' : '#FBBF24' },
-              ]}>
-              {weather.awningSafe ? 'Toldo OK' : 'Riesgo Toldo'}
+          )}
+        </TouchableOpacity>
+
+        {/* Coordenadas GPS exactas */}
+        <View style={styles.coordsCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Icon name="crosshairs-gps" size={15} color="#38BDF8" style={{ marginRight: 6 }} />
+            <Text style={styles.coordsText}>
+              {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
             </Text>
           </View>
+          {distanceKm !== undefined && (
+            <View style={styles.distanceBadgeCompact}>
+              <Text style={styles.distanceTextCompact}>A {distanceKm} km</Text>
+            </View>
+          )}
         </View>
-      )}
 
-      {/* Ocupación y Plazas en Tiempo Real (Rival Park4Night Pro) */}
-      {occupancy && (isCamping || isAreaCamper) && (
-        <View style={styles.occupancyCard}>
-          <View style={styles.occupancyHeaderRow}>
-            <View style={styles.occupancyBadgeRow}>
-              <View
-                style={[
-                  styles.occupancyDot,
-                  {
-                    backgroundColor:
-                      occupancy.level === 'plenty'
-                        ? '#10B981'
-                        : occupancy.level === 'few'
-                        ? '#F59E0B'
-                        : '#EF4444',
-                  },
-                ]}
+        {/* Descripción detallada al expandir */}
+        {isExpanded && location.description ? (
+          <View style={styles.fullDescCard}>
+            <View style={styles.fullDescHeader}>
+              <Icon name="text-box-outline" size={16} color="#10B981" style={{ marginRight: 6 }} />
+              <Text style={styles.fullDescTitle}>Información y Consejos del Lugar</Text>
+            </View>
+            <Text style={styles.fullDescText}>{location.description}</Text>
+          </View>
+        ) : null}
+
+        {/* Tarjeta de Clima y Rachas de Viento (Especial Camper/Autocaravana) */}
+        {weather && (
+          <View
+            style={[
+              styles.weatherCard,
+              weather.highProfileWindAlert && styles.weatherAlertCard,
+            ]}>
+            <View style={styles.weatherLeft}>
+              <Text style={styles.weatherEmoji}>{weather.weatherEmoji}</Text>
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.weatherTempText}>{weather.temperatureC}°C</Text>
+                  <Text style={styles.weatherDescText}>{weather.weatherDescription}</Text>
+                </View>
+                <Text
+                  style={[
+                    styles.weatherWindText,
+                    weather.highProfileWindAlert && { color: '#F87171', fontWeight: '800' },
+                  ]}>
+                  💨 Viento {weather.windSpeedKmH} km/h · Rachas {weather.windGustsKmH} km/h
+                </Text>
+              </View>
+            </View>
+            <View
+              style={[
+                styles.awningBadge,
+                weather.awningSafe ? styles.awningBadgeSafe : styles.awningBadgeRisk,
+              ]}>
+              <Icon
+                name={weather.awningSafe ? 'umbrella-outline' : 'weather-windy'}
+                size={12}
+                color={weather.awningSafe ? '#10B981' : '#F59E0B'}
+                style={{ marginRight: 4 }}
               />
               <Text
                 style={[
-                  styles.occupancyTitle,
-                  {
-                    color:
-                      occupancy.level === 'plenty'
-                        ? '#34D399'
-                        : occupancy.level === 'few'
-                        ? '#FBBF24'
-                        : '#F87171',
-                  },
+                  styles.awningBadgeText,
+                  { color: weather.awningSafe ? '#34D399' : '#FBBF24' },
                 ]}>
-                {occupancy.level === 'plenty'
-                  ? 'PLAZAS DISPONIBLES'
-                  : occupancy.level === 'few'
-                  ? 'POCAS PLAZAS LIBRES'
-                  : 'COMPLETO / SIN PLAZAS'}
+                {weather.awningSafe ? 'Toldo OK' : 'Riesgo Toldo'}
               </Text>
             </View>
-
-            <TouchableOpacity
-              style={styles.checkInBtn}
-              onPress={handlePromptCheckIn}
-              activeOpacity={0.8}>
-              <Icon name="map-marker-check" size={14} color="#38BDF8" style={{ marginRight: 4 }} />
-              <Text style={styles.checkInBtnText}>Confirmar</Text>
-            </TouchableOpacity>
           </View>
+        )}
 
-          <View style={styles.occupancyDetailRow}>
-            <Text style={styles.occupancyEstimateText}>{occupancy.freeSpotsEstimate}</Text>
-            <Text style={styles.occupancyMetaText}>
-              · {occupancy.lastReportedAgo} ({occupancy.confirmedCount} campers hoy)
-            </Text>
+        {/* Ocupación y Plazas en Tiempo Real (Rival Park4Night Pro) */}
+        {occupancy && (isCamping || isAreaCamper) && (
+          <View style={styles.occupancyCard}>
+            <View style={styles.occupancyHeaderRow}>
+              <View style={styles.occupancyBadgeRow}>
+                <View
+                  style={[
+                    styles.occupancyDot,
+                    {
+                      backgroundColor:
+                        occupancy.level === 'plenty'
+                          ? '#10B981'
+                          : occupancy.level === 'few'
+                          ? '#F59E0B'
+                          : '#EF4444',
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.occupancyTitle,
+                    {
+                      color:
+                        occupancy.level === 'plenty'
+                          ? '#34D399'
+                          : occupancy.level === 'few'
+                          ? '#FBBF24'
+                          : '#F87171',
+                    },
+                  ]}
+                >
+                  {occupancy.level === 'plenty'
+                    ? 'PLAZAS DISPONIBLES'
+                    : occupancy.level === 'few'
+                    ? 'POCAS PLAZAS LIBRES'
+                    : 'COMPLETO / SIN PLAZAS'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.checkInBtn}
+                onPress={handlePromptCheckIn}
+                activeOpacity={0.8}>
+                <Icon name="map-marker-check" size={14} color="#38BDF8" style={{ marginRight: 4 }} />
+                <Text style={styles.checkInBtnText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.occupancyDetailRow}>
+              <Text style={styles.occupancyEstimateText}>{occupancy.freeSpotsEstimate}</Text>
+              <Text style={styles.occupancyMetaText}>
+                · {occupancy.lastReportedAgo} ({occupancy.confirmedCount} campers hoy)
+              </Text>
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {/* Servicios Disponibles (Píldoras tácticas) */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.servicesScroll}>
-        {(isCamping || isAreaCamper) && (
-          <>
-            <View style={styles.servicePill}>
-              <Icon name="water" size={14} color="#38BDF8" />
-              <Text style={styles.serviceText}>Agua Potable</Text>
-            </View>
-            <View style={styles.servicePill}>
-              <Icon name="flash" size={14} color="#FBBF24" />
-              <Text style={styles.serviceText}>Electricidad</Text>
-            </View>
-            <View style={styles.servicePill}>
-              <Icon name="arrow-down-bold-circle-outline" size={14} color="#A78BFA" />
-              <Text style={styles.serviceText}>Vaciado Aguas</Text>
-            </View>
-          </>
-        )}
-        {isGasStation && (
-          <>
-            <View style={styles.servicePill}>
-              <Icon name="gas-cylinder" size={14} color="#F87171" />
-              <Text style={styles.serviceText}>GLP / Autogas</Text>
-            </View>
-            <View style={styles.servicePill}>
-              <Icon name="air-filter" size={14} color="#34D399" />
-              <Text style={styles.serviceText}>AdBlue Surtidor</Text>
-            </View>
-          </>
-        )}
-        {isRestaurant && (
-          <>
-            <View style={styles.servicePill}>
-              <Icon name="coffee" size={14} color="#FB923C" />
-              <Text style={styles.serviceText}>Desayunos / Menú</Text>
-            </View>
-            <View style={styles.servicePill}>
-              <Icon name="parking" size={14} color="#60A5FA" />
-              <Text style={styles.serviceText}>Parking Amplio</Text>
-            </View>
-          </>
-        )}
-        <View style={styles.servicePill}>
-          <Icon name="shield-lock-outline" size={14} color="#10B981" />
-          <Text style={styles.serviceText}>Zona Segura</Text>
-        </View>
-        <View style={styles.servicePill}>
-          <Icon name="cash-multiple" size={14} color="#34D399" />
-          <Text style={styles.serviceText}>Gratis / Bajo Coste</Text>
-        </View>
+        {/* Servicios Disponibles (Píldoras tácticas) */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.servicesScroll}>
+          {(isCamping || isAreaCamper) && (
+            <>
+              <View style={styles.servicePill}>
+                <Icon name="water" size={14} color="#38BDF8" />
+                <Text style={styles.serviceText}>Agua Potable</Text>
+              </View>
+              <View style={styles.servicePill}>
+                <Icon name="flash" size={14} color="#FBBF24" />
+                <Text style={styles.serviceText}>Electricidad</Text>
+              </View>
+              <View style={styles.servicePill}>
+                <Icon name="arrow-down-bold-circle-outline" size={14} color="#A78BFA" />
+                <Text style={styles.serviceText}>Vaciado Aguas</Text>
+              </View>
+            </>
+          )}
+          {isGasStation && (
+            <>
+              <View style={styles.servicePill}>
+                <Icon name="gas-cylinder" size={14} color="#F87171" />
+                <Text style={styles.serviceText}>GLP / Autogas</Text>
+              </View>
+              <View style={styles.servicePill}>
+                <Icon name="air-filter" size={14} color="#34D399" />
+                <Text style={styles.serviceText}>AdBlue Surtidor</Text>
+              </View>
+            </>
+          )}
+          {isRestaurant && (
+            <>
+              <View style={styles.servicePill}>
+                <Icon name="coffee" size={14} color="#FB923C" />
+                <Text style={styles.serviceText}>Desayunos / Menú</Text>
+              </View>
+              <View style={styles.servicePill}>
+                <Icon name="parking" size={14} color="#60A5FA" />
+                <Text style={styles.serviceText}>Parking Amplio</Text>
+              </View>
+            </>
+          )}
+          <View style={styles.servicePill}>
+            <Icon name="shield-lock-outline" size={14} color="#10B981" />
+            <Text style={styles.serviceText}>Zona Segura</Text>
+          </View>
+          <View style={styles.servicePill}>
+            <Icon name="cash-multiple" size={14} color="#34D399" />
+            <Text style={styles.serviceText}>Gratis / Bajo Coste</Text>
+          </View>
+        </ScrollView>
       </ScrollView>
 
       {/* Botones de Acción de Cabina */}
@@ -432,7 +484,7 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
           <View style={{ flex: 1 }}>
             <Text style={styles.primaryBtnTitle}>INICIAR RUTA SEGURA</Text>
             <Text style={styles.primaryBtnSub}>
-              {distanceKm !== undefined ? `${distanceKm} km · ` : ''}Optimizado por altura y gálibo
+              {distanceKm !== undefined ? `${distanceKm} km · ` : ''}Ver opciones de ruta
             </Text>
           </View>
           <Icon name="chevron-right" size={22} color="#FFFFFF" />
@@ -469,6 +521,83 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 20,
     zIndex: 110,
+  },
+  sheetContainerExpanded: {
+    maxHeight: '82%',
+    paddingBottom: 20,
+  },
+  expandHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  expandHintText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  expandedContentScroll: {
+    maxHeight: 380,
+    marginVertical: 4,
+  },
+  expandedContentContainer: {
+    paddingBottom: 12,
+  },
+  coordsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  coordsText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: '600',
+  },
+  distanceBadgeCompact: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  distanceTextCompact: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  fullDescCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  fullDescHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  fullDescTitle: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  fullDescText: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   dragHandleContainer: {
     alignItems: 'center',

@@ -89,6 +89,21 @@ export const QUICK_FILTERS: QuickFilter[] = [
   },
 ];
 
+const POPULAR_DESTINATIONS = [
+  { id: 'pop-1', name: 'Cabo de Gata', subtitle: 'Almería · Playas vírgenes y pernocta', latitude: 36.7823, longitude: -2.2541, category: 'DESTINO_CAMPER' },
+  { id: 'pop-2', name: 'Picos de Europa', subtitle: 'Asturias / Cantabria · Montaña', latitude: 43.1901, longitude: -4.8288, category: 'DESTINO_CAMPER' },
+  { id: 'pop-3', name: 'Pirineos / Ordesa', subtitle: 'Huesca · Parque Nacional', latitude: 42.6375, longitude: -0.0528, category: 'DESTINO_CAMPER' },
+  { id: 'pop-4', name: 'Costa Brava', subtitle: 'Girona · Calas y pueblos medievales', latitude: 41.9794, longitude: 3.1751, category: 'DESTINO_CAMPER' },
+  { id: 'pop-5', name: 'Tarifa y Bolonia', subtitle: 'Cádiz · Viento y dunas salvajes', latitude: 36.0127, longitude: -5.6044, category: 'DESTINO_CAMPER' },
+  { id: 'pop-6', name: 'Sierra Nevada', subtitle: 'Granada · Altas cumbres y nieve', latitude: 37.0931, longitude: -3.3986, category: 'DESTINO_CAMPER' },
+  { id: 'pop-7', name: 'Rías Baixas', subtitle: 'Pontevedra / A Coruña · Costa atlántica', latitude: 42.4336, longitude: -8.6480, category: 'DESTINO_CAMPER' },
+  { id: 'pop-8', name: 'Madrid (Km 0)', subtitle: 'Comunidad de Madrid · Centro peninsular', latitude: 40.4168, longitude: -3.7038, category: 'CIUDAD' },
+  { id: 'pop-9', name: 'Barcelona', subtitle: 'Catalunya · Costa mediterránea', latitude: 41.3851, longitude: 2.1734, category: 'CIUDAD' },
+  { id: 'pop-10', name: 'Valencia', subtitle: 'Comunidad Valenciana · Costa Este', latitude: 39.4699, longitude: -0.3763, category: 'CIUDAD' },
+  { id: 'pop-11', name: 'Sevilla', subtitle: 'Andalucía · Valle del Guadalquivir', latitude: 37.3891, longitude: -5.9845, category: 'CIUDAD' },
+  { id: 'pop-12', name: 'Bilbao', subtitle: 'Bizkaia · Costa Cantábrica', latitude: 43.2630, longitude: -2.9350, category: 'CIUDAD' },
+];
+
 interface SearchResultItem {
   id: string;
   name: string;
@@ -125,10 +140,109 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
   const [showResults, setShowResults] = useState(false);
   const searchTimeout = useRef<any>(null);
 
-  // Búsqueda inteligente con debounce
+  // Obtener sugerencias instantáneas locales (0ms de latencia)
+  const getInstantSuggestions = (cleanQuery: string): SearchResultItem[] => {
+    const combined: SearchResultItem[] = [];
+    const seen = new Set<string>();
+
+    if (!cleanQuery) {
+      // Destinos populares sugeridos por defecto
+      POPULAR_DESTINATIONS.forEach((dest) => {
+        const key = `${dest.latitude.toFixed(4)}_${dest.longitude.toFixed(4)}`;
+        seen.add(key);
+        combined.push({
+          id: dest.id,
+          name: dest.name,
+          latitude: dest.latitude,
+          longitude: dest.longitude,
+          category: dest.category,
+          description: dest.subtitle,
+          address: dest.subtitle,
+          distanceKm: currentCoords
+            ? Math.round(
+                haversine(
+                  { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                  { latitude: dest.latitude, longitude: dest.longitude }
+                ) / 100
+              ) / 10
+            : undefined,
+        });
+      });
+      return combined;
+    }
+
+    // Filtrar destinos populares que coincidan con la búsqueda
+    POPULAR_DESTINATIONS.filter((d) =>
+      d.name.toLowerCase().includes(cleanQuery.toLowerCase()) ||
+      d.subtitle.toLowerCase().includes(cleanQuery.toLowerCase())
+    ).forEach((dest) => {
+      const key = `${dest.latitude.toFixed(4)}_${dest.longitude.toFixed(4)}`;
+      seen.add(key);
+      combined.push({
+        id: dest.id,
+        name: dest.name,
+        latitude: dest.latitude,
+        longitude: dest.longitude,
+        category: dest.category,
+        description: dest.subtitle,
+        address: dest.subtitle,
+        distanceKm: currentCoords
+          ? Math.round(
+              haversine(
+                { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                { latitude: dest.latitude, longitude: dest.longitude }
+              ) / 100
+            ) / 10
+          : undefined,
+      });
+    });
+
+    // Añadir coincidencias inmediatas de la bóveda local offline
+    try {
+      const offlineMatches = offlineSpotVault.searchSpots(cleanQuery);
+      offlineMatches.slice(0, 8).forEach((spot) => {
+        const key = `${spot.latitude.toFixed(4)}_${spot.longitude.toFixed(4)}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          combined.push({
+            id: spot.id,
+            name: spot.name,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            category: spot.category,
+            description: spot.description,
+            address: [spot.address, spot.city, spot.province].filter(Boolean).join(', '),
+            distanceKm: currentCoords
+              ? Math.round(
+                  haversine(
+                    { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                    { latitude: spot.latitude, longitude: spot.longitude }
+                  ) / 100
+                ) / 10
+              : undefined,
+          });
+        }
+      });
+    } catch {}
+
+    if (currentCoords) {
+      combined.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+    }
+    return combined;
+  };
+
+  // Búsqueda inteligente continua a medida que escribe
   useEffect(() => {
-    if (!query.trim() || query.trim().length < 2) {
-      setResults([]);
+    const cleanQuery = query.trim();
+
+    // 1. Mostrar sugerencias instantáneas locales a la primera tecla
+    const instantMatches = getInstantSuggestions(cleanQuery);
+    if (instantMatches.length > 0) {
+      setResults(instantMatches);
+      setShowResults(true);
+    }
+
+    if (!cleanQuery || cleanQuery.length < 2) {
       setIsSearching(false);
       return;
     }
@@ -137,20 +251,15 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
       clearTimeout(searchTimeout.current);
     }
 
+    // 2. Debounce rápido (120ms) para consultar geocodificador de Europa y nube
     searchTimeout.current = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const cleanQuery = query.trim();
-        // Sanitización contra inyección de filtros PostgREST / Supabase
         const safeQuery = cleanQuery.replace(/[%_,()"\\]/g, ' ').trim();
-        if (safeQuery.length < 2) {
-          setResults([]);
-          setIsSearching(false);
-          return;
-        }
-
-        const combinedResults: SearchResultItem[] = [];
-        const seenKeys = new Set<string>();
+        const combinedResults: SearchResultItem[] = [...instantMatches];
+        const seenKeys = new Set<string>(
+          instantMatches.map((m) => `${m.latitude.toFixed(4)}_${m.longitude.toFixed(4)}`)
+        );
 
         // 1. Puntos en la nube (Supabase)
         try {
@@ -163,107 +272,76 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
           if (!error && data) {
             data.forEach((item) => {
               const key = `${item.latitude.toFixed(4)}_${item.longitude.toFixed(4)}`;
-              seenKeys.add(key);
-              combinedResults.push({
-                ...item,
-                distanceKm: currentCoords
-                  ? Math.round(
-                      haversine(
-                        { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
-                        { latitude: item.latitude, longitude: item.longitude }
-                      ) / 100
-                    ) / 10
-                  : undefined,
-              });
+              if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                combinedResults.push({
+                  ...item,
+                  distanceKm: currentCoords
+                    ? Math.round(
+                        haversine(
+                          { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                          { latitude: item.latitude, longitude: item.longitude }
+                        ) / 100
+                      ) / 10
+                    : undefined,
+                });
+              }
             });
           }
         } catch (cloudErr) {
           Logger.warn('CockpitSearchBar', 'Cloud search offline', cloudErr);
         }
 
-        // 2. Bóveda local de spots offline (Montaña y zonas rurales)
+        // 2. Geocodificador OpenStreetMap Photon (ciudades, pueblos, destinos en toda Europa)
         try {
-          const offlineMatches = offlineSpotVault.searchSpots(cleanQuery);
-          offlineMatches.slice(0, 10).forEach((spot) => {
-            const key = `${spot.latitude.toFixed(4)}_${spot.longitude.toFixed(4)}`;
-            if (!seenKeys.has(key)) {
-              seenKeys.add(key);
-              combinedResults.push({
-                id: spot.id,
-                name: spot.name,
-                latitude: spot.latitude,
-                longitude: spot.longitude,
-                category: spot.category,
-                description: spot.description,
-                address: [spot.address, spot.city, spot.province].filter(Boolean).join(', '),
-                distanceKm: currentCoords
-                  ? Math.round(
-                      haversine(
-                        { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
-                        { latitude: spot.latitude, longitude: spot.longitude }
-                      ) / 100
-                    ) / 10
-                  : undefined,
+          const photonLat = currentCoords?.latitude || 40.4168;
+          const photonLng = currentCoords?.longitude || -3.7038;
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&lat=${photonLat}&lon=${photonLng}&limit=6`;
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          const geoRes = await fetch(photonUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            if (geoData?.features && Array.isArray(geoData.features)) {
+              geoData.features.forEach((feat: any) => {
+                const p = feat.properties;
+                const coords = feat.geometry?.coordinates;
+                if (!coords || coords.length < 2) return;
+                const lat = coords[1];
+                const lng = coords[0];
+                const key = `${lat.toFixed(4)}_${lng.toFixed(4)}`;
+                if (!seenKeys.has(key)) {
+                  seenKeys.add(key);
+                  const placeName = p.name || cleanQuery;
+                  const subtitle = [p.street, p.city || p.town || p.village, p.state, p.country]
+                    .filter(Boolean)
+                    .join(', ');
+                  combinedResults.push({
+                    id: `geo-${p.osm_id || Math.random()}`,
+                    name: placeName,
+                    latitude: lat,
+                    longitude: lng,
+                    category: (p.osm_value || 'DESTINO').toUpperCase(),
+                    description: subtitle || 'Destino en carretera',
+                    address: subtitle,
+                    distanceKm: currentCoords
+                      ? Math.round(
+                          haversine(
+                            { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                            { latitude: lat, longitude: lng }
+                          ) / 100
+                        ) / 10
+                      : undefined,
+                  });
+                }
               });
             }
-          });
-        } catch (vaultErr) {}
-
-        // 3. Geocodificador OpenStreetMap Photon (ciudades, pueblos, direcciones en toda Europa)
-        if (combinedResults.length < 10) {
-          try {
-            const photonLat = currentCoords?.latitude || 40.4168;
-            const photonLng = currentCoords?.longitude || -3.7038;
-            const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&lat=${photonLat}&lon=${photonLng}&limit=6`;
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2500);
-            const geoRes = await fetch(photonUrl, { signal: controller.signal });
-            clearTimeout(timeoutId);
-
-            if (geoRes.ok) {
-              const geoData = await geoRes.json();
-              if (geoData?.features && Array.isArray(geoData.features)) {
-                geoData.features.forEach((feat: any) => {
-                  const p = feat.properties;
-                  const coords = feat.geometry?.coordinates;
-                  if (!coords || coords.length < 2) return;
-                  const lat = coords[1];
-                  const lng = coords[0];
-                  const key = `${lat.toFixed(4)}_${lng.toFixed(4)}`;
-                  if (!seenKeys.has(key)) {
-                    seenKeys.add(key);
-                    const placeName = p.name || cleanQuery;
-                    const subtitle = [p.street, p.city || p.town || p.village, p.state, p.country]
-                      .filter(Boolean)
-                      .join(', ');
-                    combinedResults.push({
-                      id: `geo-${p.osm_id || Math.random()}`,
-                      name: placeName,
-                      latitude: lat,
-                      longitude: lng,
-                      category: (p.osm_value || 'DESTINO').toUpperCase(),
-                      description: subtitle || 'Destino en carretera',
-                      address: subtitle,
-                      distanceKm: currentCoords
-                        ? Math.round(
-                            haversine(
-                              { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
-                              { latitude: lat, longitude: lng }
-                            ) / 100
-                          ) / 10
-                        : undefined,
-                    });
-                  }
-                });
-              }
-            }
-          } catch (geoErr) {
-            // Geocodificación silenciosa en caso de offline
           }
-        }
+        } catch (_) {}
 
-        // Ordenar por distancia si está disponible
         if (currentCoords) {
           combinedResults.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
         }
@@ -275,7 +353,7 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
       } finally {
         setIsSearching(false);
       }
-    }, 300);
+    }, 120);
 
     return () => {
       if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -308,10 +386,18 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
           value={query}
           onChangeText={(text) => {
             setQuery(text);
-            if (!showResults && text.length >= 2) setShowResults(true);
+            const matches = getInstantSuggestions(text.trim());
+            if (matches.length > 0) {
+              setResults(matches);
+              setShowResults(true);
+            }
           }}
           onFocus={() => {
-            if (results.length > 0) setShowResults(true);
+            const matches = getInstantSuggestions(query.trim());
+            if (matches.length > 0) {
+              setResults(matches);
+              setShowResults(true);
+            }
             onFocusChange?.(true);
           }}
           onBlur={() => onFocusChange?.(false)}
@@ -331,6 +417,17 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
       {/* Resultados desplegables con diseño de tarjeta táctica */}
       {showResults && results.length > 0 && (
         <View style={styles.resultsDropdown}>
+          <View style={styles.dropdownHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Icon name="compass-outline" size={14} color="#38BDF8" style={{ marginRight: 6 }} />
+              <Text style={styles.dropdownHeaderText}>
+                {query.trim().length === 0 ? 'DESTINOS RECOMENDADOS' : 'SUGERENCIAS DE UBICACIÓN'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowResults(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="close" size={15} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
           <FlatList
             data={results}
             keyExtractor={(item) => item.id}
@@ -487,6 +584,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 14,
     elevation: 12,
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  dropdownHeaderText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   resultRow: {
     flexDirection: 'row',
