@@ -52,7 +52,10 @@ junit.xml
 !android/app/debug.keystore
 *.zip
 android/app/src/main/assets/index.android.bundle*
-.agents/
+# Antigravity Workspace Customizations
+.agents/teamwork/
+!.agents/skills/
+!.agents/skills/**
 
 # Android
 android/.gradle/
