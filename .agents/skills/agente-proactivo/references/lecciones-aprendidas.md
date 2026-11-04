@@ -17,8 +17,10 @@ Este documento registra los fallos encontrados durante el ciclo de vida del proy
 ## 2. GitHub Pages & Despliegue Web
 
 * **Problema:** Archivos de verificación de TikTok (`tiktok-developers-site-verification=...`) o assets daban 404 en GitHub Pages.
-  * **Causa Raíz:** Por defecto, GitHub Pages ejecuta el motor de compilación Jekyll, el cual descarta automáticamente cualquier archivo que contenga caracteres `=` o que comience con puntos.
-  * **Solución Permanente:** Mantener siempre el archivo vacío `docs/.nojekyll` en la raíz de la web.
+  * **Causa Raíz:** Por defecto, GitHub Pages ejecuta el motor de compilación Jekyll, el cual descarta automáticamente cualquier archivo que contenga caracteres `=` o que comience con puntos. Además, los proyectos normales se alojan en `org.github.io/repo/`, por lo que el bot de TikTok al consultar la raíz `org.github.io/tiktok-...` obtenía 404 si no existía el repositorio especial de dominio raíz `org.github.io`.
+  * **Solución Permanente:**
+    1. Mantener siempre el archivo vacío `docs/.nojekyll` en la raíz de la web.
+    2. Crear y desplegar el repositorio `NEXUS-IA-HOLDING/nexus-ia-holding.github.io` con las variantes del archivo de verificación (con y sin extensión, `.txt`, `.html`) tanto en la raíz como en `/CamperSites-Pro/`. Así TikTok valida con éxito con HTTP 200 independientemente de si el usuario introduce el dominio raíz o la subruta.
 * **Problema:** El código QR aparecía en blanco en algunos navegadores o tardaba en cargar.
   * **Causa Raíz:** Depender de peticiones a servicios externos (ej. `api.qrserver.com`) provocaba bloqueos por filtros de privacidad, bloqueadores de anuncios (uBlock/AdGuard) o fallos de red.
   * **Solución Permanente:** Incrustar el código QR de descarga directamente como **Data URI Base64 autocontenida** (`data:image/png;base64,...`) dentro del HTML. No realiza peticiones HTTP, no usa caché externa y carga instantáneamente en cualquier dispositivo.
