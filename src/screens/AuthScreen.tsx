@@ -18,6 +18,7 @@ import {
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { CamperSitesTheme as theme } from '../theme';
 import {
@@ -115,7 +116,9 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
         return;
       }
 
-      // Login exitoso: registrar sesión + log
+      // Login exitoso: registrar sesión + persistencia local para segundo plano
+      await AsyncStorage.setItem('@camper_session_active', 'true');
+      await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
       await registerSession();
       logSecurityEvent('login_success', { email: cleanEmail });
 
@@ -190,7 +193,9 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    await AsyncStorage.setItem('@camper_session_active', 'true');
+    await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
     onAuthSuccess();
   };
 

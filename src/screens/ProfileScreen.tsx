@@ -346,6 +346,8 @@ export default function ProfileScreen() {
         text: 'Salir', style: 'destructive',
         onPress: async () => {
           await supabase.auth.signOut();
+          await AsyncStorage.removeItem('@camper_session_active');
+          await AsyncStorage.removeItem('@camper_onboarding_completed');
           setIsLoggedIn(false);
           setTrustProfile(null);
         },

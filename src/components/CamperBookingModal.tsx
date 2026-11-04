@@ -26,21 +26,47 @@ import {
   B2BReservationResult,
 } from '../services/B2BReservationService';
 
+export interface PartnerCampsite {
+  id: string;
+  name: string;
+  region: string;
+  rating: number;
+  pricePerNight: number;
+  availablePitches: number;
+  badge: string;
+}
+
+export const PARTNER_CAMPSITES: PartnerCampsite[] = [
+  { id: 'area_sierra_madrid_01', name: 'Área Camper Sierra Norte', region: 'Madrid', rating: 4.8, pricePerNight: 16.50, availablePitches: 8, badge: 'DGT 0 Emisiones' },
+  { id: 'camping_costa_brava_02', name: 'Camping Resort Costa Brava', region: 'Girona, Cataluña', rating: 4.9, pricePerNight: 24.00, availablePitches: 5, badge: 'Playa & Piscina' },
+  { id: 'area_cabo_gata_03', name: 'Área Ecoturismo Cabo de Gata', region: 'Almería, Andalucía', rating: 4.7, pricePerNight: 14.00, availablePitches: 12, badge: 'Parque Natural' },
+  { id: 'camping_picos_europa_04', name: 'Camping Picos de Europa', region: 'Cangas de Onís, Asturias', rating: 4.9, pricePerNight: 21.00, availablePitches: 4, badge: 'Montaña & Rutas' },
+  { id: 'area_pirineos_ordesa_05', name: 'Camper Park Pirineos Ordesa', region: 'Huesca, Aragón', rating: 4.8, pricePerNight: 18.00, availablePitches: 7, badge: 'Esquí & Senderismo' },
+  { id: 'area_tarifa_wind_06', name: 'Tarifa Camper Beach Haven', region: 'Cádiz, Andalucía', rating: 4.6, pricePerNight: 19.50, availablePitches: 6, badge: 'Kitesurf & Playa' },
+  { id: 'camping_rias_baixas_07', name: 'Camping Rías Baixas O Grove', region: 'Pontevedra, Galicia', rating: 4.8, pricePerNight: 20.00, availablePitches: 9, badge: 'Gastronomía & Mar' },
+  { id: 'area_valencia_albufera_08', name: 'Área Albufera Camper Park', region: 'Valencia', rating: 4.7, pricePerNight: 15.00, availablePitches: 11, badge: 'Cerca Albufera' },
+];
+
 interface CamperBookingModalProps {
   visible: boolean;
-  areaId: string;
-  areaName: string;
+  areaId?: string;
+  areaName?: string;
   onClose: () => void;
   onBookingSuccess?: (booking: B2BReservationResult) => void;
 }
 
 export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
   visible,
-  areaId,
-  areaName,
+  areaId = 'area_sierra_madrid_01',
+  areaName = 'Área Camper Sierra Norte (Madrid)',
   onClose,
   onBookingSuccess,
 }) => {
+  const [activeAreaId, setActiveAreaId] = useState(areaId);
+  const [activeAreaName, setActiveAreaName] = useState(areaName);
+  const [showAreaPicker, setShowAreaPicker] = useState(false);
+  const [areaSearchQuery, setAreaSearchQuery] = useState('');
+
   const [pitchType, setPitchType] = useState<PitchType>('comfort_medium');
   const [vehicleLength, setVehicleLength] = useState('6.8');
   const [vehicleHeight, setVehicleHeight] = useState('2.9');
@@ -88,8 +114,8 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
     setLoading(true);
     try {
       const res = await b2bReservationService.createReservation({
-        areaId,
-        areaName,
+        areaId: activeAreaId,
+        areaName: activeAreaName,
         checkInDate,
         checkOutDate,
         pitchType,
@@ -111,6 +137,16 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
     }
   };
 
+  const filteredCampsites = PARTNER_CAMPSITES.filter((c) => {
+    const q = areaSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.region.toLowerCase().includes(q) ||
+      c.badge.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -118,10 +154,17 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>🏕️ Reserva Directa de Parcela B2B</Text>
-              <Text style={styles.headerSubtitle} numberOfLines={1}>
-                {areaName}
-              </Text>
+              <Text style={styles.headerTitle}>🏕️ Central de Reservas B2B</Text>
+              <TouchableOpacity
+                style={styles.headerAreaBadge}
+                onPress={() => setShowAreaPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  📍 {activeAreaName}
+                </Text>
+                <Icon name="chevron-down" size={14} color="#00E676" style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             </View>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -191,8 +234,31 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
             ) : (
               /* FORMULARIO DE RESERVA B2B */
               <View>
-                {/* 1. Selector de Tipo de Parcela según Medida */}
-                <Text style={styles.formSectionTitle}>1. Dimensiones de Vehículo y Parcela</Text>
+                {/* 1. Selector de Camping o Área Camper */}
+                <Text style={styles.formSectionTitle}>1. Camping o Área Camper</Text>
+                <TouchableOpacity
+                  style={styles.campsiteChoiceCard}
+                  onPress={() => setShowAreaPicker(true)}
+                  activeOpacity={0.8}>
+                  <View style={styles.campsiteChoiceLeft}>
+                    <View style={styles.campsiteChoiceIconWrap}>
+                      <Icon name="tent" size={24} color="#00E676" />
+                    </View>
+                    <View style={styles.campsiteChoiceInfo}>
+                      <Text style={styles.campsiteChoiceName}>{activeAreaName}</Text>
+                      <Text style={styles.campsiteChoiceMeta}>
+                        Toca para elegir entre campings y áreas asociadas
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.campsiteChangeBadge}>
+                    <Icon name="swap-horizontal" size={16} color="#00E676" />
+                    <Text style={styles.campsiteChangeBadgeText}>Cambiar</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* 2. Selector de Tipo de Parcela según Medida */}
+                <Text style={styles.formSectionTitle}>2. Dimensiones de Vehículo y Parcela</Text>
 
                 <View style={styles.dimensionsRow}>
                   <View style={styles.inputCol}>
@@ -292,8 +358,8 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                {/* 2. Fechas de Estancia */}
-                <Text style={styles.formSectionTitle}>2. Fechas y Matrícula para Barrera</Text>
+                {/* 3. Fechas de Estancia */}
+                <Text style={styles.formSectionTitle}>3. Fechas y Matrícula para Barrera</Text>
                 <View style={styles.datesRow}>
                   <View style={styles.inputCol}>
                     <Text style={styles.inputLabel}>Entrada</Text>
@@ -328,8 +394,8 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
                   </View>
                 </View>
 
-                {/* 3. Servicios y Suplementos */}
-                <Text style={styles.formSectionTitle}>3. Servicios y Tomas Eléctricas</Text>
+                {/* 4. Servicios y Suplementos */}
+                <Text style={styles.formSectionTitle}>4. Servicios y Tomas Eléctricas</Text>
                 {AVAILABLE_ADDONS.map((addon) => {
                   const isChecked = selectedAddons.includes(addon.id);
                   return (
@@ -352,9 +418,9 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
                   );
                 })}
 
-                {/* 4. Resumen de Precios y Comisión B2B */}
+                {/* 5. Resumen de Precios y Comisión B2B */}
                 <View style={styles.quoteCard}>
-                  <Text style={styles.quoteTitle}>Desglose de Facturación B2B</Text>
+                  <Text style={styles.quoteTitle}>5. Desglose de Facturación B2B</Text>
                   <View style={styles.quoteRow}>
                     <Text style={styles.qLabel}>
                       Estancia ({quote.nights} noches x {quote.nightlyRate} €):
@@ -404,6 +470,87 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
               </View>
             )}
           </ScrollView>
+
+          {/* SUB-MODAL SELECTOR DE CAMPINGS / ÁREAS ASOCIADAS */}
+          <Modal
+            visible={showAreaPicker}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowAreaPicker(false)}>
+            <View style={styles.pickerOverlay}>
+              <View style={styles.pickerContainer}>
+                <View style={styles.pickerHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pickerTitle}>🏕️ Elegir Camping / Área Camper</Text>
+                    <Text style={styles.pickerSubtitle}>Red de campings con acceso automatizado</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.closePickerBtn}
+                    onPress={() => setShowAreaPicker(false)}>
+                    <Icon name="close" size={20} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Buscador en tiempo real */}
+                <View style={styles.pickerSearchWrap}>
+                  <Icon name="magnify" size={20} color="#64748B" />
+                  <TextInput
+                    style={styles.pickerSearchInput}
+                    placeholder="Buscar camping, área o provincia..."
+                    placeholderTextColor="#64748B"
+                    value={areaSearchQuery}
+                    onChangeText={setAreaSearchQuery}
+                    autoCapitalize="none"
+                  />
+                  {areaSearchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setAreaSearchQuery('')}>
+                      <Icon name="close-circle" size={18} color="#94A3B8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Lista de Campings Asociados */}
+                <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={false}>
+                  {filteredCampsites.length === 0 ? (
+                    <View style={styles.pickerEmptyState}>
+                      <Icon name="tent-off" size={40} color="#64748B" />
+                      <Text style={styles.pickerEmptyText}>No se encontraron campings con ese criterio</Text>
+                    </View>
+                  ) : (
+                    filteredCampsites.map((c) => {
+                      const isSelected = c.id === activeAreaId;
+                      return (
+                        <TouchableOpacity
+                          key={c.id}
+                          style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
+                          onPress={() => {
+                            setActiveAreaId(c.id);
+                            setActiveAreaName(`${c.name} (${c.region})`);
+                            setShowAreaPicker(false);
+                          }}>
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <View style={styles.pickerItemHeaderRow}>
+                              <Text style={styles.pickerItemName}>{c.name}</Text>
+                              <View style={styles.pickerItemBadge}>
+                                <Text style={styles.pickerItemBadgeText}>{c.badge}</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.pickerItemRegion}>📍 {c.region} • ⭐ {c.rating} • {c.availablePitches} parcelas libres</Text>
+                            <Text style={styles.pickerItemPrice}>Desde {c.pricePerNight.toFixed(2)} € / noche</Text>
+                          </View>
+                          {isSelected ? (
+                            <Icon name="check-circle" size={24} color="#00E676" />
+                          ) : (
+                            <Icon name="chevron-right" size={22} color="#64748B" />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
         </View>
       </View>
     </Modal>
@@ -794,5 +941,185 @@ const styles = StyleSheet.create({
   },
   bookActionBtnTextDisabled: {
     color: '#94A3B8',
+  },
+  headerAreaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  campsiteChoiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1E293B',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginBottom: 16,
+  },
+  campsiteChoiceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  campsiteChoiceIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#0F172A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#00E67640',
+  },
+  campsiteChoiceInfo: {
+    flex: 1,
+  },
+  campsiteChoiceName: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  campsiteChoiceMeta: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  campsiteChangeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00E67618',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#00E67650',
+  },
+  campsiteChangeBadgeText: {
+    color: '#00E676',
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  pickerContainer: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: '#1E293B',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 16,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  pickerTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  pickerSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  closePickerBtn: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: '#0F172A',
+  },
+  pickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 40,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  pickerSearchInput: {
+    flex: 1,
+    color: '#FFF',
+    fontSize: 13,
+    marginLeft: 6,
+  },
+  pickerList: {
+    maxHeight: 380,
+  },
+  pickerEmptyState: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerEmptyText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  pickerItemSelected: {
+    borderColor: '#00E676',
+    backgroundColor: '#13281E',
+  },
+  pickerItemHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  pickerItemName: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  pickerItemBadge: {
+    backgroundColor: '#00E67620',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  pickerItemBadgeText: {
+    color: '#00E676',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  pickerItemRegion: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  pickerItemPrice: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });

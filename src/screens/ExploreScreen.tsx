@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import Geolocation from 'react-native-geolocation-service';
+import haversine from 'haversine-distance';
 import { supabase } from '../lib/supabase';
 import { CamperSitesTheme as theme } from '../theme';
 import { LocationReviewsModal } from '../components/LocationReviewsModal';
@@ -48,6 +49,7 @@ interface Location {
   has_electricity: boolean;
   price: number | null;
   description: string;
+  distanceKm?: number;
 }
 
 MapLibreGL.setAccessToken(null);
@@ -153,17 +155,26 @@ export default function ExploreScreen() {
   const [filterCriteria, setFilterCriteria] = useState<SpotFilterCriteria>(DEFAULT_FILTER_CRITERIA);
   const [userCoords, setUserCoords] = useState<[number, number]>([-4.0890, 40.6720]); // Guadarrama A-6 fallback
   const [showServicesMap, setShowServicesMap] = useState<boolean>(true);
+  const exploreCameraRef = useRef<any>(null);
 
   // Obtener geolocalización real del usuario
   useEffect(() => {
     Geolocation.getCurrentPosition(
       pos => {
         if (isMountedRef.current) {
-          setUserCoords([pos.coords.longitude, pos.coords.latitude]);
+          const newCoords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+          setUserCoords(newCoords);
+          exploreCameraRef.current?.setCamera({
+            centerCoordinate: newCoords,
+            zoomLevel: 12.5,
+            animationDuration: 800,
+          });
+          // Recalcular y ordenar de inmediato por proximidad GPS
+          fetchLocations(searchQuery, selectedCategory, newCoords);
         }
       },
       () => {},
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 15000 }
     );
   }, []);
 
@@ -176,56 +187,94 @@ export default function ExploreScreen() {
     return () => { isMountedRef.current = false; };
   }, []);
 
-  const fetchLocations = useCallback(async (query: string, category: string) => {
+  const fetchLocations = useCallback(async (query: string, category: string, overrideCoords?: [number, number]) => {
     try {
-      let q = supabase
-        .from('locations')
-        .select('*', { count: 'exact' })
-        .order('name', { ascending: true })
-        .limit(200);
+      const activeCoords = overrideCoords || userCoords;
+      const userLat = activeCoords[1];
+      const userLng = activeCoords[0];
+      let rawLocations: any[] = [];
 
-      if (category !== 'ALL') {
-        q = q.eq('category', category);
-      }
+      // 1. Si no hay texto de búsqueda, priorizar búsqueda geográfica alrededor del usuario (radio ~75 km)
+      if (query.trim().length === 0) {
+        const latDelta = 0.75;
+        const lngDelta = 0.75;
+        let geoQuery = supabase
+          .from('locations')
+          .select('*', { count: 'exact' })
+          .gte('latitude', userLat - latDelta)
+          .lte('latitude', userLat + latDelta)
+          .gte('longitude', userLng - lngDelta)
+          .lte('longitude', userLng + lngDelta)
+          .limit(150);
 
-      if (query.trim().length > 0) {
-        // Sanitizar: eliminar caracteres especiales de iLIKE y PostgREST
-        const search = query.trim().replace(/[%_\\'(),"\\]/g, '').substring(0, 100);
-        if (search.length > 0) {
-          q = q.or(`name.ilike.%${search}%,city.ilike.%${search}%,province.ilike.%${search}%`);
+        if (category !== 'ALL') {
+          geoQuery = geoQuery.eq('category', category);
+        }
+
+        const { data: geoData } = await geoQuery;
+        if (geoData && geoData.length > 0) {
+          rawLocations = geoData;
         }
       }
 
-      const { data, error, count } = await q;
+      // Si no hubo resultados geográficos locales o hay una búsqueda de texto específica
+      if (rawLocations.length === 0) {
+        let q = supabase
+          .from('locations')
+          .select('*', { count: 'exact' })
+          .limit(200);
 
-      if (!isMountedRef.current) return;
+        if (category !== 'ALL') {
+          q = q.eq('category', category);
+        }
 
-      if (error || !data || data.length === 0) {
-        // Fallback transparente a bóveda de puntos offline
+        if (query.trim().length > 0) {
+          // Sanitizar: eliminar caracteres especiales de iLIKE y PostgREST
+          const search = query.trim().replace(/[%_\\'(),"\\]/g, '').substring(0, 100);
+          if (search.length > 0) {
+            q = q.or(`name.ilike.%${search}%,city.ilike.%${search}%,province.ilike.%${search}%`);
+          }
+        }
+
+        const { data } = await q;
+        if (data && data.length > 0) {
+          rawLocations = data;
+        }
+      }
+
+      // Fallback a bóveda local offline si no hay red o datos
+      if (rawLocations.length === 0) {
         const offlineResults = offlineSpotVault.searchSpots(query);
-        if (offlineResults.length > 0) {
-          setLocations(offlineResults as any);
-          setTotalCount(offlineResults.length);
-          return;
-        }
+        rawLocations = offlineResults as any[];
       }
 
-      setLocations(data || []);
-      setTotalCount(count || data?.length || 0);
-    } catch (err) {
-      console.error('Error:', err);
-      const offlineResults = offlineSpotVault.searchSpots(query);
-      if (offlineResults.length > 0) {
-        setLocations(offlineResults as any);
-        setTotalCount(offlineResults.length);
+      // 2. Calcular distancia Haversine exacta para CADA ubicación respecto a la posición del usuario
+      const mappedWithDistance = rawLocations.map((item: any) => {
+        const dist = (item.latitude && item.longitude)
+          ? Math.round(haversine({ latitude: userLat, longitude: userLng }, { latitude: item.latitude, longitude: item.longitude }) / 100) / 10
+          : 9999;
+        return {
+          ...item,
+          distanceKm: dist < 9000 ? dist : undefined,
+        };
+      });
+
+      // 3. ORDENAR ESTRICTAMENTE DE MÁS CERCA A MÁS LEJOS
+      mappedWithDistance.sort((a, b) => (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999));
+
+      if (isMountedRef.current) {
+        setLocations(mappedWithDistance);
+        setTotalCount(mappedWithDistance.length);
       }
+    } catch (err) {
+      console.error('Error fetching explore locations:', err);
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
         setRefreshing(false);
       }
     }
-  }, []);
+  }, [userCoords]);
 
   // Efecto para búsqueda con debounce
   useEffect(() => {
@@ -283,7 +332,8 @@ export default function ExploreScreen() {
     if (filterCriteria.onlyFree) {
       list = list.filter(l => l.price === 0 || l.price === null);
     }
-    return list;
+    // Ordenar estrictamente de más cercano a más lejano
+    return [...list].sort((a, b) => (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999));
   }, [locations, filterCriteria]);
 
   const renderCategoryChip = (item: typeof ALL_CATEGORIES[0]) => {
@@ -331,6 +381,14 @@ export default function ExploreScreen() {
               </Text>
             </View>
             <View style={styles.cardHeaderRight}>
+              {item.distanceKm !== undefined && (
+                <View style={styles.distanceBadgeCard}>
+                  <Icon name="navigation-variant" size={12} color="#0284C7" style={{ marginRight: 3 }} />
+                  <Text style={styles.distanceBadgeCardText}>
+                    {item.distanceKm < 1 ? `${Math.round(item.distanceKm * 1000)} m` : `${item.distanceKm} km`}
+                  </Text>
+                </View>
+              )}
               {item.price !== null && item.price > 0 && (
                 <View style={styles.priceBadge}>
                   <Text style={styles.priceText}>{item.price}€</Text>
@@ -631,6 +689,7 @@ export default function ExploreScreen() {
             attributionEnabled={false}
           >
             <MapLibreGL.Camera
+              ref={exploreCameraRef}
               defaultSettings={{
                 centerCoordinate: userCoords,
                 zoomLevel: 12.5,
@@ -990,6 +1049,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     gap: 5,
+  },
+  distanceBadgeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 132, 199, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  distanceBadgeCardText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284C7',
   },
   badgeEmoji: {
     fontSize: 14,

@@ -35,6 +35,7 @@ import {
 } from '../services/AudioAlertService';
 import { CockpitNightModeService, CockpitThemeMode } from '../services/CockpitNightModeService';
 import { OfflineVaultManager } from '../components/OfflineVaultManager';
+import { UpdateService } from '../services/UpdateService';
 import {
   languageService,
   SUPPORTED_LANGUAGES,
@@ -644,6 +645,24 @@ export default function ConfigScreen() {
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.cardTitle}>Descargar Mapas para Navegación Offline</Text>
               <Text style={styles.cardSubtitle}>Navega en puertos de montaña o zonas sin cobertura 4G/5G</Text>
+            </View>
+            <Icon name="chevron-right" size={22} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
+
+        {/* 6. SECCIÓN ACTUALIZACIONES Y ESTADO DEL SISTEMA */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🔄 Actualizaciones del Asistente</Text>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => UpdateService.promptIfUpdateAvailable(true)}
+            activeOpacity={0.7}>
+            <View style={[styles.iconPod, { backgroundColor: '#10B98115' }]}>
+              <Icon name="cloud-sync" size={24} color="#10B981" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.cardTitle}>Buscar Actualizaciones Ahora</Text>
+              <Text style={styles.cardSubtitle}>Versión instalada: v1.0.0 • Cartografía y radares DGT</Text>
             </View>
             <Icon name="chevron-right" size={22} color="#94A3B8" />
           </TouchableOpacity>

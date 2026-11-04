@@ -85,28 +85,58 @@ for i in range(total_frames):
         badge_bg = (239, 68, 68) if pulse > 0.5 else (185, 28, 28)
         
         # Red warning pill
-        draw.rounded_rectangle([180, 180, 900, 260], radius=20, fill=badge_bg)
-        draw.text((540, 220), "🚨 ALERTA DGT • RADAR DE TRAMO", font=font_label, fill=(255, 255, 255), anchor="mm")
+        draw.rounded_rectangle([160, 150, 920, 225], radius=20, fill=badge_bg)
+        draw.text((540, 188), "🚨 ALERTA DGT • RADAR DE TRAMO", font=font_label, fill=(255, 255, 255), anchor="mm")
 
-        # Hook text
-        draw.text((540, 370), "¿SABÍAS QUE FRENAR", font=font_hook, fill=(255, 255, 255), anchor="mm")
-        draw.text((540, 445), "ANTES DE SALIR", font=font_hook, fill=(245, 158, 11), anchor="mm")
-        draw.text((540, 520), "YA NO SIRVE?", font=font_hook, fill=(239, 68, 68), anchor="mm")
+        # Hook text (con espacio amplio y sin pisarse)
+        draw.text((540, 285), "¿SABÍAS QUE FRENAR", font=font_hook, fill=(255, 255, 255), anchor="mm")
+        draw.text((540, 355), "ANTES DE SALIR", font=font_hook, fill=(245, 158, 11), anchor="mm")
+        draw.text((540, 425), "¡YA NO TE SALVA DE LA MULTA!", font=font_sub, fill=(239, 68, 68), anchor="mm")
 
         # Central illustration: Radar trap visual card
-        draw.rounded_rectangle([110, 620, 970, 1200], radius=32, fill=(19, 29, 49), outline=(239, 68, 68), width=3)
-        draw.text((540, 680), "CÁLCULO DGT EN TÚNEL A-6", font=font_sub, fill=(148, 163, 184), anchor="mm")
+        draw.rounded_rectangle([90, 480, 990, 1280], radius=32, fill=(19, 29, 49), outline=(239, 68, 68), width=3)
+        draw.text((540, 525), "📷 CONTROL DGT EN TÚNEL A-6 • KM 42.5", font=font_sub, fill=(148, 163, 184), anchor="mm")
         
         # Car / Speed indicator
-        draw.rounded_rectangle([200, 760, 880, 920], radius=24, fill=(15, 23, 42))
-        draw.text((540, 805), "LA DGT MIDE TU VELOCIDAD MEDIA", font=font_label, fill=(226, 232, 240), anchor="mm")
-        draw.text((540, 865), "DURANTE TODO EL RECORRIDO", font=font_title, fill=(239, 68, 68), anchor="mm")
+        draw.rounded_rectangle([130, 575, 950, 715], radius=20, fill=(15, 23, 42), outline=(239, 68, 68), width=2)
+        draw.text((540, 615), "LA DGT MIDE TU VELOCIDAD MEDIA REAL", font=font_label, fill=(226, 232, 240), anchor="mm")
+        draw.text((540, 670), "DURANTE TODO EL TÚNEL (NO AL FINAL)", font=font_title, fill=(239, 68, 68), anchor="mm")
 
-        # Map preview card
-        frame.paste(map_img.resize((800, 220)), (140, 950))
+        # Map preview card con radar visible
+        map_crop = map_img.resize((820, 380))
+        frame.paste(map_crop, (130, 745))
+
+        # Dibujar carretera e iconos de radar sobre el mapa
+        draw.line([(150, 940), (930, 940)], fill=(71, 85, 105), width=28)
+        draw.line([(150, 940), (930, 940)], fill=(255, 255, 255), width=4)
+
+        # Entrada Radar
+        draw.rounded_rectangle([160, 810, 300, 895], radius=14, fill=(239, 68, 68), outline=(255, 255, 255), width=2)
+        draw.text((230, 835), "ENTRADA", font=font_label, fill=(255, 255, 255), anchor="mm")
+        draw.text((230, 870), "📷 RADAR", font=font_label, fill=(255, 255, 255), anchor="mm")
+
+        # Salida Radar
+        draw.rounded_rectangle([780, 810, 920, 895], radius=14, fill=(239, 68, 68), outline=(255, 255, 255), width=2)
+        draw.text((850, 835), "SALIDA", font=font_label, fill=(255, 255, 255), anchor="mm")
+        draw.text((850, 870), "📷 RADAR", font=font_label, fill=(255, 255, 255), anchor="mm")
+
+        # Señal DGT 90 km/h en el centro
+        draw.ellipse([540 - 45, 845 - 45, 540 + 45, 845 + 45], fill=(255, 255, 255), outline=(220, 38, 38), width=6)
+        draw.text((540, 845), "90", font=font_title, fill=(0, 0, 0), anchor="mm")
+
+        # Vehículo en movimiento dentro del tramo
+        car_pos_x = 320 + int((t / 3.8) * 440)
+        draw.rounded_rectangle([car_pos_x - 38, 915, car_pos_x + 38, 965], radius=10, fill=(56, 189, 248), outline=(255, 255, 255), width=3)
+        draw.text((car_pos_x, 940), "🚐", font=font_title, anchor="mm")
+
+        # Velocidad en tiempo real debajo del coche
+        draw.text((car_pos_x, 995), "88 km/h", font=font_label, fill=(56, 189, 248), anchor="mm")
+
+        # Zona de medición activa (haz de radar)
+        draw.text((540, 1160), "⚡ ZONA DE MEDICIÓN CONTINUA ACTIVA", font=font_label, fill=(245, 158, 11), anchor="mm")
 
         # Bottom tip
-        draw.text((540, 1260), "Mira cómo lo soluciona esta app 👇", font=font_sub, fill=(56, 189, 248), anchor="mm")
+        draw.text((540, 1225), "Mira cómo lo soluciona esta app 👇", font=font_sub, fill=(56, 189, 248), anchor="mm")
 
     # SCENE 2: COCKPIT HUD IN ACTION (3.8s - 8.5s)
     elif t < 8.5:

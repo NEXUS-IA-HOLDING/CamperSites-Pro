@@ -60,11 +60,19 @@ export class UpdateService {
   }
 
   /**
-   * Prompts the user to update if a newer version exists
+   * Prompts the user to update if a newer version exists (or feedback on manual check)
    */
-  public static async promptIfUpdateAvailable(): Promise<void> {
+  public static async promptIfUpdateAvailable(manualCheck: boolean = false): Promise<void> {
     const info = await this.checkForUpdate();
-    if (!info || !info.isNewer) return;
+    if (!info || !info.isNewer) {
+      if (manualCheck) {
+        Alert.alert(
+          '✅ App Actualizada',
+          `Tienes instalada la última versión oficial (v${CURRENT_VERSION}).\n\nCartografía offline, radares DGT y base de datos de pernocta al día.`
+        );
+      }
+      return;
+    }
 
     Alert.alert(
       `🚀 Actualización Disponible (v${info.version})`,
