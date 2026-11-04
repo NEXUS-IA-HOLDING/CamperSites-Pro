@@ -39,12 +39,23 @@ Este documento registra los fallos encontrados durante el ciclo de vida del proy
 
 ## 4. Arquitectura de Navegación 3D en React Native
 
-* **Problema:** En modo libre de conducción (sin ruta fijada), el mapa permanecía en 2D estático y el coche se veía como un punto plano básico.
+* **Problema 1:** En modo libre de conducción (sin ruta fijada), el mapa permanecía en 2D estático y el coche se veía como un punto plano básico.
   * **Causa Raíz:** La cámara sólo activaba la inclinación en 3D si existía una ruta fijada y el usuario pulsaba manualmente el botón 3D.
   * **Solución Permanente:** 
     1. Detectar automáticamente cuando la velocidad supera los 3.0 km/h y ajustar la cámara de forma dinámica (`calculateSpeedAdaptiveCamera`: zoom 18.2, pitch 60° y rumbo alineado al vehículo).
     2. Rediseñar `VehicleMapCursor.tsx` con un chasis automotriz 3D completo: faros delanteros con haz de luz proyectado en el asfalto, pilotos traseros LED rojos, sombra de suspensión y micro-vibración del motor.
     3. Añadir `DrivingSimulationService.ts` para permitir probar y grabar la cabina 3D sin salir a la carretera.
+* **Problema 2:** En modo Cabina 3D, el vehículo parecía rotar de lado o al revés respecto a la calzada, las maniobras se quedaban atascadas en el primer paso (`depart`) y la cámara dejaba de seguir al vehículo.
+  * **Causa Raíz:**
+    1. **Doble rotación:** `MapLibreGL.PointAnnotation` se dibuja en espacio de pantalla. Si la cámara del mapa ya rota al rumbo `heading` para que la carretera apunte hacia arriba (`0°`), rotar también `VehicleMapCursor` por `heading` duplica el ángulo.
+    2. **Paso `depart` de OSRM:** `steps[0]` en OSRM es el punto de partida (`0m`). Medir la distancia hacia `steps[0].location` medía la distancia hacia atrás en vez de hacia la siguiente maniobra (`steps[1]`).
+    3. **Falso positivo de `onRegionDidChange`:** Las animaciones programáticas de `setCamera` disparaban `onRegionDidChange` sin verificar `feature.properties.isUserInteraction`, activando `isAwayFromUser = true` y bloqueando el auto-seguimiento.
+    4. **Foco centrado sin Look-Ahead:** Con `pitch: 60°`, centrar la cámara en la coordenada exacta del vehículo desperdicia la mitad inferior de la pantalla mostrando lo que ya quedó atrás.
+  * **Solución Permanente:**
+    1. En modo 3D (`camera3DMode && !isAwayFromUser`), fijar `heading={0}` en `VehicleMapCursor` para que la furgoneta apunte siempre recta hacia arriba alineada con el carril.
+    2. Asociar cada `NavigationStep` a su índice de vértice `routeCoordIndex` en la polilínea, iniciar en `steps[1]`, avanzar automáticamente por índice de segmento y calcular `distToManeuver` sumando los tramos reales de la carretera.
+    3. Proyectar el centro de cámara 85m por delante del vehículo (`projectLookAhead`) y calcular velocidad/rumbo geométricos entre muestras GPS consecutivas (`computeGpsBearing`) cuando el chip GPS de Android devuelve `0`.
+    4. Sólo activar `isAwayFromUser = true` cuando `feature?.properties?.isUserInteraction === true`.
 
 ---
 

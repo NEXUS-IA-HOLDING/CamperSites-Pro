@@ -59,6 +59,7 @@ export interface NavigationStep {
   distanceMeters: number;
   durationSeconds: number;
   location: { latitude: number; longitude: number };
+  routeCoordIndex?: number;
   bearingBefore: number;
   bearingAfter: number;
   exitNumber?: number;
@@ -230,27 +231,52 @@ export class TurnByTurnNavigationEngine {
           distanceMeters: this.totalDistanceMeters,
           durationSeconds: this.totalDurationSeconds,
           location: lastCoord,
+          routeCoordIndex: Math.max(0, this.routeCoordinates.length - 1),
           bearingBefore: 0,
           bearingAfter: 0,
         },
       ];
+    } else if (this.routeCoordinates.length > 0) {
+      // Asociar cada maniobra con su vértice exacto en la polilínea (monótonamente creciente)
+      let searchStartIdx = 0;
+      for (let s = 0; s < this.steps.length; s++) {
+        const stepLoc = this.steps[s].location;
+        let bestIdx = searchStartIdx;
+        let bestDist = Infinity;
+        for (let k = searchStartIdx; k < this.routeCoordinates.length; k++) {
+          const d = haversineMeters(stepLoc, this.routeCoordinates[k]);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = k;
+          }
+          // Si ya encontramos un punto muy cercano (<12m) y empieza a alejarse, parar búsqueda local
+          if (bestDist < 12 && d > 45) {
+            break;
+          }
+        }
+        this.steps[s].routeCoordIndex = bestIdx;
+        searchStartIdx = bestIdx;
+      }
     }
+
+    // En OSRM, steps[0] es 'depart' (punto de origen 0m). La primera maniobra por delante es steps[1]
+    this.currentStepIndex = this.steps.length > 1 ? 1 : 0;
 
     Logger.info(
       'TurnByTurnNavigationEngine',
       `Ruta inicializada: ${this.steps.length} maniobras, ${(this.totalDistanceMeters / 1000).toFixed(1)} km`
     );
 
-    // Aviso de inicio de viaje
-    const firstStep = this.steps[0];
-    if (firstStep) {
-      AudioAlertService.speak(`Iniciando navegación. ${firstStep.voiceInstruction}`, 'nav_start', 1000);
+    // Aviso de inicio de viaje con la primera maniobra real por delante
+    const firstUpcoming = this.steps[this.currentStepIndex] || this.steps[0];
+    if (firstUpcoming) {
+      AudioAlertService.speak(`Iniciando navegación 3D. ${firstUpcoming.voiceInstruction}`, 'nav_start', 1000);
     }
   }
 
   /**
    * Procesa la posición GPS actual del vehículo, realiza snap-to-road,
-   * calcula distancias al próximo giro y emite avisos por voz
+   * calcula distancias reales por carretera al próximo giro y emite avisos por voz
    */
   public updateLocation(
     currentLat: number,
@@ -275,19 +301,27 @@ export class TurnByTurnNavigationEngine {
         if (proj.distance < closestDist) {
           closestDist = proj.distance;
           closestPoint = proj.point;
+          // Buscar un vértice por delante a mínimo 8 metros para un rumbo tangente 100% estable en curvas
+          let lookAheadIdx = i + 1;
+          while (
+            lookAheadIdx < this.routeCoordinates.length - 1 &&
+            haversineMeters(closestPoint, this.routeCoordinates[lookAheadIdx]) < 8
+          ) {
+            lookAheadIdx++;
+          }
           closestSegmentBearing = calculateBearing(
             segA.latitude,
             segA.longitude,
-            segB.latitude,
-            segB.longitude
+            this.routeCoordinates[lookAheadIdx].latitude,
+            this.routeCoordinates[lookAheadIdx].longitude
           );
           closestSegmentIndex = i;
         }
       }
     }
 
-    // 2. Detección de Desvío de Ruta (Off-Route > 35 metros)
-    const OFF_ROUTE_THRESHOLD_METERS = 35;
+    // 2. Detección de Desvío de Ruta (Off-Route > 45 metros sostenidos)
+    const OFF_ROUTE_THRESHOLD_METERS = 45;
     if (closestDist > OFF_ROUTE_THRESHOLD_METERS) {
       this.consecutiveOffRouteCount += 1;
       if (this.consecutiveOffRouteCount >= 3 && !this.isOffRoute) {
@@ -303,38 +337,65 @@ export class TurnByTurnNavigationEngine {
       this.isOffRoute = false;
     }
 
-    // Posición proyectada suavemente si estamos cerca de la ruta
-    const finalLat = closestDist <= 30 ? closestPoint.latitude : currentLat;
-    const finalLng = closestDist <= 30 ? closestPoint.longitude : currentLng;
-    const finalHeading = (gpsHeading && gpsHeading > 0) ? gpsHeading : closestSegmentBearing;
+    // Posición proyectada sobre el asfalto y rumbo tangente de la vía cuando estamos en ruta (<= 45m)
+    const isSnapped = closestDist <= 45 && this.routeCoordinates.length >= 2;
+    const finalLat = isSnapped ? closestPoint.latitude : currentLat;
+    const finalLng = isSnapped ? closestPoint.longitude : currentLng;
+    const finalHeading = isSnapped
+      ? closestSegmentBearing
+      : (gpsHeading !== undefined && gpsHeading >= 0 ? gpsHeading : closestSegmentBearing);
 
-    // 3. Evaluar paso / maniobra activa
-    const currentStep = this.steps[this.currentStepIndex] || null;
-    const nextStep = this.steps[this.currentStepIndex + 1] || null;
+    // 3. Avanzar automáticamente de paso si ya superamos el vértice de la maniobra en la polilínea
+    while (
+      this.currentStepIndex < this.steps.length - 1 &&
+      this.steps[this.currentStepIndex].routeCoordIndex !== undefined &&
+      closestSegmentIndex > this.steps[this.currentStepIndex].routeCoordIndex!
+    ) {
+      this.currentStepIndex += 1;
+    }
 
+    let currentStep = this.steps[this.currentStepIndex] || null;
+
+    // Calcular distancia REAL por carretera (siguiendo los segmentos de la ruta) hasta la maniobra activa
     let distToManeuver = 0;
     if (currentStep) {
-      distToManeuver = haversineMeters(rawPos, currentStep.location);
+      const targetIdx = currentStep.routeCoordIndex;
+      if (targetIdx !== undefined && targetIdx > closestSegmentIndex && this.routeCoordinates.length > targetIdx) {
+        distToManeuver = haversineMeters(
+          { latitude: finalLat, longitude: finalLng },
+          this.routeCoordinates[closestSegmentIndex + 1]
+        );
+        for (let k = closestSegmentIndex + 1; k < targetIdx; k++) {
+          distToManeuver += haversineMeters(this.routeCoordinates[k], this.routeCoordinates[k + 1]);
+        }
+      } else {
+        distToManeuver = haversineMeters({ latitude: finalLat, longitude: finalLng }, currentStep.location);
+      }
 
       // Transición al siguiente paso si estamos a menos de 25m de la maniobra
       if (distToManeuver < 25 && this.currentStepIndex < this.steps.length - 1) {
         this.currentStepIndex += 1;
-        const newStep = this.steps[this.currentStepIndex];
-        Logger.info('TurnByTurnNavigationEngine', `Maniobra completada. Siguiente: ${newStep.instruction}`);
+        currentStep = this.steps[this.currentStepIndex];
+        Logger.info('TurnByTurnNavigationEngine', `Maniobra completada. Siguiente: ${currentStep.instruction}`);
       }
     }
+
+    const nextStep = this.steps[this.currentStepIndex + 1] || null;
+    const activeRoadStep = this.steps[Math.max(0, this.currentStepIndex - 1)] || currentStep;
 
     // 4. Calcular distancia y tiempo restantes a destino
     let remainingDistMeters = 0;
     if (this.routeCoordinates.length > 0) {
-      // Sumar distancia desde la posición actual hasta el final del trazado
-      remainingDistMeters = haversineMeters(rawPos, this.routeCoordinates[closestSegmentIndex + 1] || this.routeCoordinates[this.routeCoordinates.length - 1]);
+      remainingDistMeters = haversineMeters(
+        { latitude: finalLat, longitude: finalLng },
+        this.routeCoordinates[closestSegmentIndex + 1] || this.routeCoordinates[this.routeCoordinates.length - 1]
+      );
       for (let j = closestSegmentIndex + 1; j < this.routeCoordinates.length - 1; j++) {
         remainingDistMeters += haversineMeters(this.routeCoordinates[j], this.routeCoordinates[j + 1]);
       }
     }
 
-    const currentSpeedMps = Math.max(speed, 5); // mínimo 18 km/h para estimación
+    const currentSpeedMps = Math.max(speed, 8); // mínimo ~29 km/h para ETA realista
     const remainingSeconds = Math.round(remainingDistMeters / currentSpeedMps);
     const etaDate = new Date(Date.now() + remainingSeconds * 1000);
     const etaString = etaDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -363,7 +424,6 @@ export class TurnByTurnNavigationEngine {
         currentStep.maneuverType === 'turn-right' ||
         currentStep.maneuverType === 'turn-left'
       ) {
-        // Síntesis inteligente de carriles según el tipo de maniobra
         activeLanes = this.synthesizeLanes(currentStep.maneuverType);
       }
     }
@@ -372,12 +432,12 @@ export class TurnByTurnNavigationEngine {
       currentStepIndex: this.currentStepIndex,
       currentStep,
       nextStep,
-      distanceToTurnMeters: distToManeuver,
+      distanceToTurnMeters: Math.round(distToManeuver),
       instruction: currentStep ? currentStep.instruction : 'Continúe hacia el destino',
-      roadName: currentStep ? currentStep.name || currentStep.roadRef || 'Vía principal' : '',
+      roadName: activeRoadStep ? activeRoadStep.name || activeRoadStep.roadRef || 'Vía principal' : '',
       maneuverType: currentStep ? currentStep.maneuverType : 'straight',
       remainingDistanceKm: remainingDistMeters / 1000,
-      remainingMinutes: Math.round(remainingSeconds / 60),
+      remainingMinutes: Math.max(1, Math.round(remainingSeconds / 60)),
       etaString,
       snappedPosition: {
         latitude: finalLat,

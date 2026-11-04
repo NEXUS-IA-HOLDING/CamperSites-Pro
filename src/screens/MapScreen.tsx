@@ -108,6 +108,39 @@ export function calculateSpeedAdaptiveCamera(
   }
 }
 
+// Proyecta el foco de la cámara unos metros por delante del vehículo en modo Cabina 3D
+// para que la furgoneta se ubique en el tercio inferior de la pantalla y el conductor vea toda la calzada por delante
+export function projectLookAhead(
+  lat: number,
+  lng: number,
+  bearingDeg: number,
+  metersAhead: number = 85
+): [number, number] {
+  const rad = (bearingDeg * Math.PI) / 180;
+  const dLat = (metersAhead * Math.cos(rad)) / 111132.95;
+  const dLng =
+    (metersAhead * Math.sin(rad)) /
+    (111132.95 * Math.cos((lat * Math.PI) / 180));
+  return [lng + dLng, lat + dLat];
+}
+
+// Calcula el rumbo exacto (0-360°) entre dos posiciones GPS reales consecutivas
+function computeGpsBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 // 4 Estilos de Mapa Conmutables de Alta Definición (100% Libres de API Keys y sin marcas de agua)
 const MAP_STYLES: Record<MapStyleType, any> = {
   satellite: Object.freeze({
@@ -392,22 +425,31 @@ const MapScreen = () => {
 
   const handleRecenter = useCallback(() => {
     if (currentLocation) {
-      const targetCoords: [number, number] = [currentLocation.longitude, currentLocation.latitude];
-      currentMapCenterRef.current = targetCoords;
+      const activeBearing = isNavigating
+        ? (navProgress?.snappedPosition?.bearing ?? currentLocation.heading ?? 0)
+        : (currentLocation.heading || 0);
       const speedKmH = (currentLocation.speed || 0) * 3.6;
-      const adaptiveCam = calculateSpeedAdaptiveCamera(speedKmH);
+      const adaptiveCam = calculateSpeedAdaptiveCamera(speedKmH, navProgress?.distanceToTurnMeters);
+      const lookAheadCenter = projectLookAhead(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        activeBearing,
+        85
+      );
+      currentMapCenterRef.current = lookAheadCenter;
+
+      setIsAwayFromUser(false);
+      isAwayFromUserRef.current = false;
+      setCamera3DMode(true);
+      camera3DModeRef.current = true;
 
       cameraRef.current?.setCamera({
-        centerCoordinate: targetCoords,
+        centerCoordinate: lookAheadCenter,
         zoomLevel: adaptiveCam.zoom,
         pitch: 60,
-        heading: isNavigating
-          ? (navProgress?.snappedPosition?.bearing ?? currentLocation.heading ?? 0)
-          : (currentLocation.heading || 0),
-        animationDuration: 800,
+        heading: activeBearing,
+        animationDuration: 700,
       });
-      setIsAwayFromUser(false);
-      setCamera3DMode(true);
       AudioAlertService.speak('Modo conducción 3D activo');
     } else {
       cameraRef.current?.setCamera({
@@ -418,12 +460,14 @@ const MapScreen = () => {
         animationDuration: 800,
       });
       setIsAwayFromUser(false);
+      isAwayFromUserRef.current = false;
     }
   }, [currentLocation, isNavigating, navProgress]);
 
   const isNavigatingRef = useRef(false);
   const camera3DModeRef = useRef(false);
   const isAwayFromUserRef = useRef(false);
+  const lastGpsFixRef = useRef<{ latitude: number; longitude: number; timestamp: number } | null>(null);
 
   useEffect(() => {
     isNavigatingRef.current = isNavigating;
@@ -621,28 +665,60 @@ const MapScreen = () => {
     watchId.current = Geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, speed, heading } = position.coords;
-        const currentSpeedKmH = (speed || 0) * 3.6;
+        const now = Date.now();
+        let effectiveSpeedMps = speed && speed > 0 ? speed : 0;
+        let effectiveHeading = heading !== null && heading !== undefined && heading > 0 ? heading : -1;
+
+        // Cálculo geométrico real de velocidad y rumbo entre muestras GPS consecutivas
+        // Garantiza velocidad y rumbo exactos incluso en móviles Android cuyo chip GPS devuelve speed=0 o heading=0
+        if (lastGpsFixRef.current) {
+          const dtSec = (now - lastGpsFixRef.current.timestamp) / 1000;
+          const distM = haversine(
+            { latitude: lastGpsFixRef.current.latitude, longitude: lastGpsFixRef.current.longitude },
+            { latitude, longitude }
+          );
+          if (dtSec >= 0.4 && distM >= 1.8) {
+            if (effectiveSpeedMps <= 0.3) {
+              effectiveSpeedMps = Math.min(45, distM / dtSec);
+            }
+            if (effectiveHeading < 0 && distM >= 2.2) {
+              effectiveHeading = computeGpsBearing(
+                lastGpsFixRef.current.latitude,
+                lastGpsFixRef.current.longitude,
+                latitude,
+                longitude
+              );
+            }
+            lastGpsFixRef.current = { latitude, longitude, timestamp: now };
+          } else if (dtSec > 4.0) {
+            lastGpsFixRef.current = { latitude, longitude, timestamp: now };
+          }
+        } else {
+          lastGpsFixRef.current = { latitude, longitude, timestamp: now };
+        }
+
+        const currentSpeedKmH = effectiveSpeedMps * 3.6;
         CockpitNightModeService.updateLocation(latitude, longitude);
 
         // Filtro inteligente anti-peonza / anti-jitter:
-        // Si el vehículo está detenido o quieto (< 2.5 km/h), descartar fluctuaciones aleatorias del magnetómetro/giroscopio
-        if (currentSpeedKmH >= 2.5 && heading !== null && heading !== undefined && heading >= 0) {
-          lastStableHeading.current = heading;
+        // Si el vehículo está en movimiento (>= 2.5 km/h), actualizar el rumbo estable de la calzada
+        if (currentSpeedKmH >= 2.5 && effectiveHeading >= 0) {
+          lastStableHeading.current = effectiveHeading;
         }
 
         setCurrentLocation({
           latitude,
           longitude,
-          speed: speed || 0,
+          speed: effectiveSpeedMps,
           heading: lastStableHeading.current,
         });
 
-        // 1. Navegación Turn-by-Turn activa y Cámara 3D Dinámica
+        // 1. Navegación Turn-by-Turn activa y Cámara 3D Dinámica con Look-Ahead
         if (isNavigatingRef.current) {
           const progress = navigationEngine.updateLocation(
             latitude,
             longitude,
-            speed || 0,
+            effectiveSpeedMps,
             lastStableHeading.current
           );
           setNavProgress(progress);
@@ -653,28 +729,43 @@ const MapScreen = () => {
               progress.distanceToTurnMeters
             );
 
-            // Al estar detenido (< 2.5 km/h), mantener la orientación fija de la calzada
             const safeHeading = progress.snappedPosition?.bearing ?? lastStableHeading.current;
+            const is3D = camera3DModeRef.current;
+            const targetCenter: [number, number] = is3D
+              ? projectLookAhead(
+                  progress.snappedPosition.latitude,
+                  progress.snappedPosition.longitude,
+                  safeHeading,
+                  85
+                )
+              : [progress.snappedPosition.longitude, progress.snappedPosition.latitude];
 
             cameraRef.current?.setCamera({
-              centerCoordinate: [
-                progress.snappedPosition.longitude,
-                progress.snappedPosition.latitude,
-              ],
-              zoomLevel: adaptiveCam.zoom,
-              pitch: adaptiveCam.pitch,
-              heading: safeHeading,
+              centerCoordinate: targetCenter,
+              zoomLevel: is3D ? adaptiveCam.zoom : 15.5,
+              pitch: is3D ? adaptiveCam.pitch : 0,
+              heading: is3D ? safeHeading : 0,
               animationDuration: 450,
             });
           }
         } else {
           // 1B. MODO LIBRE DE CONDUCCIÓN 3D (Simulador estilo Google Maps / Waze):
           // En cuanto el usuario empieza a moverse por la carretera (>= 3.0 km/h) y no está alejando el mapa a mano,
-          // la pantalla desciende a ras de calzada (zoom 18.2), se inclina en perspectiva 3D (pitch 58-62°) y rota siguiendo la carretera
+          // la pantalla desciende a ras de calzada, se inclina en perspectiva 3D y proyecta la vista por delante del vehículo
           if (currentSpeedKmH >= 3.0 && !isAwayFromUserRef.current) {
+            if (!camera3DModeRef.current) {
+              setCamera3DMode(true);
+              camera3DModeRef.current = true;
+            }
             const adaptiveCam = calculateSpeedAdaptiveCamera(currentSpeedKmH);
+            const lookAheadCenter = projectLookAhead(
+              latitude,
+              longitude,
+              lastStableHeading.current,
+              80
+            );
             cameraRef.current?.setCamera({
-              centerCoordinate: [longitude, latitude],
+              centerCoordinate: lookAheadCenter,
               zoomLevel: adaptiveCam.zoom,
               pitch: adaptiveCam.pitch,
               heading: lastStableHeading.current,
@@ -684,7 +775,7 @@ const MapScreen = () => {
         }
 
         // 2. Control y Seguimiento de Radares de Tramo DGT
-        const secStatus = sectionRadarTracker.updatePosition(latitude, longitude, speed || 0);
+        const secStatus = sectionRadarTracker.updatePosition(latitude, longitude, effectiveSpeedMps);
         setSectionRadarStatus(secStatus);
 
         // 3. Alerta sonora inmediata de exceso de velocidad
@@ -1219,6 +1310,7 @@ const MapScreen = () => {
   const startNavigation = (route: Route) => {
     setSelectedRoute(route);
     setIsNavigating(true);
+    isNavigatingRef.current = true;
     setShowRouteSelector(false);
     setAlertedRadars(new Set());
     const startTime = Date.now();
@@ -1237,15 +1329,33 @@ const MapScreen = () => {
       handleOffRouteRecalculate
     );
 
-    // Activar modo cámara de cabina 3D (pitch: 60)
+    // Calcular primera actualización inmediata para obtener rumbo exacto de la calzada inicial
+    const initialProg = navigationEngine.updateLocation(
+      startLat,
+      startLng,
+      currentLocation?.speed || 0,
+      currentLocation?.heading
+    );
+    setNavProgress(initialProg);
+
+    const initialBearing = initialProg.snappedPosition?.bearing ?? currentLocation?.heading ?? 0;
+    const lookAheadCenter = projectLookAhead(
+      initialProg.snappedPosition.latitude,
+      initialProg.snappedPosition.longitude,
+      initialBearing,
+      85
+    );
+
+    // Activar modo cámara de cabina 3D (pitch: 60) con Look-Ahead
     setCamera3DMode(true);
     camera3DModeRef.current = true;
     setIsAwayFromUser(false);
+    isAwayFromUserRef.current = false;
     cameraRef.current?.setCamera({
-      centerCoordinate: [startLng, startLat],
+      centerCoordinate: lookAheadCenter,
       zoomLevel: 18.2,
       pitch: 60,
-      heading: currentLocation?.heading || 0,
+      heading: initialBearing,
       animationDuration: 800,
     });
 
@@ -1254,6 +1364,7 @@ const MapScreen = () => {
 
   const stopNavigation = () => {
     setIsNavigating(false);
+    isNavigatingRef.current = false;
     setCamera3DMode(false);
     camera3DModeRef.current = false;
     setSelectedLocation(null);
@@ -1312,6 +1423,11 @@ const MapScreen = () => {
           heading: simPos.heading,
         });
 
+        let activeDistanceToTurn: number | undefined;
+        let activeBearing = simPos.heading;
+        let activeLat = simPos.latitude;
+        let activeLng = simPos.longitude;
+
         if (route) {
           const prog = navigationEngine.updateLocation(
             simPos.latitude,
@@ -1320,6 +1436,10 @@ const MapScreen = () => {
             simPos.heading
           );
           setNavProgress(prog);
+          activeDistanceToTurn = prog.distanceToTurnMeters;
+          activeBearing = prog.snappedPosition.bearing;
+          activeLat = prog.snappedPosition.latitude;
+          activeLng = prog.snappedPosition.longitude;
         }
 
         const sStatus = sectionRadarTracker.updatePosition(
@@ -1329,13 +1449,18 @@ const MapScreen = () => {
         );
         setSectionRadarStatus(sStatus);
 
-        const adaptiveCam = calculateSpeedAdaptiveCamera(speedKmH);
+        const is3D = camera3DModeRef.current;
+        const adaptiveCam = calculateSpeedAdaptiveCamera(speedKmH, activeDistanceToTurn);
+        const targetCenter: [number, number] = is3D
+          ? projectLookAhead(activeLat, activeLng, activeBearing, 85)
+          : [activeLng, activeLat];
+
         cameraRef.current?.setCamera({
-          centerCoordinate: [simPos.longitude, simPos.latitude],
-          zoomLevel: adaptiveCam.zoom,
-          pitch: adaptiveCam.pitch,
-          heading: simPos.heading,
-          animationDuration: 550,
+          centerCoordinate: targetCenter,
+          zoomLevel: is3D ? adaptiveCam.zoom : 15.5,
+          pitch: is3D ? adaptiveCam.pitch : 0,
+          heading: is3D ? activeBearing : 0,
+          animationDuration: 520,
         });
       },
       () => {
@@ -1515,21 +1640,27 @@ const MapScreen = () => {
   const toggleCameraMode = () => {
     const nextMode = !camera3DMode;
     setCamera3DMode(nextMode);
+    camera3DModeRef.current = nextMode;
     if (nextMode) {
+      const activeBearing = navProgress?.snappedPosition.bearing || currentLocation?.heading || 0;
+      const targetCenter = currentLocation
+        ? projectLookAhead(currentLocation.latitude, currentLocation.longitude, activeBearing, 85)
+        : DEFAULT_CENTER;
       cameraRef.current?.setCamera({
         pitch: 60,
-        zoomLevel: 17.5,
-        heading: navProgress?.snappedPosition.bearing || currentLocation?.heading || 0,
-        centerCoordinate: currentLocation
-          ? [currentLocation.longitude, currentLocation.latitude]
-          : DEFAULT_CENTER,
+        zoomLevel: 17.8,
+        heading: activeBearing,
+        centerCoordinate: targetCenter,
         animationDuration: 600,
       });
     } else {
       cameraRef.current?.setCamera({
         pitch: 0,
         heading: 0,
-        zoomLevel: 14,
+        zoomLevel: 15,
+        centerCoordinate: currentLocation
+          ? [currentLocation.longitude, currentLocation.latitude]
+          : DEFAULT_CENTER,
         animationDuration: 600,
       });
     }
@@ -1609,19 +1740,24 @@ const MapScreen = () => {
 
   // Manejar movimiento del mapa para recargar locations según el encuadre (viewport)
   const handleRegionDidChange = useCallback(async (feature: any) => {
-    if (isNavigating) return;
-
+    const isUserGesture = feature?.properties?.isUserInteraction === true;
     const center = feature?.geometry?.coordinates;
     if (center && Array.isArray(center) && center.length === 2) {
       currentMapCenterRef.current = [center[0], center[1]];
-      if (currentLocation) {
+      // Solo desactivar el auto-seguimiento 3D si el usuario arrastró el mapa manualmente con el dedo
+      if (isUserGesture && currentLocation) {
         const distFromUser = haversine(
           { latitude: center[1], longitude: center[0] },
           { latitude: currentLocation.latitude, longitude: currentLocation.longitude }
         );
-        setIsAwayFromUser(distFromUser > 350);
+        if (distFromUser > 350) {
+          setIsAwayFromUser(true);
+          isAwayFromUserRef.current = true;
+        }
       }
     }
+
+    if (isNavigating) return;
 
     try {
       let bounds = feature?.properties?.visibleBounds;
@@ -1963,11 +2099,13 @@ const MapScreen = () => {
               <VehicleMapCursor
                 cursorType={selectedCursor}
                 heading={
-                  isNavigating && navProgress?.snappedPosition
+                  camera3DMode && !isAwayFromUser
+                    ? 0
+                    : isNavigating && navProgress?.snappedPosition
                     ? navProgress.snappedPosition.bearing
                     : (currentLocation.heading || 0)
                 }
-                isMoving={(currentLocation.speed || 0) > 1}
+                isMoving={(currentLocation.speed || 0) > 0.8}
               />
             </TouchableOpacity>
           </MapLibreGL.PointAnnotation>
