@@ -48,6 +48,7 @@ import {
 } from '../services/SectionRadarTracker';
 import { offlineSpotVault } from '../services/OfflineSpotVaultService';
 import { affiliatePartnerService } from '../services/AffiliatePartnerService';
+import { drivingSimulationService } from '../services/DrivingSimulationService';
 import {
   navigationEngine,
   NavigationProgress,
@@ -332,6 +333,7 @@ const MapScreen = () => {
   const [advancedFilterCriteria, setAdvancedFilterCriteria] = useState<SpotFilterCriteria>(DEFAULT_FILTER_CRITERIA);
   const [nightModeState, setNightModeState] = useState<NightModeState>(CockpitNightModeService.getState());
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isSimulationActive, setIsSimulationActive] = useState<boolean>(false);
   const [isAwayFromUser, setIsAwayFromUser] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
@@ -1204,6 +1206,87 @@ const MapScreen = () => {
     });
   };
 
+  const handleStartDemoSimulation = useCallback((route?: Route) => {
+    setShowRouteSelector(false);
+    setIsSimulationActive(true);
+    setCamera3DMode(true);
+    camera3DModeRef.current = true;
+    setIsAwayFromUser(false);
+    isAwayFromUserRef.current = false;
+
+    if (route) {
+      setSelectedRoute(route);
+      setIsNavigating(true);
+      isNavigatingRef.current = true;
+      navigationEngine.initializeRoute(
+        route.rawRoute || route,
+        {
+          latitude: route.coordinates[0]?.latitude ?? 36.782,
+          longitude: route.coordinates[0]?.longitude ?? -2.195,
+        },
+        handleOffRouteRecalculate
+      );
+    }
+
+    AudioAlertService.speak('Iniciando simulación de conducción 3D');
+
+    drivingSimulationService.startSimulation(
+      route?.coordinates,
+      (simPos) => {
+        const speedKmH = simPos.speed * 3.6;
+        lastStableHeading.current = simPos.heading;
+        setCurrentLocation({
+          latitude: simPos.latitude,
+          longitude: simPos.longitude,
+          speed: simPos.speed,
+          heading: simPos.heading,
+        });
+
+        if (route) {
+          const prog = navigationEngine.updateLocation(
+            simPos.latitude,
+            simPos.longitude,
+            simPos.speed,
+            simPos.heading
+          );
+          setNavProgress(prog);
+        }
+
+        const sStatus = sectionRadarTracker.updatePosition(
+          simPos.latitude,
+          simPos.longitude,
+          simPos.speed
+        );
+        setSectionRadarStatus(sStatus);
+
+        const adaptiveCam = calculateSpeedAdaptiveCamera(speedKmH);
+        cameraRef.current?.setCamera({
+          centerCoordinate: [simPos.longitude, simPos.latitude],
+          zoomLevel: adaptiveCam.zoom,
+          pitch: adaptiveCam.pitch,
+          heading: simPos.heading,
+          animationDuration: 550,
+        });
+      },
+      () => {
+        setIsSimulationActive(false);
+        setIsNavigating(false);
+        isNavigatingRef.current = false;
+        AudioAlertService.speak('Simulación completada');
+      }
+    );
+  }, [handleOffRouteRecalculate]);
+
+  const handleStopDemoSimulation = useCallback(() => {
+    drivingSimulationService.stopSimulation();
+    setIsSimulationActive(false);
+    setIsNavigating(false);
+    isNavigatingRef.current = false;
+    setSelectedRoute(null);
+    setNavProgress(null);
+    AudioAlertService.speak('Simulación detenida');
+  }, []);
+
   // Interceptar pulsación larga libre en cualquier lugar del mapa
   const handleMapLongPress = useCallback(async (feature: any) => {
     try {
@@ -1913,13 +1996,76 @@ const MapScreen = () => {
         currentMapStyle={currentMapStyle}
         gpsEnabled={gpsEnabled}
         isFullScreen={isFullScreen}
+        isSimulating={isSimulationActive}
         onSelectMapStyle={setCurrentMapStyle}
         onToggleFullScreen={handleToggleFullScreen}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onRecenterGPS={handleRecenter}
         onOpenReportIncident={() => setIsReportModalOpen(true)}
+        onToggleSimulation={() =>
+          isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation()
+        }
       />
+
+      {/* Banner Superior de Simulación de Conducción 3D Activa */}
+      {isSimulationActive && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 65,
+            left: 16,
+            right: 16,
+            zIndex: 9999,
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            borderWidth: 1.5,
+            borderColor: '#38BDF8',
+            borderRadius: 14,
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.5,
+            shadowRadius: 8,
+            elevation: 10,
+          }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: '#EF4444',
+                marginRight: 10,
+              }}
+            />
+            <View>
+              <Text style={{ color: '#38BDF8', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 }}>
+                DEMO CABINA 3D ACTIVA
+              </Text>
+              <Text style={{ color: '#94A3B8', fontSize: 11 }}>
+                Simulando ruta, velocímetro HUD y radares DGT
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#EF4444',
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+            onPress={handleStopDemoSimulation}>
+            <Icon name="stop" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 12 }}>Detener</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Botón Flotante de Recentrado Rápido en Vehículo (Aparece cuando el usuario desplaza el mapa) */}
       {isAwayFromUser && (
@@ -2095,6 +2241,28 @@ const MapScreen = () => {
               </View>
               <Icon name="chevron-right" size={18} color="#10B981" />
             </TouchableOpacity>
+
+            {/* Botón Simular Conducción 3D (Demo Drive) */}
+            {routes.length > 0 && (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#0284C7',
+                  borderRadius: 12,
+                  padding: 12,
+                  marginTop: 6,
+                  marginBottom: 6,
+                }}
+                activeOpacity={0.85}
+                onPress={() => handleStartDemoSimulation(routes[0])}>
+                <Icon name="gamepad-variant" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
+                  🎮 Probar / Simular en Cabina 3D
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRouteSelector(false)}>
               <Text style={styles.cancelText}>Cancelar</Text>

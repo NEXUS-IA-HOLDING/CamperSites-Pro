@@ -35,6 +35,11 @@ import {
 } from '../services/AudioAlertService';
 import { CockpitNightModeService, CockpitThemeMode } from '../services/CockpitNightModeService';
 import { OfflineVaultManager } from '../components/OfflineVaultManager';
+import {
+  languageService,
+  SUPPORTED_LANGUAGES,
+  SupportedLanguage,
+} from '../services/LanguageService';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 const PREFERENCES_STORAGE_KEY = '@camper_driving_preferences';
@@ -94,6 +99,7 @@ export default function ConfigScreen() {
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [cockpitThemeMode, setCockpitThemeMode] = useState<CockpitThemeMode>(CockpitNightModeService.getMode());
   const [voicePrefs, setVoicePrefs] = useState<VoicePreferences>(AudioAlertService.getVoicePreferences());
+  const [currentLang, setCurrentLang] = useState<SupportedLanguage>(languageService.getLanguage());
 
   const handleUpdateVoicePref = (key: keyof VoicePreferences, val: any) => {
     const updated = { ...voicePrefs, [key]: val };
@@ -106,6 +112,8 @@ export default function ConfigScreen() {
     loadVehicleConfig();
     loadDrivingPreferences();
     loadVehicleCursor();
+    const unsub = languageService.subscribe(l => setCurrentLang(l));
+    return () => unsub();
   }, []);
 
   const loadVehicleCursor = async () => {
@@ -255,6 +263,47 @@ export default function ConfigScreen() {
           <Text style={styles.hintText}>
             El navegador calculará rutas esquivando puentes inferiores a tu altura + 15cm de margen de seguridad.
           </Text>
+        </View>
+
+        {/* 1.5 SECCIÓN IDIOMA DE LA APLICACIÓN (i18n) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🌍 Idioma de la Aplicación / Language</Text>
+          <Text style={styles.hintText}>
+            Selecciona el idioma del copiloto, avisos y fichas de pernocta en Europa
+          </Text>
+          <View style={[styles.btnRow, { marginTop: 8 }]}>
+            {SUPPORTED_LANGUAGES.map(lang => {
+              const isSelected = currentLang === lang.code;
+              return (
+                <TouchableOpacity
+                  key={lang.code}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.choiceBtn,
+                    isSelected && styles.choiceBtnActive,
+                    { flex: 1, marginHorizontal: 3, paddingVertical: 10 },
+                  ]}
+                  onPress={async () => {
+                    await languageService.setLanguage(lang.code);
+                    setCurrentLang(lang.code);
+                    Alert.alert(
+                      'Idioma Actualizado',
+                      `La aplicación ahora está configurada en ${lang.nativeName} (${lang.flag}).`
+                    );
+                  }}>
+                  <Text style={{ fontSize: 20, marginBottom: 2 }}>{lang.flag}</Text>
+                  <Text
+                    style={[
+                      styles.choiceBtnText,
+                      isSelected && styles.choiceBtnTextActive,
+                      { fontSize: 11 },
+                    ]}>
+                    {lang.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* 2. SECCIÓN ICONO DEL VEHÍCULO EN RUTA (ROTACIÓN 360°) */}

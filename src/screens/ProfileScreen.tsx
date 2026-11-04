@@ -15,6 +15,7 @@ import {
   TextInput,
   Modal,
   Image,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -599,6 +600,46 @@ export default function ProfileScreen() {
 
         {/* Tarjeta de Apoyo Comunitario & Meta Google Play */}
         <GooglePlaySupportCard onOpenIati={() => setShowAffiliatesModal(true)} />
+
+        {/* Banner Oficial TikTok & Material de Creadores */}
+        <TouchableOpacity
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 16,
+            backgroundColor: 'rgba(254, 44, 85, 0.1)',
+            borderWidth: 1.5,
+            borderColor: 'rgba(254, 44, 85, 0.4)',
+            borderRadius: 16,
+            padding: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}
+          activeOpacity={0.85}
+          onPress={() => {
+            Linking.openURL('https://www.tiktok.com/@campersites_oficial_es').catch(() => {});
+          }}>
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: '#FE2C55',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 14,
+            }}>
+            <Icon name="music-note" size={24} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14 }}>
+              TikTok Oficial @campersites_oficial_es
+            </Text>
+            <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 2 }}>
+              Calas secretas, vídeos virales y trucos camper para tu viaje
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={20} color="#FE2C55" />
+        </TouchableOpacity>
 
         {/* Puntos */}
         <View style={styles.section}>

@@ -23,12 +23,14 @@ interface MapControlDockProps {
   currentMapStyle: MapStyleType;
   gpsEnabled: boolean;
   isFullScreen?: boolean;
+  isSimulating?: boolean;
   onSelectMapStyle: (style: MapStyleType) => void;
   onRecenterGPS: () => void;
   onOpenReportIncident: () => void;
   onToggleFullScreen?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  onToggleSimulation?: () => void;
 }
 
 interface MapLayerOption {
@@ -74,12 +76,14 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   currentMapStyle,
   gpsEnabled,
   isFullScreen = false,
+  isSimulating = false,
   onSelectMapStyle,
   onRecenterGPS,
   onOpenReportIncident,
   onToggleFullScreen,
   onZoomIn,
   onZoomOut,
+  onToggleSimulation,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -182,6 +186,24 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
             color={layersOpen ? '#38BDF8' : '#F1F5F9'}
           />
         </TouchableOpacity>
+
+        {/* 1.5 Botón Simulación de Conducción en Cabina 3D (Demo Drive) */}
+        {onToggleSimulation && (
+          <TouchableOpacity
+            style={[
+              styles.dockBtn,
+              isSimulating && { backgroundColor: '#0284C7', borderColor: '#38BDF8' },
+            ]}
+            onPress={onToggleSimulation}
+            activeOpacity={0.8}
+            accessibilityLabel="Simulación Conducción 3D">
+            <Icon
+              name={isSimulating ? 'stop-circle' : 'car-sports'}
+              size={22}
+              color={isSimulating ? '#FFFFFF' : '#38BDF8'}
+            />
+          </TouchableOpacity>
+        )}
 
         {/* 2. Botón Recentrador GPS en Cabina */}
         <TouchableOpacity
