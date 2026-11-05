@@ -384,6 +384,46 @@
       </div>
     </div>
 
+    <!-- GENERADOR DE CÓDIGOS DE INVITACIÓN & PRIVILEGIOS (FAMILIA, AMIGOS, COMPAÑEROS Y PIONEROS) -->
+    <div class="section-card" style="margin-bottom: 26px; border-color: rgba(245, 158, 11, 0.45);">
+      <div class="section-header">
+        <span class="section-title" style="color: var(--amber);">🎟️ Generador de Códigos de Invitación, Referidos y Privilegios VIP (Familia, Amigos y Compañeros)</span>
+        <button class="btn" style="background: var(--amber); color: #070D18;" onclick="generateRandomWebCode()">🎲 Generar Código Automático</button>
+      </div>
+
+      <div style="background: var(--panel-alt); padding: 16px; border-radius: 12px; margin-bottom: 18px; border: 1px solid rgba(245, 158, 11, 0.3);">
+        <div class="form-row">
+          <input id="codeInput" placeholder="Código (ej. FAMILIA-VIP, PRIMO-CARLOS, COMPIS-4X4)" style="font-weight: 800; text-transform: uppercase;" />
+          <input id="codeLabel" placeholder="Para quién es (ej. Familiares Directos, Amigos Club Moto...)" />
+        </div>
+        <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+          <select id="codePlan">
+            <option value="💎 VIP Vitalicio (Gratis Siempre)">💎 VIP Vitalicio (Familia / Todo Gratis)</option>
+            <option value="🚀 Pro Anual (1 Año Gratis)">🚀 Pro Anual (Amigos y Compañeros)</option>
+            <option value="🚐 Pro Mensual (1 Mes)">🚐 Pro Mensual (Referido)</option>
+          </select>
+          <select id="codeRole">
+            <option value="USUARIO VIP">👤 Rol: Usuario VIP</option>
+            <option value="MODERADOR">🛡️ Rol: Moderador Verificador</option>
+            <option value="STAFF SOPORTE">🛠️ Rol: Staff Soporte</option>
+            <option value="CO-ADMIN">👑 Rol: Co-Administrador</option>
+          </select>
+          <select id="codeMaxUses">
+            <option value="25">Límite: 25 personas</option>
+            <option value="50">Límite: 50 personas</option>
+            <option value="1">Límite: 1 persona (Personal)</option>
+            <option value="100">Límite: 100 pioneros</option>
+            <option value="Ilimitado">♾️ Usos Ilimitados</option>
+          </select>
+        </div>
+        <button class="btn" style="background: var(--green); width: 100%; justify-content: center; padding: 11px;" onclick="createWebInviteCode()">
+          ➕ CREAR Y ACTIVAR CÓDIGO DE ACCESO / REFERIDO
+        </button>
+      </div>
+
+      <div id="inviteCodesContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;"></div>
+    </div>
+
     <!-- BANDEJA DE INCIDENCIAS Y ALERTAS DE USUARIOS -->
     <div class="section-card">
       <div class="section-header">
@@ -635,10 +675,145 @@
       }
     }
 
+    const DEFAULT_INVITE_CODES = [
+      {
+        id: 'code-1',
+        code: 'FAMILIA-VIP',
+        label: 'Familiares Directos (Todo Gratis Vitalicio)',
+        plan: '💎 VIP Vitalicio (Gratis Siempre)',
+        role: 'USUARIO VIP',
+        used: 2,
+        max: '25'
+      },
+      {
+        id: 'code-2',
+        code: 'AMIGOS-PRO',
+        label: 'Amigos y Compañeros (1 Año Pro Gratis)',
+        plan: '🚀 Pro Anual (1 Año Gratis)',
+        role: 'USUARIO VIP',
+        used: 3,
+        max: '50'
+      },
+      {
+        id: 'code-3',
+        code: 'COMPIS-RUTA',
+        label: 'Compañeros de Trabajo / Grupo 4x4 & Moto',
+        plan: '🚀 Pro Anual (1 Año Gratis)',
+        role: 'MODERADOR',
+        used: 1,
+        max: '50'
+      },
+      {
+        id: 'code-4',
+        code: 'FUNDADOR-100',
+        label: 'Primeros 100 Usuarios Pioneros',
+        plan: '🚀 Pro Anual (1 Año Gratis)',
+        role: 'USUARIO VIP',
+        used: 4,
+        max: '100'
+      },
+      {
+        id: 'code-5',
+        code: 'STAFF-MOD',
+        label: 'Equipo de Moderadores y Soporte Oficial',
+        plan: '💎 VIP Vitalicio (Gratis Siempre)',
+        role: 'STAFF SOPORTE',
+        used: 1,
+        max: '10'
+      }
+    ];
+
+    function loadInviteCodes() {
+      try {
+        const raw = localStorage.getItem('cs_admin_web_invite_codes');
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      localStorage.setItem('cs_admin_web_invite_codes', JSON.stringify(DEFAULT_INVITE_CODES));
+      return DEFAULT_INVITE_CODES;
+    }
+
+    function renderInviteCodes() {
+      const list = loadInviteCodes();
+      const container = document.getElementById('inviteCodesContainer');
+      if (!container) return;
+      container.innerHTML = list.map(c => `
+        <div class="srv-item" style="border-left: 4px solid var(--amber);">
+          <div class="srv-top">
+            <span class="badge badge-degraded" style="font-size: 13px; letter-spacing: 0.6px;">🎟️ ${c.code}</span>
+            <span style="font-size: 11px; color: var(--green); font-weight: 800;">Usos: ${c.used} / ${c.max}</span>
+          </div>
+          <div style="font-size: 13px; font-weight: 800; margin-bottom: 4px;">${c.label}</div>
+          <div style="font-size: 11px; color: var(--blue); margin-bottom: 10px;">
+            ${c.plan} · Rol: <strong>${c.role}</strong>
+          </div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="btn" style="padding: 6px 10px; font-size: 11px; background: #10B981;" onclick="shareWhatsAppCode('${c.code}', '${c.label}', '${c.plan}')">
+              📲 Enviar por WhatsApp
+            </button>
+            <button class="btn btn-outline" style="padding: 6px 10px; font-size: 11px;" onclick="copyInviteCode('${c.code}')">
+              📋 Copiar
+            </button>
+            <button class="btn btn-outline" style="padding: 6px 10px; font-size: 11px; color: var(--red);" onclick="deleteWebInviteCode('${c.id}')">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function generateRandomWebCode() {
+      const prefixes = ['FAMILIA', 'AMIGOS', 'COMPIS', 'RUTA', 'VIP'];
+      const p = prefixes[Math.floor(Math.random() * prefixes.length)];
+      const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+      document.getElementById('codeInput').value = `${p}-${rand}`;
+    }
+
+    function createWebInviteCode() {
+      const rawCode = document.getElementById('codeInput').value.trim().toUpperCase().replace(/\s+/g, '-');
+      const code = rawCode || ('VIP-' + Math.random().toString(36).substring(2, 6).toUpperCase());
+      const label = document.getElementById('codeLabel').value.trim() || ('Pase Invitado ' + code);
+      const plan = document.getElementById('codePlan').value;
+      const role = document.getElementById('codeRole').value;
+      const max = document.getElementById('codeMaxUses').value;
+      const list = loadInviteCodes().filter(c => c.code !== code);
+      list.unshift({
+        id: 'code-' + Date.now(),
+        code,
+        label,
+        plan,
+        role,
+        used: 0,
+        max
+      });
+      localStorage.setItem('cs_admin_web_invite_codes', JSON.stringify(list));
+      document.getElementById('codeInput').value = '';
+      document.getElementById('codeLabel').value = '';
+      renderInviteCodes();
+    }
+
+    function copyInviteCode(code) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code);
+      }
+      alert('Código copiado al portapapeles: ' + code);
+    }
+
+    function shareWhatsAppCode(code, label, plan) {
+      const text = `🚐✨ ¡Hola! Te envío tu invitación especial para *CamperSites Pro* (${label}).\n\n🎟️ Tu código de acceso exclusivo es: *${code}*\n🎁 Desbloquea: ${plan}\n\n📲 Descarga la app en https://nexus-ia-holding.github.io/CamperSites-Pro/ y canjéalo en Perfil -> Códigos de Invitación y VIP.`;
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+    }
+
+    function deleteWebInviteCode(id) {
+      const list = loadInviteCodes().filter(c => c.id !== id);
+      localStorage.setItem('cs_admin_web_invite_codes', JSON.stringify(list));
+      renderInviteCodes();
+    }
+
     setInterval(() => {
       document.getElementById('liveClock').textContent = 'EN VIVO · ' + new Date().toLocaleTimeString('es-ES');
     }, 1000);
 
+    renderInviteCodes();
     renderIncidents();
     runLiveServerChecks();
     setInterval(runLiveServerChecks, 20000);

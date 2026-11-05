@@ -1,6 +1,6 @@
 #!/bin/bash
-APK="/Users/mrhardcore/Desktop/campersites-pro/CamperSites-Pro/CamperSites-Pro-v1.0.apk"
-echo "=== CamperSites Pro Auto-Installer Daemon Started ==="
+APK="/Users/mrhardcore/Desktop/campersites-pro/CamperSites-Pro/android/app/build/outputs/apk/release/app-release.apk"
+echo "=== CamperSites Pro v2.0.0 Auto-Installer Daemon Started ==="
 echo "Target APK: $APK"
 
 COUNT=0
@@ -9,18 +9,18 @@ while true; do
   UNAUTHORIZED=$(adb devices | grep -E "unauthorized$" | head -n 1 | awk '{print $1}')
   
   if [ -n "$UNAUTHORIZED" ]; then
-    echo "[$(date +'%H:%M:%S')] Device $UNAUTHORIZED is connected but waiting for user authorization on phone screen."
+    echo "[$(date +'%H:%M:%S')] Device $UNAUTHORIZED is connected — waiting for user to tap 'Permitir depuración USB' on phone screen."
   fi
 
   if [ -n "$DEVICE" ]; then
-    echo "[$(date +'%H:%M:%S')] ✅ Dispositivo activo detectado: $DEVICE"
-    echo "Instalando APK de producción..."
+    echo "[$(date +'%H:%M:%S')] ✅ Dispositivo autorizado detectado: $DEVICE"
+    echo "Instalando CamperSites Pro v2.0.0..."
     INSTALL_OUT=$(adb -s "$DEVICE" install -r "$APK" 2>&1)
     echo "$INSTALL_OUT"
     
     if echo "$INSTALL_OUT" | grep -iq "Success"; then
-      echo "[$(date +'%H:%M:%S')] 🚀 ¡INSTALACIÓN COMPLETADA CON ÉXITO!"
-      adb -s "$DEVICE" shell am start -n com.campersitestemp/.MainActivity
+      echo "[$(date +'%H:%M:%S')] 🚀 ¡INSTALACIÓN v2.0.0 COMPLETADA CON ÉXITO!"
+      adb -s "$DEVICE" shell am start -n com.campersitespro/com.campersitestemp.MainActivity 2>/dev/null || adb -s "$DEVICE" shell monkey -p com.campersitespro -c android.intent.category.LAUNCHER 1
       echo "[$(date +'%H:%M:%S')] ✅ Aplicación iniciada en pantalla de $DEVICE"
       exit 0
     fi

@@ -105,11 +105,29 @@ export interface PayoutConfiguration {
   lastPayoutAmountEur?: number;
 }
 
+export interface AccessInviteCode {
+  id: string;
+  code: string; // ej. 'FAMILIA-VIP', 'COMPIS-PRO', 'FUNDADOR-100'
+  label: string; // ej. 'Pase Familiares (VIP Vitalicio)'
+  targetGroup: 'family' | 'friends' | 'colleagues' | 'founders' | 'staff';
+  grantedPlan: UserPlan; // 'lifetime_vip' | 'pro_annual' | 'pro_monthly' | 'free'
+  grantedRole: UserRole; // 'user' | 'moderator' | 'staff' | 'admin'
+  bonusPoints: number;
+  offlineCredits: number;
+  maxUses: number; // 0 = ilimitado
+  usedCount: number;
+  isActive: boolean;
+  createdAt: string;
+  redeemedBy: { emailOrName: string; date: string }[];
+}
+
 const ADMIN_PAYOUT_CONFIG_KEY = '@camper_admin_payout_config';
 const ADMIN_LOCAL_USERS_KEY = '@camper_admin_local_users';
 const ADMIN_AD_STATS_KEY = '@camper_admin_ad_stats';
 const ADMIN_INCIDENTS_KEY = '@camper_admin_incidents_v1';
 const ADMIN_MASTER_UNLOCKED_KEY = '@camper_admin_master_unlocked';
+const ADMIN_INVITE_CODES_KEY = '@camper_admin_invite_codes_v1';
+const ACTIVE_USER_PRIVILEGE_KEY = '@camper_active_user_privilege';
 
 class AdminService {
   private defaultPayoutConfig: PayoutConfiguration = {
@@ -1001,6 +1019,325 @@ class AdminService {
       stats.totalRevenueEur = Number((stats.totalRevenueEur + revenueDeltaEur).toFixed(4));
       await AsyncStorage.setItem(ADMIN_AD_STATS_KEY, JSON.stringify(stats));
     } catch {}
+  }
+
+  /**
+   * ============================================================================
+   * SISTEMA DE CÓDIGOS DE INVITACIÓN, REFERIDOS Y GESTIÓN DE PRIVILEGIOS
+   * (Familiares, Amigos, Compañeros de Trabajo, Primeros 100 Fundadores y Staff)
+   * ============================================================================
+   */
+  private getSeedInviteCodes(): AccessInviteCode[] {
+    return [
+      {
+        id: 'code-seed-familia',
+        code: 'FAMILIA-VIP',
+        label: 'Familiares Directos (Todo Gratis Vitalicio)',
+        targetGroup: 'family',
+        grantedPlan: 'lifetime_vip',
+        grantedRole: 'user',
+        bonusPoints: 1000,
+        offlineCredits: 52,
+        maxUses: 25,
+        usedCount: 2,
+        isActive: true,
+        createdAt: '2026-11-01',
+        redeemedBy: [
+          { emailOrName: 'Hermano / Familia', date: '02/11 18:30' },
+          { emailOrName: 'Primo Ruta Camper', date: '03/11 10:15' },
+        ],
+      },
+      {
+        id: 'code-seed-amigos',
+        code: 'AMIGOS-PRO',
+        label: 'Amigos y Compañeros (1 Año Pro Gratis)',
+        targetGroup: 'friends',
+        grantedPlan: 'pro_annual',
+        grantedRole: 'user',
+        bonusPoints: 500,
+        offlineCredits: 10,
+        maxUses: 50,
+        usedCount: 3,
+        isActive: true,
+        createdAt: '2026-11-01',
+        redeemedBy: [
+          { emailOrName: 'Carlos Viajero', date: '02/11 21:00' },
+          { emailOrName: 'Dani Furgoneta', date: '03/11 14:20' },
+          { emailOrName: 'Marta Overland', date: '04/11 09:10' },
+        ],
+      },
+      {
+        id: 'code-seed-compis',
+        code: 'COMPIS-RUTA',
+        label: 'Compañeros de Trabajo / Grupo 4x4 & Moto (Pro Anual)',
+        targetGroup: 'colleagues',
+        grantedPlan: 'pro_annual',
+        grantedRole: 'moderator',
+        bonusPoints: 500,
+        offlineCredits: 15,
+        maxUses: 50,
+        usedCount: 1,
+        isActive: true,
+        createdAt: '2026-11-01',
+        redeemedBy: [{ emailOrName: 'David GS1250', date: '03/11 19:45' }],
+      },
+      {
+        id: 'code-seed-fundador',
+        code: 'FUNDADOR-100',
+        label: 'Primeros 100 Usuarios Pioneros',
+        targetGroup: 'founders',
+        grantedPlan: 'pro_annual',
+        grantedRole: 'user',
+        bonusPoints: 350,
+        offlineCredits: 5,
+        maxUses: 100,
+        usedCount: 4,
+        isActive: true,
+        createdAt: '2026-11-01',
+        redeemedBy: [{ emailOrName: 'Pionero #1', date: '01/11 12:00' }],
+      },
+      {
+        id: 'code-seed-staff',
+        code: 'STAFF-MOD',
+        label: 'Equipo de Moderadores y Soporte',
+        targetGroup: 'staff',
+        grantedPlan: 'lifetime_vip',
+        grantedRole: 'staff',
+        bonusPoints: 1500,
+        offlineCredits: 52,
+        maxUses: 10,
+        usedCount: 1,
+        isActive: true,
+        createdAt: '2026-11-01',
+        redeemedBy: [{ emailOrName: 'Lucía Moderación', date: '01/11 16:40' }],
+      },
+    ];
+  }
+
+  public async getInviteCodes(): Promise<AccessInviteCode[]> {
+    try {
+      const raw = await AsyncStorage.getItem(ADMIN_INVITE_CODES_KEY);
+      if (raw) {
+        const parsed: AccessInviteCode[] = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+
+    const seeds = this.getSeedInviteCodes();
+    try {
+      await AsyncStorage.setItem(ADMIN_INVITE_CODES_KEY, JSON.stringify(seeds));
+    } catch {}
+    return seeds;
+  }
+
+  public async createInviteCode(params: {
+    code: string;
+    label: string;
+    targetGroup: AccessInviteCode['targetGroup'];
+    grantedPlan: UserPlan;
+    grantedRole: UserRole;
+    maxUses: number;
+    bonusPoints?: number;
+    offlineCredits?: number;
+  }): Promise<AccessInviteCode> {
+    await this.assertAdminAuthorization();
+    const cleanCode = params.code
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '-');
+
+    const defaultBonus =
+      params.bonusPoints !== undefined
+        ? params.bonusPoints
+        : params.grantedPlan === 'lifetime_vip'
+        ? 1000
+        : params.grantedPlan === 'pro_annual'
+        ? 500
+        : 250;
+
+    const defaultOffline =
+      params.offlineCredits !== undefined
+        ? params.offlineCredits
+        : params.grantedPlan === 'lifetime_vip'
+        ? 52
+        : params.grantedPlan === 'pro_annual'
+        ? 12
+        : 4;
+
+    const newCode: AccessInviteCode = {
+      id: `code_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      code: cleanCode,
+      label: params.label.trim() || `Pase ${cleanCode}`,
+      targetGroup: params.targetGroup,
+      grantedPlan: params.grantedPlan,
+      grantedRole: params.grantedRole,
+      bonusPoints: defaultBonus,
+      offlineCredits: defaultOffline,
+      maxUses: params.maxUses,
+      usedCount: 0,
+      isActive: true,
+      createdAt: new Date().toISOString().split('T')[0],
+      redeemedBy: [],
+    };
+
+    const current = await this.getInviteCodes();
+    const filtered = current.filter((c) => c.code.toUpperCase() !== cleanCode);
+    const updated = [newCode, ...filtered];
+    await AsyncStorage.setItem(ADMIN_INVITE_CODES_KEY, JSON.stringify(updated));
+    return newCode;
+  }
+
+  public async toggleInviteCodeActive(id: string): Promise<void> {
+    await this.assertAdminAuthorization();
+    const current = await this.getInviteCodes();
+    const updated = current.map((c) => (c.id === id ? { ...c, isActive: !c.isActive } : c));
+    await AsyncStorage.setItem(ADMIN_INVITE_CODES_KEY, JSON.stringify(updated));
+  }
+
+  public async deleteInviteCode(id: string): Promise<void> {
+    await this.assertAdminAuthorization();
+    const current = await this.getInviteCodes();
+    const updated = current.filter((c) => c.id !== id);
+    await AsyncStorage.setItem(ADMIN_INVITE_CODES_KEY, JSON.stringify(updated));
+  }
+
+  public async redeemInviteCode(
+    codeInput: string,
+    userNameOrEmail?: string
+  ): Promise<{ ok: boolean; message: string; codeData?: AccessInviteCode }> {
+    const clean = codeInput.trim().toUpperCase();
+    if (!clean) {
+      return { ok: false, message: 'Introduce un código de invitación o referido válido.' };
+    }
+
+    const codes = await this.getInviteCodes();
+    const found = codes.find((c) => c.code.toUpperCase() === clean);
+
+    if (!found) {
+      return {
+        ok: false,
+        message: `El código "${clean}" no existe. Prueba con FAMILIA-VIP, AMIGOS-PRO, COMPIS-RUTA o pide tu código personal al administrador.`,
+      };
+    }
+
+    if (!found.isActive) {
+      return {
+        ok: false,
+        message: `El código "${clean}" está pausado temporalmente por el administrador.`,
+      };
+    }
+
+    if (found.maxUses > 0 && found.usedCount >= found.maxUses) {
+      return {
+        ok: false,
+        message: `El código "${clean}" ya ha alcanzado su límite máximo de ${found.maxUses} usos.`,
+      };
+    }
+
+    const nowLabel = new Date().toLocaleString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const redeemerLabel = userNameOrEmail?.trim() || 'Invitado Verificado';
+
+    const updatedCode: AccessInviteCode = {
+      ...found,
+      usedCount: found.usedCount + 1,
+      redeemedBy: [{ emailOrName: redeemerLabel, date: nowLabel }, ...(found.redeemedBy || [])],
+    };
+
+    const updatedList = codes.map((c) => (c.id === found.id ? updatedCode : c));
+    await AsyncStorage.setItem(ADMIN_INVITE_CODES_KEY, JSON.stringify(updatedList));
+
+    // Guardar privilegio activo en este dispositivo
+    const privilegePayload = {
+      plan: updatedCode.grantedPlan,
+      role: updatedCode.grantedRole,
+      codeUsed: updatedCode.code,
+      label: updatedCode.label,
+      bonusPoints: updatedCode.bonusPoints,
+      offlineCredits: updatedCode.offlineCredits,
+      activatedAt: nowLabel,
+    };
+    await AsyncStorage.setItem(ACTIVE_USER_PRIVILEGE_KEY, JSON.stringify(privilegePayload));
+
+    if (updatedCode.grantedRole === 'admin') {
+      await AsyncStorage.setItem(ADMIN_MASTER_UNLOCKED_KEY, 'true');
+    }
+
+    // Reflejar al usuario en la lista de usuarios del Panel de Administración en tiempo real
+    try {
+      const users = await this.getUsersList();
+      const emailKey = redeemerLabel.includes('@')
+        ? redeemerLabel.toLowerCase()
+        : `${redeemerLabel.toLowerCase().replace(/[^a-z0-9]/g, '.')}@invitado.es`;
+
+      const existingIdx = users.findIndex((u) => u.email.toLowerCase() === emailKey);
+      if (existingIdx >= 0) {
+        users[existingIdx] = {
+          ...users[existingIdx],
+          plan: updatedCode.grantedPlan,
+          role: updatedCode.grantedRole,
+          lastLogin: `Canjeó ${updatedCode.code} (${nowLabel})`,
+        };
+      } else {
+        users.unshift({
+          id: `usr-invite-${Date.now()}`,
+          email: emailKey,
+          displayName: `${redeemerLabel} (${updatedCode.code})`,
+          role: updatedCode.grantedRole,
+          plan: updatedCode.grantedPlan,
+          isBlocked: false,
+          createdAt: new Date().toISOString().split('T')[0],
+          lastLogin: `Canjeó ${updatedCode.code}`,
+          totalSpentEur: 0,
+        });
+      }
+      await AsyncStorage.setItem(ADMIN_LOCAL_USERS_KEY, JSON.stringify(users));
+    } catch {}
+
+    const planNames: Record<UserPlan, string> = {
+      lifetime_vip: '💎 PASE VIP VITALICIO (Todo Gratis para Siempre)',
+      pro_annual: '🚀 PLAN PRO ANUAL (1 Año Completo Gratis)',
+      pro_monthly: '🚐 PLAN PRO MENSUAL (1 Mes Gratis)',
+      free: '⭐ Plan Estándar',
+    };
+
+    const roleNames: Record<UserRole, string> = {
+      admin: '👑 Co-Administrador',
+      staff: '🛠️ Staff & Soporte Oficial',
+      moderator: '🛡️ Moderador Verificador en Ruta',
+      user: '👤 Miembro VIP Verificado',
+    };
+
+    return {
+      ok: true,
+      codeData: updatedCode,
+      message: `¡Código ${updatedCode.code} activado con éxito!\n\n• Privilegio: ${planNames[updatedCode.grantedPlan]}\n• Rango asignado: ${roleNames[updatedCode.grantedRole]}\n• Recompensa: +${updatedCode.bonusPoints} CamperPoints y ${updatedCode.offlineCredits} semanas de Mapas Offline 3D sin anuncios.`,
+    };
+  }
+
+  public async getActiveUserPrivilege(): Promise<{
+    plan: UserPlan;
+    role: UserRole;
+    codeUsed?: string;
+    label?: string;
+    bonusPoints?: number;
+    offlineCredits?: number;
+    activatedAt?: string;
+  } | null> {
+    try {
+      const raw = await AsyncStorage.getItem(ACTIVE_USER_PRIVILEGE_KEY);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch {}
+    return null;
   }
 }
 

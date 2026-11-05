@@ -23,6 +23,7 @@ import {
   ActivityIndicator,
   Platform,
   Linking,
+  Share,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
@@ -37,6 +38,7 @@ import {
   IncidentSeverity,
   IncidentStatus,
   LiveAppStats,
+  AccessInviteCode,
 } from '../services/AdminService';
 
 interface AdminDashboardModalProps {
@@ -45,7 +47,7 @@ interface AdminDashboardModalProps {
   initialTab?: AdminTab;
 }
 
-export type AdminTab = 'servers' | 'incidents' | 'kpis' | 'balances' | 'users';
+export type AdminTab = 'servers' | 'incidents' | 'codes' | 'kpis' | 'balances' | 'users';
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   visible,
@@ -84,6 +86,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [paypalInput, setPaypalInput] = useState('');
   const [ibanInput, setIbanInput] = useState('');
   const [holderInput, setHolderInput] = useState('');
+
+  // Códigos de Invitación, Referidos y Privilegios (Familia, Amigos, Compañeros, Pioneros)
+  const [inviteCodes, setInviteCodes] = useState<AccessInviteCode[]>([]);
+  const [newCodeText, setNewCodeText] = useState('');
+  const [newCodeLabel, setNewCodeLabel] = useState('');
+  const [newCodeGroup, setNewCodeGroup] = useState<AccessInviteCode['targetGroup']>('family');
+  const [newCodePlan, setNewCodePlan] = useState<UserPlan>('lifetime_vip');
+  const [newCodeRole, setNewCodeRole] = useState<UserRole>('user');
+  const [newCodeMaxUses, setNewCodeMaxUses] = useState<number>(10);
 
   useEffect(() => {
     if (visible) {
@@ -130,12 +141,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     setLoading(true);
     try {
       const srv = await adminService.checkServersHealth();
-      const [inc, stats, m, u, p] = await Promise.all([
+      const [inc, stats, m, u, p, codesList] = await Promise.all([
         adminService.getIncidents(),
         adminService.getLiveAppTelemetry(srv),
         adminService.getFinancialMetrics(),
         adminService.getUsersList(),
         adminService.getPayoutConfig(),
+        adminService.getInviteCodes(),
       ]);
 
       setServers(srv);
@@ -144,6 +156,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       setMetrics(m);
       setUsers(u);
       setPayoutConfig(p);
+      setInviteCodes(codesList);
       setPaypalInput(p.paypalEmail);
       setIbanInput(p.iban);
       setHolderInput(p.accountHolder);
@@ -294,6 +307,121 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     loadAllDashboardData();
   };
 
+  const handleGenerateRandomCode = () => {
+    const prefixes: Record<AccessInviteCode['targetGroup'], string> = {
+      family: 'FAMILIA',
+      friends: 'AMIGOS',
+      colleagues: 'COMPIS',
+      founders: 'PIONERO',
+      staff: 'STAFF',
+    };
+    const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const generated = `${prefixes[newCodeGroup]}-${suffix}`;
+    setNewCodeText(generated);
+  };
+
+  const handleCreateInviteCode = async () => {
+    const codeToCreate =
+      newCodeText.trim() ||
+      `VIP-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const labelToCreate =
+      newCodeLabel.trim() ||
+      (newCodeGroup === 'family'
+        ? 'Pase Familiar (VIP Vitalicio)'
+        : newCodeGroup === 'friends'
+        ? 'Pase Amigos (Pro Anual)'
+        : newCodeGroup === 'colleagues'
+        ? 'Pase Compañeros de Ruta / Trabajo'
+        : newCodeGroup === 'founders'
+        ? 'Pase Pioneros Fundadores'
+        : 'Pase Equipo Staff / Moderación');
+
+    const created = await adminService.createInviteCode({
+      code: codeToCreate,
+      label: labelToCreate,
+      targetGroup: newCodeGroup,
+      grantedPlan: newCodePlan,
+      grantedRole: newCodeRole,
+      maxUses: newCodeMaxUses,
+    });
+
+    setNewCodeText('');
+    setNewCodeLabel('');
+    const updatedCodes = await adminService.getInviteCodes();
+    setInviteCodes(updatedCodes);
+
+    Alert.alert(
+      '🎟️ Código Creado y Activo',
+      `Código: ${created.code}\nPara: ${created.label}\n\n¿Deseas compartirlo ahora por WhatsApp con tus familiares o amigos?`,
+      [
+        { text: 'Más tarde', style: 'cancel' },
+        {
+          text: '📲 Compartir ahora',
+          onPress: () => handleShareInviteCode(created),
+        },
+      ]
+    );
+  };
+
+  const handleShareInviteCode = async (item: AccessInviteCode) => {
+    const planLabel =
+      item.grantedPlan === 'lifetime_vip'
+        ? '💎 Pase VIP Vitalicio (Todo Gratis para Siempre)'
+        : item.grantedPlan === 'pro_annual'
+        ? '🚀 1 Año de CamperSites Pro Gratis'
+        : '🚐 Pase Pro Mensual Gratis';
+
+    const roleLabel =
+      item.grantedRole === 'admin'
+        ? ' + Permisos Co-Admin'
+        : item.grantedRole === 'staff'
+        ? ' + Rango Staff Oficial'
+        : item.grantedRole === 'moderator'
+        ? ' + Rango Moderador Verificador'
+        : '';
+
+    const message =
+      `🚐✨ ¡Hola! Te envío tu invitación especial para *CamperSites Pro* (${item.label}).\n\n` +
+      `🎟️ Tu código de acceso exclusivo es: *${item.code}*\n` +
+      `🎁 Desbloquea: ${planLabel}${roleLabel} (+${item.bonusPoints} CamperPoints y Mapas Offline 3D).\n\n` +
+      `📲 *Cómo activarlo en 10 segundos:*\n` +
+      `1. Descarga o abre la app en: https://nexus-ia-holding.github.io/CamperSites-Pro/\n` +
+      `2. Entra en la pestaña *Perfil* -> *🎟️ Canjear Código VIP / Invitación*\n` +
+      `3. Escribe *${item.code}* y pulsa *CANJEAR*. ¡Disfruta de la ruta!`;
+
+    try {
+      await Share.share({
+        title: `Invitación VIP CamperSites Pro: ${item.code}`,
+        message,
+      });
+    } catch {}
+  };
+
+  const handleToggleCodeActive = async (item: AccessInviteCode) => {
+    await adminService.toggleInviteCodeActive(item.id);
+    const updated = await adminService.getInviteCodes();
+    setInviteCodes(updated);
+  };
+
+  const handleDeleteInviteCode = (item: AccessInviteCode) => {
+    Alert.alert(
+      'Eliminar Código de Acceso',
+      `¿Seguro que deseas eliminar el código "${item.code}" (${item.label})?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            await adminService.deleteInviteCode(item.id);
+            const updated = await adminService.getInviteCodes();
+            setInviteCodes(updated);
+          },
+        },
+      ]
+    );
+  };
+
   const filteredUsers = users.filter((u) => {
     const matchesQuery =
       u.email.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
@@ -359,13 +487,17 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         </View>
 
         {/* SELECTOR DE PESTAÑAS TÁCTICAS */}
-        <View style={styles.tabsRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ maxHeight: 50, backgroundColor: '#1E293B', borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.06)' }}
+          contentContainerStyle={styles.tabsRow}>
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === 'servers' && styles.tabBtnActive]}
             onPress={() => setActiveTab('servers')}>
             <Icon
               name="server-network"
-              size={16}
+              size={15}
               color={
                 downServersCount > 0
                   ? '#EF4444'
@@ -384,7 +516,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             onPress={() => setActiveTab('incidents')}>
             <Icon
               name="alert-octagon"
-              size={16}
+              size={15}
               color={
                 openIncidentsCount > 0
                   ? '#F59E0B'
@@ -399,11 +531,28 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'codes' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('codes')}>
+            <Icon
+              name="ticket-confirmation"
+              size={15}
+              color={activeTab === 'codes' ? '#F59E0B' : '#64748B'}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'codes' && { color: '#F59E0B', fontWeight: '900' },
+              ]}>
+              🎟️ Códigos & VIP
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.tabBtn, activeTab === 'kpis' && styles.tabBtnActive]}
             onPress={() => setActiveTab('kpis')}>
             <Icon
               name="chart-timeline-variant"
-              size={16}
+              size={15}
               color={activeTab === 'kpis' ? '#38BDF8' : '#64748B'}
             />
             <Text style={[styles.tabText, activeTab === 'kpis' && styles.tabTextActive]}>
@@ -416,7 +565,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             onPress={() => setActiveTab('balances')}>
             <Icon
               name="cash-multiple"
-              size={16}
+              size={15}
               color={activeTab === 'balances' ? '#38BDF8' : '#64748B'}
             />
             <Text style={[styles.tabText, activeTab === 'balances' && styles.tabTextActive]}>
@@ -429,14 +578,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             onPress={() => setActiveTab('users')}>
             <Icon
               name="account-group"
-              size={16}
+              size={15}
               color={activeTab === 'users' ? '#38BDF8' : '#64748B'}
             />
             <Text style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}>
               Usuarios
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -811,7 +960,377 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             )}
 
             {/* ========================================================= */}
-            {/* PESTAÑA 3: ANALÍTICA Y KPIS EN TIEMPO REAL */}
+            {/* PESTAÑA 3: CÓDIGOS DE ACCESO, REFERIDOS Y PRIVILEGIOS VIP */}
+            {/* ========================================================= */}
+            {activeTab === 'codes' && (
+              <View>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderTitle}>
+                    GENERADOR DE CÓDIGOS DE INVITACIÓN & PRIVILEGIOS
+                  </Text>
+                  <View style={styles.livePulsePod}>
+                    <View style={styles.pulseDot} />
+                    <Text style={styles.liveText}>{inviteCodes.length} ACTIVOS</Text>
+                  </View>
+                </View>
+
+                {/* TARJETA DE GENERACIÓN DE NUEVOS CÓDIGOS */}
+                <View
+                  style={[
+                    styles.newIncidentCard,
+                    { borderColor: '#F59E0B', backgroundColor: '#1E293B' },
+                  ]}>
+                  <Text style={[styles.addStaffTitle, { color: '#F59E0B' }]}>
+                    🎟️ Crear Código para Familiares, Amigos o Compañeros
+                  </Text>
+                  <Text style={styles.addStaffSub}>
+                    Genera pases VIP vitalicios o anuales y envíalos directamente por WhatsApp.
+                  </Text>
+
+                  <Text style={styles.inputLabel}>1. ¿Para quién es este código?</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginVertical: 8 }}>
+                    {(
+                      [
+                        {
+                          id: 'family',
+                          label: '👨‍👩‍👧‍👦 Familiares (VIP Vitalicio)',
+                          defaultPlan: 'lifetime_vip' as UserPlan,
+                          defaultRole: 'user' as UserRole,
+                          defaultLabel: 'Pase Familiares (Todo Gratis Vitalicio)',
+                        },
+                        {
+                          id: 'friends',
+                          label: '🍻 Amigos (1 Año Pro)',
+                          defaultPlan: 'pro_annual' as UserPlan,
+                          defaultRole: 'user' as UserRole,
+                          defaultLabel: 'Amigos & Grupo Camper (1 Año Pro Gratis)',
+                        },
+                        {
+                          id: 'colleagues',
+                          label: '🏍️ Compañeros Ruta / Trabajo',
+                          defaultPlan: 'pro_annual' as UserPlan,
+                          defaultRole: 'moderator' as UserRole,
+                          defaultLabel: 'Compañeros de Ruta & Trabajo (Moderador + Pro)',
+                        },
+                        {
+                          id: 'founders',
+                          label: '🚀 Primeros 100 Usuarios',
+                          defaultPlan: 'pro_annual' as UserPlan,
+                          defaultRole: 'user' as UserRole,
+                          defaultLabel: 'Pioneros Fundadores CamperSites',
+                        },
+                        {
+                          id: 'staff',
+                          label: '🛡️ Equipo Staff / Co-Admin',
+                          defaultPlan: 'lifetime_vip' as UserPlan,
+                          defaultRole: 'staff' as UserRole,
+                          defaultLabel: 'Equipo Oficial de Soporte y Moderación',
+                        },
+                      ] as const
+                    ).map((g) => (
+                      <TouchableOpacity
+                        key={g.id}
+                        style={[
+                          styles.filterChip,
+                          newCodeGroup === g.id && {
+                            backgroundColor: 'rgba(245, 158, 11, 0.22)',
+                            borderColor: '#F59E0B',
+                          },
+                        ]}
+                        onPress={() => {
+                          setNewCodeGroup(g.id);
+                          setNewCodePlan(g.defaultPlan);
+                          setNewCodeRole(g.defaultRole);
+                          if (!newCodeLabel.trim()) {
+                            setNewCodeLabel(g.defaultLabel);
+                          }
+                        }}>
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            newCodeGroup === g.id && { color: '#F59E0B', fontWeight: '800' },
+                          ]}>
+                          {g.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  <Text style={styles.inputLabel}>
+                    2. Código Personalizado (o genera uno automático):
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                    <TextInput
+                      style={[styles.incInput, { flex: 1, marginBottom: 0, fontWeight: '800' }]}
+                      placeholder="Ej. PRIMO-CARLOS, COMPIS-4X4..."
+                      placeholderTextColor="#64748B"
+                      autoCapitalize="characters"
+                      value={newCodeText}
+                      onChangeText={setNewCodeText}
+                    />
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                        borderWidth: 1,
+                        borderColor: '#38BDF8',
+                        borderRadius: 10,
+                        paddingHorizontal: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        flexDirection: 'row',
+                        gap: 4,
+                      }}
+                      onPress={handleGenerateRandomCode}>
+                      <Icon name="dice-multiple" size={18} color="#38BDF8" />
+                      <Text style={{ color: '#38BDF8', fontSize: 11, fontWeight: '800' }}>
+                        Generar
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.inputLabel}>3. Etiqueta / Nota identificativa:</Text>
+                  <TextInput
+                    style={styles.incInput}
+                    placeholder="Ej. Pase VIP para mi hermano y primos..."
+                    placeholderTextColor="#64748B"
+                    value={newCodeLabel}
+                    onChangeText={setNewCodeLabel}
+                  />
+
+                  <Text style={styles.inputLabel}>4. Privilegio / Plan que desbloquea:</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginVertical: 8 }}>
+                    {(
+                      [
+                        { id: 'lifetime_vip', label: '💎 VIP Vitalicio (Gratis Siempre)' },
+                        { id: 'pro_annual', label: '🚀 Pro Anual (1 Año Gratis)' },
+                        { id: 'pro_monthly', label: '🚐 Pro Mensual (1 Mes)' },
+                      ] as { id: UserPlan; label: string }[]
+                    ).map((p) => (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[
+                          styles.filterChip,
+                          newCodePlan === p.id && styles.filterChipActive,
+                        ]}
+                        onPress={() => setNewCodePlan(p.id)}>
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            newCodePlan === p.id && styles.filterChipTextActive,
+                          ]}>
+                          {p.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  <Text style={styles.inputLabel}>5. Rol y Permisos dentro de la App:</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginVertical: 8 }}>
+                    {(
+                      [
+                        { id: 'user', label: '👤 Usuario VIP' },
+                        { id: 'moderator', label: '🛡️ Moderador Verificador' },
+                        { id: 'staff', label: '🛠️ Staff Soporte' },
+                        { id: 'admin', label: '👑 Co-Admin' },
+                      ] as { id: UserRole; label: string }[]
+                    ).map((r) => (
+                      <TouchableOpacity
+                        key={r.id}
+                        style={[
+                          styles.filterChip,
+                          newCodeRole === r.id && styles.filterChipActive,
+                        ]}
+                        onPress={() => setNewCodeRole(r.id)}>
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            newCodeRole === r.id && styles.filterChipTextActive,
+                          ]}>
+                          {r.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  <Text style={styles.inputLabel}>6. Límite máximo de personas que pueden usarlo:</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginVertical: 8 }}>
+                    {[
+                      { val: 1, label: '1 persona' },
+                      { val: 10, label: '10 usos' },
+                      { val: 50, label: '50 usos' },
+                      { val: 0, label: '♾️ Ilimitado' },
+                    ].map((u) => (
+                      <TouchableOpacity
+                        key={u.val}
+                        style={[
+                          styles.filterChip,
+                          { flex: 1, marginRight: 0, alignItems: 'center' },
+                          newCodeMaxUses === u.val && styles.filterChipActive,
+                        ]}
+                        onPress={() => setNewCodeMaxUses(u.val)}>
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            newCodeMaxUses === u.val && styles.filterChipTextActive,
+                          ]}>
+                          {u.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.createStaffBtn, { backgroundColor: '#F59E0B', marginTop: 10 }]}
+                    onPress={handleCreateInviteCode}>
+                    <Icon name="ticket-percent" size={18} color="#0F172A" style={{ marginRight: 6 }} />
+                    <Text style={[styles.createStaffBtnText, { color: '#0F172A' }]}>
+                      ➕ CREAR Y ACTIVAR CÓDIGO DE INVITACIÓN
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* LISTA DE CÓDIGOS ACTIVOS */}
+                <Text style={[styles.subSectionTitle, { marginTop: 16 }]}>
+                  CÓDIGOS LISTOS PARA COMPARTIR ({inviteCodes.length})
+                </Text>
+
+                {inviteCodes.map((item) => {
+                  const isVip = item.grantedPlan === 'lifetime_vip';
+                  const badgeColor = !item.isActive
+                    ? '#64748B'
+                    : isVip
+                    ? '#F59E0B'
+                    : '#10B981';
+
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.incidentCard,
+                        {
+                          borderColor: item.isActive ? badgeColor + '66' : '#334155',
+                          opacity: item.isActive ? 1 : 0.65,
+                        },
+                      ]}>
+                      <View style={styles.incidentHeaderRow}>
+                        <View
+                          style={{
+                            backgroundColor: badgeColor + '22',
+                            borderWidth: 1,
+                            borderColor: badgeColor,
+                            paddingHorizontal: 10,
+                            paddingVertical: 4,
+                            borderRadius: 8,
+                          }}>
+                          <Text
+                            style={{
+                              color: badgeColor,
+                              fontWeight: '900',
+                              fontSize: 14,
+                              letterSpacing: 0.8,
+                            }}>
+                            🎟️ {item.code}
+                          </Text>
+                        </View>
+
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ color: '#F8FAFC', fontSize: 12, fontWeight: '800' }}>
+                            Usos: {item.usedCount} / {item.maxUses === 0 ? '♾️' : item.maxUses}
+                          </Text>
+                          <Text
+                            style={{
+                              color: item.isActive ? '#10B981' : '#EF4444',
+                              fontSize: 10,
+                              fontWeight: '800',
+                            }}>
+                            {item.isActive ? '● ACTIVO' : '⏸ PAUSADO'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.incidentTitle}>{item.label}</Text>
+
+                      <View style={styles.incidentMetaBox}>
+                        <Text style={[styles.incidentMetaText, { color: '#38BDF8', fontWeight: '700' }]}>
+                          🎁 Plan:{' '}
+                          {item.grantedPlan === 'lifetime_vip'
+                            ? '💎 VIP VITALICIO (Todo Gratis)'
+                            : item.grantedPlan === 'pro_annual'
+                            ? '🚀 PRO ANUAL (1 Año Gratis)'
+                            : '🚐 PRO MENSUAL'}{' '}
+                          · Rol: {item.grantedRole.toUpperCase()}
+                        </Text>
+                        <Text style={styles.incidentMetaText}>
+                          ⭐ Bonus: +{item.bonusPoints} CamperPoints · 🗺️ {item.offlineCredits} sem.
+                          Mapas Offline 3D
+                        </Text>
+                        {item.redeemedBy && item.redeemedBy.length > 0 && (
+                          <Text style={[styles.incidentMetaText, { color: '#CBD5E1', marginTop: 4 }]}>
+                            ✅ Canjeado por:{' '}
+                            {item.redeemedBy
+                              .slice(0, 4)
+                              .map((r) => `${r.emailOrName} (${r.date})`)
+                              .join(', ')}
+                          </Text>
+                        )}
+                      </View>
+
+                      <View style={[styles.incidentActionsRow, { flexWrap: 'wrap' }]}>
+                        <TouchableOpacity
+                          style={[
+                            styles.incActionBtn,
+                            { backgroundColor: 'rgba(16, 185, 129, 0.22)', borderWidth: 1, borderColor: '#10B981' },
+                          ]}
+                          onPress={() => handleShareInviteCode(item)}>
+                          <Icon name="share-variant" size={14} color="#10B981" />
+                          <Text style={[styles.incActionText, { color: '#10B981' }]}>
+                            📲 Compartir por WhatsApp
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.incActionBtn,
+                            { backgroundColor: 'rgba(245, 158, 11, 0.18)' },
+                          ]}
+                          onPress={() => handleToggleCodeActive(item)}>
+                          <Icon
+                            name={item.isActive ? 'pause-circle-outline' : 'play-circle-outline'}
+                            size={14}
+                            color="#F59E0B"
+                          />
+                          <Text style={[styles.incActionText, { color: '#F59E0B' }]}>
+                            {item.isActive ? 'Pausar' : 'Activar'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.incActionBtn,
+                            { backgroundColor: 'rgba(239, 68, 68, 0.15)' },
+                          ]}
+                          onPress={() => handleDeleteInviteCode(item)}>
+                          <Icon name="trash-can-outline" size={14} color="#EF4444" />
+                          <Text style={[styles.incActionText, { color: '#EF4444' }]}>Borrar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* ========================================================= */}
+            {/* PESTAÑA 4: ANALÍTICA Y KPIS EN TIEMPO REAL */}
             {/* ========================================================= */}
             {activeTab === 'kpis' && liveStats && (
               <View>
@@ -1366,22 +1885,19 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 8,
+    alignItems: 'center',
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#1E293B',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-    gap: 4,
+    gap: 6,
   },
   tabBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
     borderRadius: 10,
-    gap: 4,
+    gap: 5,
   },
   tabBtnActive: {
     backgroundColor: 'rgba(56, 189, 248, 0.14)',

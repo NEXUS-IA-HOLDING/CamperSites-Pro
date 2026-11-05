@@ -16,6 +16,7 @@ import {
   Modal,
   Image,
   Linking,
+  Share,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -42,8 +43,8 @@ import { AffiliatePartnersModal } from '../components/AffiliatePartnersModal';
 import { CamperBookingModal } from '../components/CamperBookingModal';
 import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
 import { GooglePlaySupportCard } from '../components/GooglePlaySupportCard';
-import { AdminDashboardModal } from '../components/AdminDashboardModal';
-import { adminService } from '../services/AdminService';
+import { AdminDashboardModal, AdminTab } from '../components/AdminDashboardModal';
+import { adminService, UserPlan, UserRole } from '../services/AdminService';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
@@ -247,14 +248,72 @@ export default function ProfileScreen() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showTravelPlannerModal, setShowTravelPlannerModal] = useState(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [adminInitialTab, setAdminInitialTab] = useState<AdminTab>('servers');
   const [isAdminAuthorized, setIsAdminAuthorized] = useState(false);
+
+  // Códigos de Invitación, Referidos y Privilegios Activos
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
+  const [activePrivilege, setActivePrivilege] = useState<{
+    plan: UserPlan;
+    role: UserRole;
+    codeUsed?: string;
+    label?: string;
+    bonusPoints?: number;
+    offlineCredits?: number;
+    activatedAt?: string;
+  } | null>(null);
 
   useEffect(() => {
     checkAuth();
     loadVehicleConfig();
     loadDrivingPreferences();
     loadVehicleCursor();
+    loadActivePrivilege();
   }, []);
+
+  const loadActivePrivilege = async () => {
+    const priv = await adminService.getActiveUserPrivilege();
+    if (priv) setActivePrivilege(priv);
+  };
+
+  const handleRedeemInviteCode = async () => {
+    if (!inviteCodeInput.trim()) {
+      Alert.alert(
+        'Introduce tu código',
+        'Escribe tu código de invitación familiar, de amigo o de compañero (ej. FAMILIA-VIP, AMIGOS-PRO, COMPIS-RUTA).'
+      );
+      return;
+    }
+
+    const res = await adminService.redeemInviteCode(
+      inviteCodeInput,
+      userName || userEmail || vehicleConfig.name || 'Viajero Invitado'
+    );
+
+    if (res.ok) {
+      setInviteCodeInput('');
+      await loadActivePrivilege();
+      Alert.alert('🎉 ¡Privilegios Desbloqueados!', res.message);
+    } else {
+      Alert.alert('Código no válido', res.message);
+    }
+  };
+
+  const handleShareFriendReferral = async () => {
+    const personalCode = activePrivilege?.codeUsed || 'AMIGOS-PRO';
+    const msg =
+      `🚐✨ ¡Únete a *CamperSites Pro* conmigo! El navegador GPS 3D para Campers, Motos, 4x4 y Coches con +517.000 ubicaciones y radares.\n\n` +
+      `🎟️ Usa este código de invitación en tu Perfil: *${personalCode}*\n` +
+      `🎁 Te desbloquea acceso Pro Gratis, Mapas Offline 3D y CamperPoints de regalo.\n\n` +
+      `📲 Descárgala aquí: https://nexus-ia-holding.github.io/CamperSites-Pro/`;
+
+    try {
+      await Share.share({
+        title: 'Invitación VIP CamperSites Pro',
+        message: msg,
+      });
+    } catch {}
+  };
 
   const loadVehicleCursor = async () => {
     try {
@@ -446,7 +505,10 @@ export default function ProfileScreen() {
         {/* Tarjeta Ejecutiva de Acceso al Centro de Mando & Panel de Administración en Tiempo Real */}
         <TouchableOpacity
           style={styles.adminDashboardBanner}
-          onPress={() => setShowAdminDashboard(true)}
+          onPress={() => {
+            setAdminInitialTab('servers');
+            setShowAdminDashboard(true);
+          }}
           activeOpacity={0.85}>
           <View style={styles.adminBannerIconBox}>
             <Icon name="shield-crown" size={26} color="#F59E0B" />
@@ -459,7 +521,7 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Text style={styles.adminBannerSub}>
-              Estado de servidores, incidencias de usuarios, analítica, balances y equipo
+              Servidores, alertas, generador de códigos VIP/familiares, analítica y equipo
             </Text>
           </View>
           <Icon name="chevron-right" size={22} color="#38BDF8" />
@@ -586,20 +648,212 @@ export default function ProfileScreen() {
           </ScrollView>
         </View>
 
+        {/* ============================================ */}
+        {/* CÓDIGOS DE INVITACIÓN, REFERIDOS Y ACCESO VIP (FAMILIA, AMIGOS, COMPAÑEROS) */}
+        {/* ============================================ */}
+        <View
+          style={{
+            backgroundColor: '#1E293B',
+            borderRadius: 18,
+            padding: 16,
+            marginBottom: 16,
+            borderWidth: 1.5,
+            borderColor: activePrivilege ? '#10B981' : '#F59E0B',
+          }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Icon
+                name="ticket-confirmation"
+                size={24}
+                color={activePrivilege ? '#10B981' : '#F59E0B'}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#F8FAFC', fontSize: 15, fontWeight: '900' }}>
+                  🎟️ Códigos de Invitación, Referidos y VIP
+                </Text>
+                <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 1 }}>
+                  Pases para familiares, amigos, compañeros de ruta y primeros usuarios
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                borderWidth: 1,
+                borderColor: '#F59E0B',
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 10,
+              }}
+              onPress={() => {
+                setAdminInitialTab('codes');
+                setShowAdminDashboard(true);
+              }}>
+              <Text style={{ color: '#F59E0B', fontSize: 10, fontWeight: '900' }}>
+                ⚙️ Crear Códigos
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {activePrivilege && (
+            <View
+              style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.14)',
+                borderWidth: 1,
+                borderColor: '#10B981',
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 12,
+              }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '900' }}>
+                  {activePrivilege.plan === 'lifetime_vip'
+                    ? '💎 PASE ACTIVO: VIP VITALICIO'
+                    : activePrivilege.plan === 'pro_annual'
+                    ? '🚀 PASE ACTIVO: PRO ANUAL (1 AÑO)'
+                    : '🚐 PASE ACTIVO: PRO MENSUAL'}
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: '#0F172A',
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 6,
+                  }}>
+                  <Text style={{ color: '#38BDF8', fontSize: 10, fontWeight: '800' }}>
+                    ROL: {activePrivilege.role.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ color: '#CBD5E1', fontSize: 12, marginTop: 4 }}>
+                {activePrivilege.label || 'Invitación verificada'} · Código: {activePrivilege.codeUsed}
+              </Text>
+              <TouchableOpacity
+                style={{
+                  marginTop: 10,
+                  backgroundColor: '#10B981',
+                  borderRadius: 10,
+                  paddingVertical: 8,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+                onPress={handleShareFriendReferral}>
+                <Icon name="share-variant" size={16} color="#0F172A" />
+                <Text style={{ color: '#0F172A', fontSize: 12, fontWeight: '900' }}>
+                  📲 Compartir Invitación con Familia o Amigos
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={{
+                flex: 1,
+                backgroundColor: '#0F172A',
+                borderWidth: 1,
+                borderColor: '#334155',
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                color: '#F8FAFC',
+                fontSize: 13,
+                fontWeight: '700',
+              }}
+              placeholder="Ej. FAMILIA-VIP, AMIGOS-PRO, COMPIS-RUTA..."
+              placeholderTextColor="#64748B"
+              autoCapitalize="characters"
+              value={inviteCodeInput}
+              onChangeText={setInviteCodeInput}
+            />
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#0284C7',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+              onPress={handleRedeemInviteCode}>
+              <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '900' }}>CANJEAR</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+            {['FAMILIA-VIP', 'AMIGOS-PRO', 'COMPIS-RUTA', 'FUNDADOR-100'].map((quickCode) => (
+              <TouchableOpacity
+                key={quickCode}
+                style={{
+                  backgroundColor: '#0F172A',
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  paddingHorizontal: 9,
+                  paddingVertical: 4,
+                  borderRadius: 8,
+                }}
+                onPress={() => setInviteCodeInput(quickCode)}>
+                <Text style={{ color: '#38BDF8', fontSize: 10, fontWeight: '800' }}>
+                  {quickCode}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {/* Premium */}
-        <TouchableOpacity style={styles.premiumCard} onPress={() => Alert.alert(
-          'CamperSites Premium',
-          'Acceso ilimitado por 9,99€/mes.\n\n• Sin anuncios\n• Navegación offline\n• Rutas multi-destino\n• Planificador de viajes\n\nPróximamente disponible.',
-        )}>
+        <TouchableOpacity
+          style={[
+            styles.premiumCard,
+            activePrivilege && { borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.12)' },
+          ]}
+          onPress={() => {
+            if (activePrivilege) {
+              Alert.alert(
+                '👑 CamperSites Premium Activo',
+                `Tienes activo tu pase "${activePrivilege.label}" (Código: ${activePrivilege.codeUsed}).\n\nDisfrutas de todas las funciones sin anuncios, mapas offline 3D, rutas multi-destino y planificador de viajes.`
+              );
+            } else {
+              Alert.alert(
+                'CamperSites Premium',
+                'Acceso ilimitado por 9,99€/mes o gratis con tu código de Familiar, Amigo o Compañero.\n\n• Sin anuncios\n• Navegación offline 3D\n• Rutas multi-destino\n• Planificador de viajes',
+                [
+                  { text: 'Cerrar', style: 'cancel' },
+                  {
+                    text: '🎟️ Usar FAMILIA-VIP',
+                    onPress: () => setInviteCodeInput('FAMILIA-VIP'),
+                  },
+                ]
+              );
+            }
+          }}>
           <View style={styles.premiumContent}>
-            <Text style={styles.premiumEmoji}>👑</Text>
+            <Text style={styles.premiumEmoji}>{activePrivilege ? '💎' : '👑'}</Text>
             <View style={styles.premiumInfo}>
-              <Text style={styles.premiumTitle}>CamperSites Premium</Text>
-              <Text style={styles.premiumSubtitle}>Sin anuncios + todas las funciones</Text>
+              <Text style={styles.premiumTitle}>
+                {activePrivilege ? 'CamperSites VIP / Pro Activo' : 'CamperSites Premium'}
+              </Text>
+              <Text style={styles.premiumSubtitle}>
+                {activePrivilege
+                  ? `Activado con código ${activePrivilege.codeUsed} · Sin anuncios`
+                  : 'Sin anuncios + todas las funciones (o activa con código VIP)'}
+              </Text>
             </View>
           </View>
-          <View style={styles.premiumPrice}>
-            <Text style={styles.premiumPriceText}>9,99€/mes</Text>
+          <View
+            style={[
+              styles.premiumPrice,
+              activePrivilege && { backgroundColor: 'rgba(16, 185, 129, 0.25)' },
+            ]}>
+            <Text
+              style={[
+                styles.premiumPriceText,
+                activePrivilege && { color: '#10B981' },
+              ]}>
+              {activePrivilege ? 'ACTIVO · 0€' : '9,99€/mes'}
+            </Text>
           </View>
         </TouchableOpacity>
 
@@ -1237,7 +1491,11 @@ export default function ProfileScreen() {
       {/* MODAL PANEL DE ADMINISTRACIÓN EJECUTIVO */}
       <AdminDashboardModal
         visible={showAdminDashboard}
-        onClose={() => setShowAdminDashboard(false)}
+        initialTab={adminInitialTab}
+        onClose={() => {
+          setShowAdminDashboard(false);
+          loadActivePrivilege();
+        }}
       />
     </View>
   );
