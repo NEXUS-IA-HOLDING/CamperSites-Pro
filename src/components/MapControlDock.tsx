@@ -4,8 +4,10 @@
  *
  * Agrupa todos los controles de navegación para no entorpecer la visión:
  * 1. Selector desplegable de capas (Satélite, Relieve Montaña, Noche Táctica, Día)
- * 2. Botón de recentrado GPS
- * 3. Botón sutil de reporte de incidencias en 1 toque (con margen de 100m)
+ * 2. Conmutador directo 3D / 2D (Conducción 3D en Cabina accesible en 1 toque)
+ * 3. Botón de Simulación Demo 3D con etiqueta clara ("DEMO 3D")
+ * 4. Botón de recentrado GPS
+ * 5. Botón sutil de reporte de incidencias en 1 toque (con margen de 100m)
  */
 
 import React, { useState } from 'react';
@@ -14,7 +16,6 @@ import {
   View,
   TouchableOpacity,
   Text,
-  Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MapStyleType } from '../types/assistant';
@@ -24,6 +25,7 @@ interface MapControlDockProps {
   gpsEnabled: boolean;
   isFullScreen?: boolean;
   isSimulating?: boolean;
+  camera3DMode?: boolean;
   onSelectMapStyle: (style: MapStyleType) => void;
   onRecenterGPS: () => void;
   onOpenReportIncident: () => void;
@@ -31,6 +33,7 @@ interface MapControlDockProps {
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onToggleSimulation?: () => void;
+  onToggleCamera3D?: () => void;
 }
 
 interface MapLayerOption {
@@ -77,6 +80,7 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   gpsEnabled,
   isFullScreen = false,
   isSimulating = false,
+  camera3DMode = false,
   onSelectMapStyle,
   onRecenterGPS,
   onOpenReportIncident,
@@ -84,6 +88,7 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   onZoomIn,
   onZoomOut,
   onToggleSimulation,
+  onToggleCamera3D,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -187,21 +192,65 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
           />
         </TouchableOpacity>
 
+        {/* 1.2 Botón Dedicado Vista 3D / 2D en Cabina (1 Toque) */}
+        {onToggleCamera3D && (
+          <TouchableOpacity
+            style={[
+              styles.dockBtn,
+              styles.camera3DBtn,
+              camera3DMode && styles.camera3DBtnActive,
+            ]}
+            onPress={onToggleCamera3D}
+            activeOpacity={0.8}
+            accessibilityLabel={
+              camera3DMode
+                ? 'Desactivar vista 3D de conducción'
+                : 'Activar vista 3D de conducción en cabina'
+            }>
+            <Icon
+              name={camera3DMode ? 'navigation-variant' : 'perspective-less'}
+              size={18}
+              color={camera3DMode ? '#10B981' : '#38BDF8'}
+            />
+            <View
+              style={[
+                styles.mode3DBadge,
+                camera3DMode ? styles.mode3DBadgeActive : styles.mode3DBadgeInactive,
+              ]}>
+              <Text
+                style={[
+                  styles.mode3DBadgeText,
+                  camera3DMode && styles.mode3DBadgeTextActive,
+                ]}>
+                {camera3DMode ? '3D' : '2D'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* 1.5 Botón Simulación de Conducción en Cabina 3D (Demo Drive) */}
         {onToggleSimulation && (
           <TouchableOpacity
             style={[
               styles.dockBtn,
-              isSimulating && { backgroundColor: '#0284C7', borderColor: '#38BDF8' },
+              styles.simBtn,
+              isSimulating && styles.simBtnActive,
             ]}
             onPress={onToggleSimulation}
             activeOpacity={0.8}
-            accessibilityLabel="Simulación Conducción 3D">
+            accessibilityLabel="Simulación Demo 3D">
             <Icon
               name={isSimulating ? 'stop-circle' : 'car-sports'}
-              size={22}
+              size={18}
               color={isSimulating ? '#FFFFFF' : '#38BDF8'}
             />
+            <Text
+              style={[
+                styles.demoBadgeText,
+                isSimulating && styles.demoBadgeTextActive,
+              ]}>
+              DEMO 3D
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -321,6 +370,55 @@ const styles = StyleSheet.create({
   dockBtnActive: {
     borderColor: '#38BDF8',
     backgroundColor: 'rgba(56, 189, 248, 0.18)',
+  },
+  camera3DBtn: {
+    paddingTop: 2,
+    borderColor: 'rgba(56, 189, 248, 0.45)',
+  },
+  camera3DBtnActive: {
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.45,
+  },
+  mode3DBadge: {
+    marginTop: 1,
+    paddingHorizontal: 5,
+    paddingVertical: 0.5,
+    borderRadius: 5,
+  },
+  mode3DBadgeInactive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.16)',
+  },
+  mode3DBadgeActive: {
+    backgroundColor: '#10B981',
+  },
+  mode3DBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#38BDF8',
+    letterSpacing: 0.4,
+  },
+  mode3DBadgeTextActive: {
+    color: '#0F172A',
+  },
+  simBtn: {
+    paddingTop: 2,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+  },
+  simBtnActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#38BDF8',
+  },
+  demoBadgeText: {
+    fontSize: 6.5,
+    fontWeight: '900',
+    color: '#38BDF8',
+    letterSpacing: 0.2,
+    marginTop: 1,
+  },
+  demoBadgeTextActive: {
+    color: '#FFFFFF',
   },
   recenterBtnActive: {
     borderColor: '#38BDF8',

@@ -15,6 +15,7 @@ import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { UpdateService } from './src/services/UpdateService';
+import { UpdateAvailableBanner } from './src/components/UpdateAvailableBanner';
 
 function App(): React.JSX.Element {
   useEffect(() => {
@@ -27,6 +28,7 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
+      <UpdateAvailableBanner autoOpenModalOnMandatory={true} />
       <AppNavigator />
     </SafeAreaProvider>
   );

@@ -95,3 +95,13 @@ Este documento registra los fallos encontrados durante el ciclo de vida del proy
 * **Solución Permanente:**
   1. Usar siempre `useFocusEffect` en `FavoritesScreen` y `MapScreen` para recargar favoritos (`@campersites_favorites`), historial de rutas (`@campersites_route_history`) y saltos directos al mapa (`@campersites_jump_to_location` con flag `autoStartRoute`).
   2. En el Panel de Administración (`AdminService.ts` / `AdminDashboardModal.tsx` / `docs/admin.html`), realizar siempre sondeos HTTP reales (`fetch` con medición de latencia en `ms` y `AbortController`) contra Supabase, OSRM, Open-Meteo, Nominatim, Esri y GitHub OTA, registrando automáticamente incidencias si algún servidor pasa a estado `DOWN`.
+
+
+## 11. Compilación de Binario APK (`./gradlew assembleRelease`), Versionado OTA (`docs/version.json`) y GitHub Releases
+- **Error pasado:** Se subieron múltiples mejoras al código fuente TypeScript (`git push origin main`) sin ejecutar `./gradlew assembleRelease` ni incrementar `versionCode` / `versionName` ni subir un nuevo `.apk` a GitHub Releases desde el 2 de noviembre (`02:11 AM`), provocando que el usuario siguiera con el APK antiguo en su dispositivo y no recibiera notificaciones OTA ni viera las mejoras en su móvil.
+- **Solución definitiva:**
+  1. Cada vez que se entregue una versión con cambios funcionales en la app móvil, es **obligatorio**:
+     - Incrementar `versionCode` y `versionName` en `android/app/build.gradle`, `package.json`, `src/services/UpdateService.ts` (`CURRENT_VERSION`) y `docs/version.json`.
+     - Ejecutar `cd android && ./gradlew assembleRelease` para empaquetar el bundle JS/TS real dentro de `android/app/build/outputs/apk/release/app-release.apk`.
+     - Publicar la Release correspondiente en GitHub Releases con el archivo `.apk` adjunto y actualizar los enlaces de descarga en `docs/index.html`.
+  2. Mantener siempre el doble canal OTA (`docs/version.json` en GitHub Pages + API de GitHub Releases) junto con `UpdateAvailableBanner.tsx` en `App.tsx` para garantizar que los avisos de actualización lleguen sin bloqueos por límites de peticiones (rate-limit).

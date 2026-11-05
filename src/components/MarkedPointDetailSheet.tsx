@@ -15,6 +15,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   Platform,
   Share,
   Linking,
@@ -41,6 +42,11 @@ interface MarkedPointDetailSheetProps {
   point: MarkedPointItem;
   distanceKm?: number;
   isFavorite: boolean;
+  routes?: any[];
+  selectedRoute?: any | null;
+  onSelectRoute?: (route: any) => void;
+  onStartSimulation3D?: (route?: any) => void;
+  onUpdatePointCategory?: (point: MarkedPointItem, category: string) => void;
   onClose: () => void;
   onSaveFavorite: (point: MarkedPointItem) => void;
   onCalculateRoutes: (point: MarkedPointItem) => void;
@@ -48,10 +54,23 @@ interface MarkedPointDetailSheetProps {
   onUpdatePointName: (point: MarkedPointItem, newName: string) => void;
 }
 
+const POINT_CATEGORIES = [
+  { id: 'PUNTO_PERSONALIZADO', label: '📍 Punto GPS', color: '#F59E0B' },
+  { id: 'AREA_SERVICIOS', label: '🚐 Área Camper', color: '#10B981' },
+  { id: 'CAMPING', label: '🏕️ Camping', color: '#38BDF8' },
+  { id: 'RUTA_4X4_MOTO', label: '🏍️ Ruta Moto / 4x4', color: '#A855F7' },
+  { id: 'SOS_PUNTO', label: '🆘 Punto Encuentro', color: '#EF4444' },
+];
+
 export const MarkedPointDetailSheet: React.FC<MarkedPointDetailSheetProps> = ({
   point,
   distanceKm,
   isFavorite,
+  routes = [],
+  selectedRoute,
+  onSelectRoute,
+  onStartSimulation3D,
+  onUpdatePointCategory,
   onClose,
   onSaveFavorite,
   onCalculateRoutes,
@@ -62,6 +81,8 @@ export const MarkedPointDetailSheet: React.FC<MarkedPointDetailSheetProps> = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [customNameInput, setCustomNameInput] = useState(point.name);
   const [copiedGps, setCopiedGps] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(point.category || 'PUNTO_PERSONALIZADO');
+  const [isExpanded, setIsExpanded] = useState(true);
 
   useEffect(() => {
     setCustomNameInput(point.name);
@@ -299,6 +320,87 @@ export const MarkedPointDetailSheet: React.FC<MarkedPointDetailSheetProps> = ({
         </View>
       )}
 
+      {/* Selector interactivo de Categoría del Punto Marcado */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 10 }}>
+        {POINT_CATEGORIES.map(cat => {
+          const active = selectedCategory === cat.id;
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              activeOpacity={0.8}
+              onPress={() => {
+                setSelectedCategory(cat.id);
+                onUpdatePointCategory?.(point, cat.id);
+              }}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 12,
+                marginRight: 8,
+                borderWidth: 1,
+                backgroundColor: active ? `${cat.color}25` : 'rgba(30, 41, 59, 0.7)',
+                borderColor: active ? cat.color : 'rgba(71, 85, 105, 0.6)',
+              }}>
+              <Text
+                style={{
+                  color: active ? '#FFFFFF' : '#94A3B8',
+                  fontSize: 11,
+                  fontWeight: active ? '800' : '600',
+                }}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Si ya hay rutas calculadas, selector interactivo en línea */}
+      {routes.length > 0 && (
+        <View style={{ marginBottom: 10 }}>
+          <Text style={{ color: '#38BDF8', fontSize: 11, fontWeight: '800', marginBottom: 6 }}>
+            🛣️ ELIGE TU RUTA PREFERIDA ({routes.length} OPCIONES):
+          </Text>
+          {routes.map((rt, idx) => {
+            const isSel = selectedRoute === rt || (!selectedRoute && idx === 0);
+            return (
+              <TouchableOpacity
+                key={idx}
+                activeOpacity={0.85}
+                onPress={() => onSelectRoute?.(rt)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  marginBottom: 6,
+                  borderWidth: 1.5,
+                  backgroundColor: isSel ? 'rgba(2, 132, 199, 0.22)' : 'rgba(30, 41, 59, 0.75)',
+                  borderColor: isSel ? '#38BDF8' : 'rgba(71, 85, 105, 0.5)',
+                }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#F8FAFC', fontSize: 12, fontWeight: '800' }}>
+                    {rt.name || (idx === 0 ? '⭐ Más Rápida' : idx === 1 ? '🛣️ Sin Peajes' : '🏕️ Panorámica')}
+                  </Text>
+                  <Text style={{ color: '#94A3B8', fontSize: 11 }}>
+                    {((rt.distance || 0) / 1000).toFixed(1)} km · {Math.round((rt.duration || 0) / 60)} min
+                  </Text>
+                </View>
+                <Icon
+                  name={isSel ? 'radiobox-marked' : 'radiobox-blank'}
+                  size={20}
+                  color={isSel ? '#38BDF8' : '#64748B'}
+                />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
       {/* Botones Principales de Acción Solicitados por el Usuario */}
       <View style={styles.actionsContainer}>
         {/* Botón 1: Calcular varias rutas alternativas */}
@@ -318,7 +420,7 @@ export const MarkedPointDetailSheet: React.FC<MarkedPointDetailSheetProps> = ({
           <Icon name="chevron-right" size={22} color="#38BDF8" />
         </TouchableOpacity>
 
-        {/* Fila secundaria: Guardar en Favoritos + Iniciar Navegación Directa */}
+        {/* Fila secundaria: Guardar en Favoritos + Simular 3D + Iniciar Navegación Directa */}
         <View style={styles.secondaryActionsRow}>
           {/* Botón Favoritos */}
           <TouchableOpacity
@@ -327,22 +429,33 @@ export const MarkedPointDetailSheet: React.FC<MarkedPointDetailSheetProps> = ({
             onPress={() => onSaveFavorite(point)}>
             <Icon
               name={isFavorite ? 'star' : 'star-outline'}
-              size={19}
+              size={18}
               color={isFavorite ? '#F59E0B' : '#E2E8F0'}
-              style={{ marginRight: 6 }}
+              style={{ marginRight: 4 }}
             />
             <Text style={[styles.favoriteBtnText, isFavorite && styles.favoriteBtnTextActive]}>
-              {isFavorite ? 'En Favoritos' : 'Guardar Favorito'}
+              {isFavorite ? 'Favorito' : 'Guardar'}
             </Text>
           </TouchableOpacity>
+
+          {/* Botón Simular 3D */}
+          {onStartSimulation3D && (
+            <TouchableOpacity
+              style={[styles.favoriteBtn, { borderColor: '#38BDF8', backgroundColor: 'rgba(2, 132, 199, 0.25)' }]}
+              activeOpacity={0.85}
+              onPress={() => onStartSimulation3D(selectedRoute || routes[0])}>
+              <Icon name="gamepad-variant" size={18} color="#38BDF8" style={{ marginRight: 4 }} />
+              <Text style={[styles.favoriteBtnText, { color: '#38BDF8' }]}>Simular 3D</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Botón Navegación Directa */}
           <TouchableOpacity
             style={styles.directNavBtn}
             activeOpacity={0.85}
             onPress={() => onStartDirectRoute(point)}>
-            <Icon name="navigation" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.directNavBtnText}>Navegar Ahora</Text>
+            <Icon name="navigation" size={18} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <Text style={styles.directNavBtnText}>Iniciar 3D</Text>
           </TouchableOpacity>
         </View>
       </View>

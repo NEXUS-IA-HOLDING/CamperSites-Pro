@@ -1,29 +1,123 @@
 /**
  * UpdateService.ts — CamperSites Pro
  * Nexus Studio (Nexus AI Holding)
- * 
- * In-app update checker for direct APK distribution.
- * Queries GitHub Releases API to notify users whenever a new version is released.
+ *
+ * Sistema de Notificación de Actualización OTA Infalible (Doble Canal):
+ * 1. Canal Primario sin caché ni rate-limit: GitHub Pages (`version.json?t=...`)
+ * 2. Canal Secundario de respaldo: GitHub Releases API (`/releases/latest`)
  */
 
 import { Linking, Alert } from 'react-native';
 
 export interface ReleaseInfo {
   version: string;
+  versionCode?: number;
+  releaseDate?: string;
   releaseNotes: string;
   downloadUrl: string;
+  fallbackUrl?: string;
+  mandatory?: boolean;
   isNewer: boolean;
 }
 
-const CURRENT_VERSION = '1.0.0';
+export const CURRENT_VERSION = '2.0.0';
+export const CURRENT_VERSION_CODE = 2;
+
 const GITHUB_REPO = 'NEXUS-IA-HOLDING/CamperSites-Pro';
+const PAGES_VERSION_URL = 'https://nexus-ia-holding.github.io/CamperSites-Pro/version.json';
 const GITHUB_LATEST_RELEASE_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+const DEFAULT_FALLBACK_URL = 'https://nexus-ia-holding.github.io/CamperSites-Pro/#descarga';
+
+type UpdateListener = (info: ReleaseInfo) => void;
 
 export class UpdateService {
+  private static lastReleaseInfo: ReleaseInfo | null = null;
+  private static listeners: Set<UpdateListener> = new Set();
+
   /**
-   * Checks if a newer version is available on GitHub Releases
+   * Suscribe un listener para recibir notificaciones inmediatas cuando se detecta una actualización
+   */
+  public static subscribe(listener: UpdateListener): () => void {
+    this.listeners.add(listener);
+    if (this.lastReleaseInfo) {
+      listener(this.lastReleaseInfo);
+    }
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /**
+   * Devuelve la última información de versión comprobada en memoria
+   */
+  public static getLastReleaseInfo(): ReleaseInfo | null {
+    return this.lastReleaseInfo;
+  }
+
+  private static notifyListeners(info: ReleaseInfo): void {
+    this.lastReleaseInfo = info;
+    this.listeners.forEach(listener => {
+      try {
+        listener(info);
+      } catch {
+        // Ignore listener errors
+      }
+    });
+  }
+
+  /**
+   * Comprueba si hay una versión más reciente disponible consultando primero
+   * GitHub Pages (`version.json` sin caché) y como respaldo la API de GitHub Releases.
    */
   public static async checkForUpdate(): Promise<ReleaseInfo | null> {
+    let pagesResult: ReleaseInfo | null = null;
+    let githubResult: ReleaseInfo | null = null;
+
+    // 1. Canal Primario: GitHub Pages version.json (sin rate-limit y sin caché)
+    try {
+      const response = await fetch(`${PAGES_VERSION_URL}?t=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const remoteVersion = String(data.version || '').replace(/^v/, '').trim();
+        const remoteCode = typeof data.versionCode === 'number' ? data.versionCode : undefined;
+
+        if (remoteVersion) {
+          const isNewerBySemver = this.compareVersions(remoteVersion, CURRENT_VERSION) > 0;
+          const isNewerByCode =
+            typeof remoteCode === 'number' && remoteCode > CURRENT_VERSION_CODE;
+          const isNewer = isNewerBySemver || isNewerByCode;
+
+          pagesResult = {
+            version: remoteVersion,
+            versionCode: remoteCode,
+            releaseDate: data.releaseDate,
+            releaseNotes:
+              data.releaseNotes ||
+              'Nueva actualización oficial con mejoras de navegación 3D, radares y estabilidad.',
+            downloadUrl: data.downloadUrl || DEFAULT_FALLBACK_URL,
+            fallbackUrl: data.fallbackUrl || DEFAULT_FALLBACK_URL,
+            mandatory: Boolean(data.mandatory),
+            isNewer,
+          };
+
+          if (pagesResult.isNewer) {
+            this.notifyListeners(pagesResult);
+            return pagesResult;
+          }
+        }
+      }
+    } catch {
+      // Fallthrough al canal secundario si falla la red en el canal primario
+    }
+
+    // 2. Canal Secundario: GitHub Releases API
     try {
       const response = await fetch(GITHUB_LATEST_RELEASE_URL, {
         headers: {
@@ -32,35 +126,69 @@ export class UpdateService {
         },
       });
 
-      if (!response.ok) return null;
+      if (response.ok) {
+        const data = await response.json();
+        const latestTag = String(data.tag_name || '').replace(/^v/, '').trim();
+        const body = data.body || '';
 
-      const data = await response.json();
-      const latestTag = (data.tag_name || '').replace(/^v/, '');
-      const body = data.body || '';
+        if (latestTag) {
+          const apkAsset = Array.isArray(data.assets)
+            ? data.assets.find((a: any) => a.name && a.name.endsWith('.apk'))
+            : null;
 
-      // Find APK download asset
-      const apkAsset = Array.isArray(data.assets)
-        ? data.assets.find((a: any) => a.name && a.name.endsWith('.apk'))
-        : null;
+          const downloadUrl =
+            apkAsset?.browser_download_url ||
+            pagesResult?.downloadUrl ||
+            data.html_url ||
+            DEFAULT_FALLBACK_URL;
 
-      const downloadUrl = apkAsset?.browser_download_url || data.html_url;
+          const isNewer = this.compareVersions(latestTag, CURRENT_VERSION) > 0;
 
-      const isNewer = this.compareVersions(latestTag, CURRENT_VERSION) > 0;
+          githubResult = {
+            version: latestTag,
+            releaseNotes:
+              body ||
+              pagesResult?.releaseNotes ||
+              'Nueva actualización oficial disponible para descarga directa.',
+            downloadUrl,
+            fallbackUrl: pagesResult?.fallbackUrl || DEFAULT_FALLBACK_URL,
+            mandatory: pagesResult?.mandatory ?? true,
+            isNewer,
+          };
 
-      return {
-        version: latestTag,
-        releaseNotes: body,
-        downloadUrl,
-        isNewer,
-      };
+          if (githubResult.isNewer) {
+            this.notifyListeners(githubResult);
+            return githubResult;
+          }
+        }
+      }
     } catch {
       // Silently fail if offline or network error
-      return null;
+    }
+
+    const finalResult = pagesResult || githubResult;
+    if (finalResult) {
+      this.notifyListeners(finalResult);
+    }
+    return finalResult;
+  }
+
+  /**
+   * Abre la descarga directa del APK o la página web de respaldo si falla el enlace
+   */
+  public static async openUpdateDownload(info: ReleaseInfo): Promise<void> {
+    const targetUrl = info.downloadUrl || info.fallbackUrl || DEFAULT_FALLBACK_URL;
+    try {
+      await Linking.openURL(targetUrl);
+    } catch {
+      if (info.fallbackUrl && info.fallbackUrl !== targetUrl) {
+        await Linking.openURL(info.fallbackUrl).catch(() => {});
+      }
     }
   }
 
   /**
-   * Prompts the user to update if a newer version exists (or feedback on manual check)
+   * Muestra alerta de actualización si existe versión superior (o confirmación en comprobación manual)
    */
   public static async promptIfUpdateAvailable(manualCheck: boolean = false): Promise<void> {
     const info = await this.checkForUpdate();
@@ -68,7 +196,7 @@ export class UpdateService {
       if (manualCheck) {
         Alert.alert(
           '✅ App Actualizada',
-          `Tienes instalada la última versión oficial (v${CURRENT_VERSION}).\n\nCartografía offline, radares DGT y base de datos de pernocta al día.`
+          `Tienes instalada la última versión oficial (v${CURRENT_VERSION}).\n\nMotor 3D Look-Ahead, cartografía offline, radares DGT y base de datos de pernocta al día.`
         );
       }
       return;
@@ -76,15 +204,13 @@ export class UpdateService {
 
     Alert.alert(
       `🚀 Actualización Disponible (v${info.version})`,
-      `Hay una nueva versión de CamperSites Pro con mejoras en cartografía, radares y estabilidad.\n\n¿Deseas descargar la actualización ahora?`,
+      `${info.releaseNotes}\n\n¿Deseas descargar e instalar la actualización ahora?`,
       [
         { text: 'Más tarde', style: 'cancel' },
         {
-          text: 'Descargar e Instalar',
+          text: '⬇️ Descargar APK',
           onPress: () => {
-            if (info.downloadUrl) {
-              Linking.openURL(info.downloadUrl);
-            }
+            this.openUpdateDownload(info);
           },
         },
       ]
@@ -92,11 +218,13 @@ export class UpdateService {
   }
 
   /**
-   * Helper to compare semantic versions: returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+   * Compara versiones semánticas: devuelve 1 si v1 > v2, -1 si v1 < v2, 0 si son iguales
    */
-  private static compareVersions(v1: string, v2: string): number {
-    const parts1 = v1.split('.').map(n => parseInt(n, 10) || 0);
-    const parts2 = v2.split('.').map(n => parseInt(n, 10) || 0);
+  public static compareVersions(v1: string, v2: string): number {
+    const clean1 = v1.replace(/^v/i, '').split('-')[0];
+    const clean2 = v2.replace(/^v/i, '').split('-')[0];
+    const parts1 = clean1.split('.').map(n => parseInt(n, 10) || 0);
+    const parts2 = clean2.split('.').map(n => parseInt(n, 10) || 0);
 
     for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
       const p1 = parts1[i] || 0;

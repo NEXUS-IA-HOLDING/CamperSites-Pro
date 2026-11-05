@@ -1548,6 +1548,11 @@ const MapScreen = () => {
       });
 
       AudioAlertService.speak('Punto marcado en el mapa');
+
+      // Calcular automáticamente las 3 alternativas de ruta para mostrarlas directamente en el desplegable
+      const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+      const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+      calculateRoutes(fromLat, fromLng, lat, lng, false, false);
     } catch (err) {
       Logger.error('MapScreen', 'Error en handleMapLongPress', err);
     }
@@ -2220,12 +2225,14 @@ const MapScreen = () => {
         speedLimit={currentSpeedLimit}
       />
 
-      {/* Dock agrupado en el lado inferior derecho: Capas desplegables + Recentrador GPS + Reporte sutil */}
+      {/* Dock agrupado en el lado inferior derecho: Capas desplegables + 3D/2D + Recentrador GPS + Reporte sutil */}
       <MapControlDock
         currentMapStyle={currentMapStyle}
         gpsEnabled={gpsEnabled}
         isFullScreen={isFullScreen}
         isSimulating={isSimulationActive}
+        camera3DMode={camera3DMode}
+        onToggleCamera3D={toggleCameraMode}
         onSelectMapStyle={setCurrentMapStyle}
         onToggleFullScreen={handleToggleFullScreen}
         onZoomIn={handleZoomIn}
@@ -2233,7 +2240,7 @@ const MapScreen = () => {
         onRecenterGPS={handleRecenter}
         onOpenReportIncident={() => setIsReportModalOpen(true)}
         onToggleSimulation={() =>
-          isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation()
+          isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation(selectedRoute || routes[0])
         }
       />
 
@@ -2336,7 +2343,7 @@ const MapScreen = () => {
         </View>
       )}
 
-      {/* Ficha Deslizable de Cabina de Ubicación Seleccionada */}
+      {/* Ficha Deslizable de Cabina de Ubicación Seleccionada (100% Interactiva y Modificable) */}
       {selectedLocation && !isNavigating && (
         <CockpitLocationDetailSheet
           location={selectedLocation}
@@ -2350,6 +2357,34 @@ const MapScreen = () => {
                 ) / 10
               : undefined
           }
+          routes={routes}
+          selectedRoute={selectedRoute}
+          isCalculatingRoute={isCalculatingRoute}
+          onSelectRoute={(rt) => setSelectedRoute(rt)}
+          onStartDirectNavigation={async (rt) => {
+            if (rt) {
+              startNavigation(rt);
+            } else {
+              const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+              const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+              const calc = await calculateRoutes(fromLat, fromLng, selectedLocation.latitude, selectedLocation.longitude, false, false);
+              if (calc && calc.length > 0) {
+                startNavigation(calc[0]);
+              }
+            }
+          }}
+          onStartSimulation3D={async (rt) => {
+            if (rt) {
+              setSelectedLocation(null);
+              handleStartDemoSimulation(rt);
+            } else {
+              const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+              const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+              const calc = await calculateRoutes(fromLat, fromLng, selectedLocation.latitude, selectedLocation.longitude, false, false);
+              setSelectedLocation(null);
+              handleStartDemoSimulation(calc?.[0]);
+            }
+          }}
           onClose={() => setSelectedLocation(null)}
           onStartRoute={async (loc) => {
             const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
@@ -2386,6 +2421,16 @@ const MapScreen = () => {
               : undefined
           }
           isFavorite={isMarkedPointFavorite}
+          routes={routes}
+          selectedRoute={selectedRoute}
+          onSelectRoute={(rt) => setSelectedRoute(rt)}
+          onStartSimulation3D={(rt) => {
+            setMarkedPoint(null);
+            handleStartDemoSimulation(rt || selectedRoute || routes[0]);
+          }}
+          onUpdatePointCategory={(pt, category) => {
+            setMarkedPoint({ ...pt, category });
+          }}
           onClose={() => setMarkedPoint(null)}
           onSaveFavorite={handleToggleMarkedPointFavorite}
           onCalculateRoutes={handleCalculateRoutesForMarkedPoint}
