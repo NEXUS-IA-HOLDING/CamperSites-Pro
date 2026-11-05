@@ -81,3 +81,5 @@ ios/.xcode.env.local
 **/fastlane/Preview.html
 **/fastlane/screenshots
 **/fastlane/test_output
+
+.telegram-bridge-state.json
