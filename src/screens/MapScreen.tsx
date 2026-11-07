@@ -36,6 +36,13 @@ import { MarkedPointDetailSheet, MarkedPointItem } from '../components/MarkedPoi
 import { CockpitTurnByTurnHUD } from '../components/CockpitTurnByTurnHUD';
 import { LaneGuidanceHUD } from '../components/LaneGuidanceHUD';
 import { CockpitSectionRadarHUD } from '../components/CockpitSectionRadarHUD';
+import { CockpitHazardVerificationHUD } from '../components/CockpitHazardVerificationHUD';
+import {
+  CommunityAlert,
+  ALERT_CONFIG as COMMUNITY_ALERT_CONFIG,
+  getNearbyAlerts,
+  voteAlert,
+} from '../lib/communityAlerts';
 import {
   AdvancedSpotFilterModal,
   SpotFilterCriteria,
@@ -372,6 +379,14 @@ const MapScreen = () => {
   const [isSimulationActive, setIsSimulationActive] = useState<boolean>(false);
   const [isAwayFromUser, setIsAwayFromUser] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [isCruisingActive, setIsCruisingActive] = useState<boolean>(false);
+  const [communityAlerts, setCommunityAlerts] = useState<CommunityAlert[]>([]);
+  const [activeVerificationAlert, setActiveVerificationAlert] = useState<{
+    alert: CommunityAlert;
+    distanceMeters: number;
+  } | null>(null);
+  const lastVerificationAlertId = useRef<string | null>(null);
+  const cruisingInactiveCount = useRef<number>(0);
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
   const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
   const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
@@ -548,6 +563,11 @@ const MapScreen = () => {
       }
 
       fetchRadars();
+      if (lastLoc) {
+        fetchCommunityAlerts(lastLoc.latitude, lastLoc.longitude);
+      } else {
+        fetchCommunityAlerts(DEFAULT_CENTER[1], DEFAULT_CENTER[0]);
+      }
       setLoading(false);
       requestLocationPermission();
 
@@ -751,28 +771,45 @@ const MapScreen = () => {
             });
           }
         } else {
-          // 1B. MODO LIBRE DE CONDUCCIÓN 3D (Simulador estilo Google Maps / Waze):
-          // En cuanto el usuario empieza a moverse por la carretera (>= 3.0 km/h) y no está alejando el mapa a mano,
-          // la pantalla desciende a ras de calzada, se inclina en perspectiva 3D y proyecta la vista por delante del vehículo
-          if (currentSpeedKmH >= 3.0 && !isAwayFromUserRef.current) {
-            if (!camera3DModeRef.current) {
+          // 1B. MODO CRUCERO DE CONDUCCIÓN LIBRE 3D (> 10 km/h sin ruta configurada):
+          // Si el vehículo supera 10 km/h sin destino marcado, la cámara desciende a ras de calzada,
+          // se inclina en perspectiva 3D (pitch 50-55°), adopta zoom adaptativo a la velocidad y
+          // sigue el rumbo del vehículo para que el conductor disfrute de máxima visión de la carretera en tiempo real.
+          if (currentSpeedKmH >= 10.0) {
+            if (!isCruisingActive) {
+              setIsCruisingActive(true);
+              // Al comenzar la marcha > 10 km/h, anclamos automáticamente la vista a la carretera
+              isAwayFromUserRef.current = false;
+              setIsAwayFromUser(false);
               setCamera3DMode(true);
               camera3DModeRef.current = true;
             }
-            const adaptiveCam = calculateSpeedAdaptiveCamera(currentSpeedKmH);
-            const lookAheadCenter = projectLookAhead(
-              latitude,
-              longitude,
-              lastStableHeading.current,
-              80
-            );
-            cameraRef.current?.setCamera({
-              centerCoordinate: lookAheadCenter,
-              zoomLevel: adaptiveCam.zoom,
-              pitch: adaptiveCam.pitch,
-              heading: lastStableHeading.current,
-              animationDuration: 500,
-            });
+            cruisingInactiveCount.current = 0;
+
+            if (!isAwayFromUserRef.current) {
+              const adaptiveCam = calculateSpeedAdaptiveCamera(currentSpeedKmH);
+              const lookAheadCenter = projectLookAhead(
+                latitude,
+                longitude,
+                lastStableHeading.current,
+                75
+              );
+              cameraRef.current?.setCamera({
+                centerCoordinate: lookAheadCenter,
+                zoomLevel: adaptiveCam.zoom,
+                pitch: adaptiveCam.pitch,
+                heading: lastStableHeading.current,
+                animationDuration: 500,
+              });
+            }
+          } else {
+            // Si la velocidad desciende por debajo de 5 km/h durante paradas prolongadas
+            if (isCruisingActive) {
+              cruisingInactiveCount.current += 1;
+              if (cruisingInactiveCount.current > 15) { // ~15 segundos parado
+                setIsCruisingActive(false);
+              }
+            }
           }
         }
 
@@ -806,8 +843,12 @@ const MapScreen = () => {
     );
 
     checkIntervalId.current = BackgroundTimer.setInterval(() => {
-      if (currentLocation && isNavigating) {
-        checkForAlerts(currentLocation.latitude, currentLocation.longitude, currentLocation.speed);
+      if (currentLocation) {
+        const speedKmH = currentLocation.speed * 3.6;
+        if (isNavigating || speedKmH >= 10 || isCruisingActive) {
+          checkForAlerts(currentLocation.latitude, currentLocation.longitude, currentLocation.speed);
+          checkForCommunityAlerts(currentLocation.latitude, currentLocation.longitude);
+        }
       }
     }, CHECK_INTERVAL);
   };
@@ -873,6 +914,27 @@ const MapScreen = () => {
       if (clearanceConflicts.length > 0) {
         setActiveClearanceHazard(clearanceConflicts[0]);
         AudioAlertService.playClearanceDangerAlert(clearanceConflicts[0].hazard.maxAllowedHeight, vehicleHeight);
+      } else {
+        setActiveClearanceHazard(null);
+      }
+    } else if (isCruisingActive || speed * 3.6 >= 10) {
+      // Detección de proximidad en Modo Crucero Libre (> 10 km/h o sin ruta fijada)
+      let nearbyHazard: { hazard: ClearanceHazard; distanceMeters: number } | null = null;
+      for (const h of KNOWN_CLEARANCE_HAZARDS) {
+        if (h.maxAllowedHeight < vehicleHeight + 0.10) {
+          const d = haversine(
+            { latitude: lat, longitude: lng },
+            { latitude: h.latitude, longitude: h.longitude }
+          );
+          if (d <= (drivingPrefs.clearanceAlertDistance || 800)) {
+            nearbyHazard = { hazard: h, distanceMeters: d };
+            break;
+          }
+        }
+      }
+      if (nearbyHazard) {
+        setActiveClearanceHazard(nearbyHazard);
+        AudioAlertService.playClearanceDangerAlert(nearbyHazard.hazard.maxAllowedHeight, vehicleHeight);
       } else {
         setActiveClearanceHazard(null);
       }
@@ -1061,6 +1123,33 @@ const MapScreen = () => {
       setRadars([]);
     }
   };
+
+  const fetchCommunityAlerts = useCallback(async (lat: number, lng: number) => {
+    try {
+      const items = await getNearbyAlerts(lat, lng, 25);
+      setCommunityAlerts(items);
+    } catch (e) {
+      Logger.error('MapScreen', 'Error fetching community alerts', e);
+    }
+  }, []);
+
+  const checkForCommunityAlerts = useCallback((lat: number, lng: number) => {
+    if (communityAlerts.length === 0) return;
+    for (const a of communityAlerts) {
+      const dist = haversine(
+        { latitude: lat, longitude: lng },
+        { latitude: a.latitude, longitude: a.longitude }
+      );
+      // Radio de aviso y verificación interactiva estilo Waze (entre 30m y 350m)
+      if (dist <= 350 && dist >= 30) {
+        if (lastVerificationAlertId.current !== a.id) {
+          lastVerificationAlertId.current = a.id;
+          setActiveVerificationAlert({ alert: a, distanceMeters: dist });
+          break;
+        }
+      }
+    }
+  }, [communityAlerts]);
 
   const handleOffRouteRecalculate = useCallback(() => {
     if (isRecalculating.current || !selectedLocation || !currentLocation) return;
@@ -2218,6 +2307,36 @@ const MapScreen = () => {
           </MapLibreGL.PointAnnotation>
         ))}
 
+        {/* Alertas Comunitarias en Tiempo Real (Waze / Google Maps Style) */}
+        {communityAlerts.map((ca) => {
+          const cfg = COMMUNITY_ALERT_CONFIG[ca.alert_type] || {
+            icon: 'alert-circle',
+            color: '#F59E0B',
+            label: 'Incidencia',
+          };
+          return (
+            <MapLibreGL.PointAnnotation
+              key={`comm-${ca.id}`}
+              id={`comm-${ca.id}`}
+              coordinate={[ca.longitude, ca.latitude]}
+              onSelected={() => {
+                setActiveVerificationAlert({
+                  alert: ca,
+                  distanceMeters: currentLocation
+                    ? haversine(
+                        { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
+                        { latitude: ca.latitude, longitude: ca.longitude }
+                      )
+                    : 100,
+                });
+              }}>
+              <View style={[styles.communityAlertBadge, { backgroundColor: cfg.color }]}>
+                <Icon name={cfg.icon} size={15} color="#FFFFFF" />
+              </View>
+            </MapLibreGL.PointAnnotation>
+          );
+        })}
+
         {/* Ruta seleccionada */}
         {routeGeoJSON && (
           <MapLibreGL.ShapeSource id="route-source" shape={routeGeoJSON}>
@@ -2345,6 +2464,40 @@ const MapScreen = () => {
         </TouchableOpacity>
       )}
 
+      {/* HUD de Verificación Comunitaria al aproximarse a cualquier obstáculo / radar / barrera */}
+      <CockpitHazardVerificationHUD
+        alert={activeVerificationAlert?.alert || null}
+        distanceMeters={activeVerificationAlert?.distanceMeters || 0}
+        onDismiss={() => setActiveVerificationAlert(null)}
+        onVoted={() => {
+          setActiveVerificationAlert(null);
+          if (currentLocation) {
+            fetchCommunityAlerts(currentLocation.latitude, currentLocation.longitude);
+          }
+        }}
+      />
+
+      {/* Banner Superior de Modo Crucero 3D Activo (> 10 km/h sin ruta fijada) */}
+      {isCruisingActive && !isNavigating && (
+        <View style={styles.cruisingModePill}>
+          <View style={styles.cruisingPulseDot} />
+          <Text style={styles.cruisingModeText}>
+            🏎️ MODO CRUCERO 3D • {Math.round((currentLocation?.speed || 0) * 3.6)} km/h • Vista Carretera
+          </Text>
+        </View>
+      )}
+
+      {/* Botón flotante rápido para Reportar Incidencias (Estilo Waze 1-Tap) */}
+      {(isCruisingActive || isNavigating || ((currentLocation?.speed || 0) * 3.6 >= 10)) && (
+        <TouchableOpacity
+          style={styles.quickReportFloatingBtn}
+          activeOpacity={0.85}
+          onPress={() => setIsReportModalOpen(true)}>
+          <Icon name="alert-decagram" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Text style={styles.quickReportFloatingText}>Reportar Vía</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Indicador de cálculo de ruta en curso */}
       {isCalculatingRoute && (
         <View style={styles.calculatingRoutePill}>
@@ -2363,6 +2516,9 @@ const MapScreen = () => {
         onCloseExternal={() => setIsReportModalOpen(false)}
         onAlertCreated={() => {
           fetchRadars();
+          if (currentLocation) {
+            fetchCommunityAlerts(currentLocation.latitude, currentLocation.longitude);
+          }
         }}
       />
 
@@ -3126,6 +3282,77 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 4,
     elevation: 8,
+  },
+  communityAlertBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    elevation: 9,
+  },
+  cruisingModePill: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 52 : 46,
+    alignSelf: 'center',
+    zIndex: 9999,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  cruisingPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#38BDF8',
+    marginRight: 8,
+  },
+  cruisingModeText: {
+    color: '#F0F9FF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  quickReportFloatingBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 146 : 130,
+    right: 14,
+    zIndex: 9998,
+    backgroundColor: '#F59E0B',
+    borderRadius: 22,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 10,
+    borderWidth: 1.5,
+    borderColor: '#FEF3C7',
+  },
+  quickReportFloatingText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
 });
 

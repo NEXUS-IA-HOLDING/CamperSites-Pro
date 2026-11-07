@@ -5,6 +5,10 @@
  */
 
 import { supabase } from './supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const LOCAL_ALERTS_KEY = '@campersites_community_alerts_local';
+const LOCAL_VOTES_KEY = '@campersites_community_alert_votes';
 
 // ============================================
 // TIPOS
@@ -24,7 +28,10 @@ export type AlertType =
   | 'LLUVIA_INTENSA'
   | 'ATASCO'
   | 'OBJETO_CALZADA'
-  | 'CARRETERA_MAL_ESTADO';
+  | 'CARRETERA_MAL_ESTADO'
+  | 'BARRERA_ALTURA'
+  | 'VIA_ESTRECHA_CAMPER'
+  | 'ZONA_INSEGURA';
 
 export type AlertSeverity = 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA';
 export type AlertStatus = 'ACTIVE' | 'EXPIRED' | 'FAKE' | 'CONFIRMED';
@@ -191,6 +198,30 @@ export const ALERT_CONFIG: Record<AlertType, {
     expiresMinutes: 720,
     alertDistanceKm: 2,
   },
+  BARRERA_ALTURA: {
+    icon: 'car-limousine',
+    color: '#EF4444',
+    label: 'Barrera de Altura',
+    defaultSeverity: 'CRITICA',
+    expiresMinutes: 1440, // 24 horas
+    alertDistanceKm: 2,
+  },
+  VIA_ESTRECHA_CAMPER: {
+    icon: 'van-utility',
+    color: '#F97316',
+    label: 'Paso Estrecho Camper',
+    defaultSeverity: 'ALTA',
+    expiresMinutes: 1440,
+    alertDistanceKm: 2,
+  },
+  ZONA_INSEGURA: {
+    icon: 'shield-alert',
+    color: '#DC2626',
+    label: 'Alerta Robo / Inseguridad',
+    defaultSeverity: 'ALTA',
+    expiresMinutes: 720,
+    alertDistanceKm: 3,
+  },
 };
 
 // ============================================
@@ -267,38 +298,79 @@ export const POINTS_TABLE = {
 // ============================================
 
 /**
- * Obtener alertas activas cercanas a una posición
+ * Obtener alertas locales persistentes
+ */
+async function getLocalAlerts(): Promise<CommunityAlert[]> {
+  try {
+    const raw = await AsyncStorage.getItem(LOCAL_ALERTS_KEY);
+    if (!raw) return [];
+    const alerts: CommunityAlert[] = JSON.parse(raw);
+    const nowIso = new Date().toISOString();
+    // Filtrar expiradas
+    return alerts.filter(a => a.expires_at > nowIso);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Guardar alerta localmente
+ */
+async function saveLocalAlert(alert: CommunityAlert) {
+  try {
+    const existing = await getLocalAlerts();
+    const updated = [alert, ...existing.filter(a => a.id !== alert.id)].slice(0, 100);
+    await AsyncStorage.setItem(LOCAL_ALERTS_KEY, JSON.stringify(updated));
+  } catch {}
+}
+
+/**
+ * Obtener alertas activas cercanas a una posición (Híbrido Supabase + Offline Local)
  */
 export async function getNearbyAlerts(
   latitude: number,
   longitude: number,
-  radiusKm: number = 10,
+  radiusKm: number = 15,
 ): Promise<CommunityAlert[]> {
-  // Calcular bounding box aproximado
-  const latDelta = radiusKm / 111;
-  const lngDelta = radiusKm / (111 * Math.cos(latitude * (Math.PI / 180)));
+  const localList = await getLocalAlerts();
+  let remoteList: CommunityAlert[] = [];
 
-  const { data, error } = await supabase
-    .from('community_alerts')
-    .select('*')
-    .in('status', ['ACTIVE', 'CONFIRMED'])
-    .gte('latitude', latitude - latDelta)
-    .lte('latitude', latitude + latDelta)
-    .gte('longitude', longitude - lngDelta)
-    .lte('longitude', longitude + lngDelta)
-    .gte('expires_at', new Date().toISOString())
-    .order('confidence_score', { ascending: false });
+  try {
+    const latDelta = radiusKm / 111;
+    const lngDelta = radiusKm / (111 * Math.cos(latitude * (Math.PI / 180)));
 
-  if (error) {
-    console.error('Error fetching nearby alerts:', error);
-    return [];
+    const { data, error } = await supabase
+      .from('community_alerts')
+      .select('*')
+      .in('status', ['ACTIVE', 'CONFIRMED'])
+      .gte('latitude', latitude - latDelta)
+      .lte('latitude', latitude + latDelta)
+      .gte('longitude', longitude - lngDelta)
+      .lte('longitude', longitude + lngDelta)
+      .gte('expires_at', new Date().toISOString())
+      .order('confidence_score', { ascending: false });
+
+    if (!error && data) {
+      remoteList = data;
+    }
+  } catch (error) {
+    // Modo offline sin conexión
   }
 
-  return data || [];
+  // Unir alertas remotas y locales sin duplicados
+  const map = new Map<string, CommunityAlert>();
+  for (const a of remoteList) map.set(a.id, a);
+  for (const a of localList) {
+    if (!map.has(a.id)) {
+      map.set(a.id, a);
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 /**
- * Crear nueva alerta comunitaria
+ * Crear nueva alerta comunitaria (Funciona tanto online como offline/invitado)
  */
 export async function createAlert(params: {
   alertType: AlertType;
@@ -309,49 +381,82 @@ export async function createAlert(params: {
   description?: string;
   severity?: AlertSeverity;
 }): Promise<{ success: boolean; alert?: CommunityAlert; error?: string }> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Debes iniciar sesión para reportar' };
+  let user: any = null;
+  let trustScore = 100;
+
+  try {
+    const res = await supabase.auth.getUser();
+    user = res.data?.user;
+    if (user) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('trust_score')
+        .eq('id', user.id)
+        .single();
+      if (profile?.trust_score) trustScore = profile.trust_score;
+    }
+  } catch {}
+
+  const config = ALERT_CONFIG[params.alertType] || {
+    label: 'Incidencia en vía',
+    defaultSeverity: 'MEDIA',
+    expiresMinutes: 120,
+  };
+
+  const newAlert: CommunityAlert = {
+    id: `alert_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    reporter_id: user?.id || 'camper_driver_local',
+    reporter_trust_score: trustScore,
+    alert_type: params.alertType,
+    latitude: params.latitude,
+    longitude: params.longitude,
+    road: params.road || 'Carretera en ruta',
+    direction: params.direction || 'Sentido marcha',
+    description: params.description || config.label,
+    severity: params.severity || config.defaultSeverity,
+    status: 'ACTIVE',
+    confirmations: 1,
+    denials: 0,
+    confidence_score: 85,
+    radius_meters: 150,
+    expires_at: new Date(Date.now() + config.expiresMinutes * 60 * 1000).toISOString(),
+    created_at: new Date().toISOString(),
+  };
+
+  // Guardar inmediatamente en almacén local
+  await saveLocalAlert(newAlert);
+
+  // Intentar sincronizar con Supabase si está disponible
+  if (user) {
+    try {
+      const { data, error } = await supabase
+        .from('community_alerts')
+        .insert({
+          reporter_id: user.id,
+          reporter_trust_score: trustScore,
+          alert_type: params.alertType,
+          latitude: params.latitude,
+          longitude: params.longitude,
+          road: params.road || '',
+          direction: params.direction || '',
+          description: params.description || '',
+          severity: params.severity || config.defaultSeverity,
+          expires_at: newAlert.expires_at,
+        })
+        .select()
+        .single();
+      if (!error && data) {
+        await saveLocalAlert(data);
+        return { success: true, alert: data };
+      }
+    } catch {}
   }
 
-  // Obtener trust_score actual
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('trust_score')
-    .eq('id', user.id)
-    .single();
-
-  const config = ALERT_CONFIG[params.alertType];
-
-  const { data, error } = await supabase
-    .from('community_alerts')
-    .insert({
-      reporter_id: user.id,
-      reporter_trust_score: profile?.trust_score || 0,
-      alert_type: params.alertType,
-      latitude: params.latitude,
-      longitude: params.longitude,
-      road: params.road || '',
-      direction: params.direction || '',
-      description: params.description || '',
-      severity: params.severity || config.defaultSeverity,
-      expires_at: new Date(
-        Date.now() + config.expiresMinutes * 60 * 1000,
-      ).toISOString(),
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating alert:', error);
-    return { success: false, error: error.message };
-  }
-
-  return { success: true, alert: data };
+  return { success: true, alert: newAlert };
 }
 
 /**
- * Votar (confirmar o negar) una alerta
+ * Votar (confirmar o negar) una alerta comunitaria
  */
 export async function voteAlert(
   alertId: string,
@@ -360,29 +465,40 @@ export async function voteAlert(
   voterLng?: number,
   distanceToAlert?: number,
 ): Promise<{ success: boolean; error?: string }> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Debes iniciar sesión' };
-  }
-
-  const { error } = await supabase
-    .from('alert_votes')
-    .insert({
-      alert_id: alertId,
-      voter_id: user.id,
-      vote_type: voteType,
-      voter_latitude: voterLat,
-      voter_longitude: voterLng,
-      distance_to_alert: distanceToAlert,
-    });
-
-  if (error) {
-    if (error.code === '23505') {
-      return { success: false, error: 'Ya has votado esta alerta' };
+  // 1. Guardar voto local para evitar votación doble
+  try {
+    const rawVotes = await AsyncStorage.getItem(LOCAL_VOTES_KEY);
+    const votes: Record<string, string> = rawVotes ? JSON.parse(rawVotes) : {};
+    if (votes[alertId]) {
+      return { success: false, error: 'Ya has valorado esta incidencia.' };
     }
-    console.error('Error voting:', error);
-    return { success: false, error: error.message };
-  }
+    votes[alertId] = voteType;
+    await AsyncStorage.setItem(LOCAL_VOTES_KEY, JSON.stringify(votes));
+
+    // Actualizar copia local
+    const local = await getLocalAlerts();
+    const item = local.find(a => a.id === alertId);
+    if (item) {
+      if (voteType === 'CONFIRM') item.confirmations = (item.confirmations || 0) + 1;
+      else item.denials = (item.denials || 0) + 1;
+      await AsyncStorage.setItem(LOCAL_ALERTS_KEY, JSON.stringify(local));
+    }
+  } catch {}
+
+  // 2. Si está autenticado, registrar en Supabase
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('alert_votes').insert({
+        alert_id: alertId,
+        voter_id: user.id,
+        vote_type: voteType,
+        voter_latitude: voterLat,
+        voter_longitude: voterLng,
+        distance_to_alert: distanceToAlert,
+      });
+    }
+  } catch {}
 
   return { success: true };
 }
