@@ -1,9 +1,9 @@
 {
-  "version": "2.0.0",
-  "versionCode": 2,
+  "version": "2.0.1",
+  "versionCode": 3,
   "releaseDate": "2026-11-07",
   "downloadUrl": "https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.0.0/CamperSites-Pro-v2.0.0.apk",
   "fallbackUrl": "https://nexus-ia-holding.github.io/CamperSites-Pro/#descarga",
   "mandatory": true,
-  "releaseNotes": "v2.0.0: Modo Crucero 3D (>10 km/h sin ruta fijada), Catálogo Nacional de Barreras de Altura (2.0-2.3m) en playas y parkings, Avisador y Verificador de Obstáculos en tiempo real estilo Waze, y Fichas de ubicación con alertas de gálibo."
+  "releaseNotes": "v2.0.1: Integración oficial de Android Auto y proyección al salpicadero, Telemetría TPMS de presión y temperatura de neumáticos en 4 ruedas, Mantenimiento predictivo de filtros y aceite, Comparador en directo MITECO de gasolineras, Nivelador 3D con calzos, Modo Pernocta OLED con alarma de viento y avisador de obstáculos estilo Waze."
 }
