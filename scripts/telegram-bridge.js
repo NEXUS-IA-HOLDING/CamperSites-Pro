@@ -102,12 +102,21 @@ function telegramApi(token, method, payload = null) {
 }
 
 async function sendMessage(token, chatId, text) {
-  return telegramApi(token, 'sendMessage', {
-    chat_id: chatId,
-    text,
-    parse_mode: 'Markdown',
-    disable_web_page_preview: true,
-  });
+  try {
+    return await telegramApi(token, 'sendMessage', {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  } catch (err) {
+    // Fallback sin formateo para evitar errores de parseo
+    return await telegramApi(token, 'sendMessage', {
+      chat_id: chatId,
+      text: text.replace(/<[^>]*>?/gm, ''),
+      disable_web_page_preview: true,
+    });
+  }
 }
 
 async function main() {
@@ -207,11 +216,13 @@ async function main() {
 
   // Modo escucha (Wait for next user message and exit so Antigravity agent wakes up immediately!)
   const waitOnce = args.includes('--wait-message');
+  const checkIncoming = args.includes('--check-incoming');
 
   while (true) {
     try {
       const offset = (state.lastUpdateId || 0) + 1;
-      const res = await telegramApi(token, `getUpdates?offset=${offset}&timeout=25`);
+      const pollTimeout = checkIncoming ? 2 : 25;
+      const res = await telegramApi(token, `getUpdates?offset=${offset}&timeout=${pollTimeout}`);
       if (res.ok && Array.isArray(res.result) && res.result.length > 0) {
         for (const upd of res.result) {
           state.lastUpdateId = upd.update_id;
@@ -234,19 +245,19 @@ async function main() {
             await sendMessage(
               token,
               senderChatId,
-              `🟢 *Puente Directo con tu Agente Antigravity Activo*\n\nEscríbeme por aquí lo que quieras que haga en *CamperSites Pro* mientras estás fuera del ordenador y te iré respondiendo en tiempo real.`
+              `🟢 <b>Puente Directo con tu Agente Antigravity Activo</b>\n\nEscríbeme por aquí lo que quieras que haga en <b>CamperSites Pro</b> mientras estás fuera del ordenador y te iré respondiendo en tiempo real.`
             );
           } else if (text === '/codigos') {
             await sendMessage(
               token,
               senderChatId,
-              `🎟️ *Códigos VIP Activos en CamperSites Pro v2.0.0:*\n• \`FAMILIA-VIP\` — VIP Vitalicio (Familiares)\n• \`AMIGOS-PRO\` — 1 Año Pro Gratis (Amigos)\n• \`COMPIS-RUTA\` — 1 Año Pro + Moderador (Compañeros)\n• \`FUNDADOR-100\` — Primeros 100 Usuarios Pioneros\n• \`STAFF-MOD\` — Equipo Staff / Soporte`
+              `🎟️ <b>Códigos VIP Activos en CamperSites Pro v2.0.0:</b>\n• <code>FAMILIA-VIP</code> — VIP Vitalicio (Familiares)\n• <code>AMIGOS-PRO</code> — 1 Año Pro Gratis (Amigos)\n• <code>COMPIS-RUTA</code> — 1 Año Pro + Moderador (Compañeros)\n• <code>FUNDADOR-100</code> — Primeros 100 Usuarios Pioneros\n• <code>STAFF-MOD</code> — Equipo Staff / Soporte`
             );
           } else {
             await sendMessage(
               token,
               senderChatId,
-              `⚙️ _Recibido en el Mac. Procesando tu instrucción:_ "${text}"...`
+              `⚙️ <i>Recibido en el Mac. Ya lo estoy procesando:</i> "${text.replace(/[<>]/g, '')}"`
             );
           }
 
@@ -255,12 +266,18 @@ async function main() {
           if (state.inbox.length > 50) state.inbox = state.inbox.slice(-50);
           saveState(state);
 
-          if (waitOnce) {
+          if (waitOnce || checkIncoming) {
             process.exit(0);
           }
         }
+      } else if (checkIncoming) {
+        console.log('ℹ️ No hay nuevos mensajes en Telegram.');
+        process.exit(0);
       }
     } catch (err) {
+      if (checkIncoming) {
+        process.exit(0);
+      }
       await new Promise((r) => setTimeout(r, 3000));
     }
   }

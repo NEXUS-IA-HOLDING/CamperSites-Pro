@@ -48,6 +48,7 @@ import {
   SectionRadarStatus,
 } from '../services/SectionRadarTracker';
 import { offlineSpotVault } from '../services/OfflineSpotVaultService';
+import { ClearanceHazardService } from '../services/ClearanceHazardService';
 import { affiliatePartnerService } from '../services/AffiliatePartnerService';
 import { drivingSimulationService } from '../services/DrivingSimulationService';
 import { routeHistoryService } from '../services/RouteHistoryService';
@@ -243,41 +244,8 @@ const DEFAULT_DRIVING_PREFS: DrivingPreferences = {
   tachographWarningsEnabled: true,
 };
 
-// Base de datos de puentes bajos y gálibos críticos para avisos en tiempo real en España
-const KNOWN_CLEARANCE_HAZARDS: ClearanceHazard[] = [
-  // Madrid y Centro
-  { id: 'haz-1', latitude: 40.4168, longitude: -3.7038, maxAllowedHeight: 2.80, description: 'Paso subterráneo gálibo 2.80m', roadName: 'M-30 enlace' },
-  { id: 'haz-5', latitude: 40.4021, longitude: -3.6912, maxAllowedHeight: 2.70, description: 'Túnel urbano Atocha gálibo 2.70m', roadName: 'Paseo Infanta Isabel' },
-  { id: 'haz-6', latitude: 40.4482, longitude: -3.7035, maxAllowedHeight: 2.90, description: 'Paso inferior Cuatro Caminos 2.90m', roadName: 'Bravo Murillo' },
-  { id: 'haz-7', latitude: 40.3855, longitude: -3.7188, maxAllowedHeight: 2.85, description: 'Puente ferroviario gálibo 2.85m', roadName: 'Antonio López' },
-  
-  // Cataluña y Nordeste
-  { id: 'haz-2', latitude: 41.3851, longitude: 2.1734, maxAllowedHeight: 3.10, description: 'Puente ferroviario bajo 3.10m', roadName: 'Acceso Costero' },
-  { id: 'haz-8', latitude: 41.4012, longitude: 2.1985, maxAllowedHeight: 2.95, description: 'Paso inferior Glòries 2.95m', roadName: 'Gran Via Corts Catalanes' },
-  { id: 'haz-9', latitude: 41.3411, longitude: 2.1023, maxAllowedHeight: 2.80, description: 'Puente FFCC Hospitalet 2.80m', roadName: 'Carretera del Mig' },
-  { id: 'haz-10', latitude: 41.5432, longitude: 2.4419, maxAllowedHeight: 2.75, description: 'Paso bajo vía N-II Mataró 2.75m', roadName: 'Paseo Marítimo N-II' },
-  
-  // Andalucía y Sur
-  { id: 'haz-3', latitude: 37.3891, longitude: -5.9845, maxAllowedHeight: 2.90, description: 'Arco monumental gálibo 2.90m', roadName: 'Centro Histórico' },
-  { id: 'haz-11', latitude: 36.7213, longitude: -4.4214, maxAllowedHeight: 2.85, description: 'Túnel alcazaba acceso puerto 2.85m', roadName: 'Paseo de los Curas' },
-  { id: 'haz-12', latitude: 37.1773, longitude: -3.5986, maxAllowedHeight: 2.65, description: 'Arco histórico Albayzín gálibo 2.65m', roadName: 'Puerta Elvira' },
-  { id: 'haz-13', latitude: 36.5298, longitude: -6.2924, maxAllowedHeight: 2.90, description: 'Paso bajo muralla Puertas de Tierra 2.90m', roadName: 'Cuesta de las Calesas' },
-
-  // Galicia y Cantábrico
-  { id: 'haz-4', latitude: 43.3619, longitude: -8.4116, maxAllowedHeight: 3.00, description: 'Túnel urbano limitado 3.00m', roadName: 'Ronda Norte' },
-  { id: 'haz-14', latitude: 43.2630, longitude: -2.9350, maxAllowedHeight: 2.90, description: 'Paso inferior Deusto 2.90m', roadName: 'Avenida Lehendakari Aguirre' },
-  { id: 'haz-15', latitude: 43.3215, longitude: -1.9856, maxAllowedHeight: 2.80, description: 'Paso ferroviario Gros 2.80m', roadName: 'Calle Zabaleta' },
-  { id: 'haz-16', latitude: 43.4623, longitude: -3.8099, maxAllowedHeight: 2.95, description: 'Túnel de Tetuán gálibo 2.95m', roadName: 'Paseo de Menéndez Pelayo' },
-
-  // Levante y Comunidad Valenciana
-  { id: 'haz-17', latitude: 39.4699, longitude: -0.3763, maxAllowedHeight: 2.80, description: 'Paso inferior antiguo cauce Turia 2.80m', roadName: 'Puente de las Flores' },
-  { id: 'haz-18', latitude: 38.3452, longitude: -0.4810, maxAllowedHeight: 2.90, description: 'Puente Renfe acceso Benalúa 2.90m', roadName: 'Avenida de Elche' },
-  { id: 'haz-19', latitude: 37.9922, longitude: -1.1307, maxAllowedHeight: 2.75, description: 'Paso bajo vía del tren Nonduermas 2.75m', roadName: 'Camino Hondo del Carril' },
-
-  // Castilla y Valle del Ebro
-  { id: 'haz-20', latitude: 41.6488, longitude: -0.8891, maxAllowedHeight: 2.85, description: 'Paso inferior Goya 2.85m', roadName: 'Avenida Francisco de Goya' },
-  { id: 'haz-21', latitude: 41.6523, longitude: -4.7245, maxAllowedHeight: 2.90, description: 'Túnel Arco de Ladrillo 2.90m', roadName: 'Paseo Arco de Ladrillo' },
-];
+// Base de datos de puentes bajos, túneles y barreras de altura en España
+const KNOWN_CLEARANCE_HAZARDS: ClearanceHazard[] = ClearanceHazardService.getAllHazards();
 
 const GPS_UPDATE_INTERVAL = 1000;
 const CHECK_INTERVAL = 2000;
@@ -2410,6 +2378,7 @@ const MapScreen = () => {
       {selectedLocation && !isNavigating && (
         <CockpitLocationDetailSheet
           location={selectedLocation}
+          vehicleHeight={vehicleHeight}
           distanceKm={
             currentLocation
               ? Math.round(
@@ -2473,6 +2442,7 @@ const MapScreen = () => {
       {markedPoint && !isNavigating && (
         <MarkedPointDetailSheet
           point={markedPoint}
+          vehicleHeight={vehicleHeight}
           distanceKm={
             currentLocation
               ? Math.round(

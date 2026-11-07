@@ -30,6 +30,8 @@ import {
   CamperWeatherReport,
 } from '../services/CamperWeatherService';
 import { TikTokService } from '../services/TikTokService';
+import { ClearanceHazardService } from '../services/ClearanceHazardService';
+import { ClearanceHazard } from '../types/assistant';
 
 const FAVORITES_KEY = '@campersites_favorites';
 const SPOT_OVERRIDES_KEY = '@campersites_spot_overrides';
@@ -73,6 +75,7 @@ interface LocationItem {
 export interface CockpitLocationDetailSheetProps {
   location: LocationItem | null;
   distanceKm?: number;
+  vehicleHeight?: number;
   onClose: () => void;
   onStartRoute: (location: LocationItem) => void;
   onOpenReviews: (location: LocationItem) => void;
@@ -87,6 +90,7 @@ export interface CockpitLocationDetailSheetProps {
 export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProps> = ({
   location,
   distanceKm,
+  vehicleHeight,
   onClose,
   onStartRoute,
   onOpenReviews,
@@ -109,6 +113,16 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
   const [customNote, setCustomNote] = useState('');
   const [activeServices, setActiveServices] = useState<Record<string, boolean>>({});
   const [savedNotice, setSavedNotice] = useState(false);
+
+  const effectiveVehicleHeight = vehicleHeight || 2.80;
+  const spotClearanceHazard = location
+    ? ClearanceHazardService.checkSpotHeightRestriction(
+        location.latitude,
+        location.longitude,
+        effectiveVehicleHeight,
+        280
+      )
+    : null;
 
   useEffect(() => {
     if (location) {
@@ -425,6 +439,34 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
             </View>
           ) : null}
         </TouchableOpacity>
+
+        {/* ALERTA CRÍTICA DE GÁLIBO / BARRERA DE ALTURA EN ESTE DESTINO */}
+        {spotClearanceHazard && (
+          <View style={styles.clearanceDangerBanner}>
+            <View style={styles.clearanceDangerIconWrap}>
+              <Icon
+                name={spotClearanceHazard.hazardType === 'height_barrier' ? 'car-limousine' : 'bridge'}
+                size={22}
+                color="#EF4444"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.clearanceDangerHeader}>
+                <Text style={styles.clearanceDangerTitle}>
+                  {spotClearanceHazard.hazardType === 'height_barrier'
+                    ? `⛔ BARRERA DE ALTURA (${spotClearanceHazard.maxAllowedHeight.toFixed(2)}m)`
+                    : `⛔ GÁLIBO BAJO ACCESO (${spotClearanceHazard.maxAllowedHeight.toFixed(2)}m)`}
+                </Text>
+                <View style={styles.clearanceDangerBadge}>
+                  <Text style={styles.clearanceDangerBadgeText}>PELIGRO TECHO</Text>
+                </View>
+              </View>
+              <Text style={styles.clearanceDangerText}>
+                {spotClearanceHazard.description}. Tu vehículo ({effectiveVehicleHeight.toFixed(2)}m) excede el gálibo máximo permitido. No podrás acceder ni aparcar.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Panel Editable (Nombre personalizado, Precio y Nota a la comunidad) */}
         {isEditingSpot && (
@@ -1204,6 +1246,59 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     flexWrap: 'wrap',
     gap: 6,
+  },
+  clearanceDangerBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
+    padding: 10,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  clearanceDangerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    marginTop: 1,
+  },
+  clearanceDangerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 3,
+  },
+  clearanceDangerTitle: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    flex: 1,
+  },
+  clearanceDangerBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  clearanceDangerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  clearanceDangerText: {
+    color: '#FECACA',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
   },
   categoryBadge: {
     flexDirection: 'row',

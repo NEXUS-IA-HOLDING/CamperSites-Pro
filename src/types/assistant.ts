@@ -254,7 +254,9 @@ export interface TSPOptimizationResult {
   totalDurationMin: number; // conducción + descargas
 }
 
-// Detección de gálibo / puente bajo en ruta
+// Detección de gálibo / puente bajo / barrera de altura en ruta
+export type ClearanceHazardType = 'bridge' | 'tunnel' | 'height_barrier' | 'historic_arch';
+
 export interface ClearanceHazard {
   id: string;
   latitude: number;
@@ -262,6 +264,8 @@ export interface ClearanceHazard {
   maxAllowedHeight: number; // metros
   description: string;
   roadName?: string;
+  hazardType?: ClearanceHazardType;
+  spotName?: string;
 }
 
 // Reseña de la comunidad
