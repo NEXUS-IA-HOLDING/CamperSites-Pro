@@ -37,6 +37,10 @@ import { CockpitTurnByTurnHUD } from '../components/CockpitTurnByTurnHUD';
 import { LaneGuidanceHUD } from '../components/LaneGuidanceHUD';
 import { CockpitSectionRadarHUD } from '../components/CockpitSectionRadarHUD';
 import { CockpitHazardVerificationHUD } from '../components/CockpitHazardVerificationHUD';
+import { FuelPriceComparatorModal } from '../components/FuelPriceComparatorModal';
+import { CamperLevelerModal } from '../components/CamperLevelerModal';
+import { OvernightSleepModeModal } from '../components/OvernightSleepModeModal';
+import { FuelStationItem } from '../services/FuelPriceService';
 import {
   CommunityAlert,
   ALERT_CONFIG as COMMUNITY_ALERT_CONFIG,
@@ -387,6 +391,9 @@ const MapScreen = () => {
   } | null>(null);
   const lastVerificationAlertId = useRef<string | null>(null);
   const cruisingInactiveCount = useRef<number>(0);
+  const [showFuelModal, setShowFuelModal] = useState<boolean>(false);
+  const [showLevelerModal, setShowLevelerModal] = useState<boolean>(false);
+  const [showSleepModal, setShowSleepModal] = useState<boolean>(false);
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
   const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
   const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
@@ -2389,6 +2396,9 @@ const MapScreen = () => {
         onZoomOut={handleZoomOut}
         onRecenterGPS={handleRecenter}
         onOpenReportIncident={() => setIsReportModalOpen(true)}
+        onOpenFuelComparator={() => setShowFuelModal(true)}
+        onOpenLeveler={() => setShowLevelerModal(true)}
+        onOpenSleepMode={() => setShowSleepModal(true)}
         onToggleSimulation={() =>
           isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation(selectedRoute || routes[0])
         }
@@ -2642,6 +2652,38 @@ const MapScreen = () => {
         initialCriteria={advancedFilterCriteria}
         onApply={(crit) => setAdvancedFilterCriteria(crit)}
         onClose={() => setShowAdvancedFilterModal(false)}
+      />
+
+      {/* Modal Comparador de Precios de Diésel y GLP (MITECO) */}
+      <FuelPriceComparatorModal
+        visible={showFuelModal}
+        userLatitude={currentLocation?.latitude || DEFAULT_CENTER[1]}
+        userLongitude={currentLocation?.longitude || DEFAULT_CENTER[0]}
+        onClose={() => setShowFuelModal(false)}
+        onSelectStation={async (station) => {
+          setShowFuelModal(false);
+          const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+          const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+          AudioAlertService.speak(`Calculando ruta hacia gasolinera ${station.name}`);
+          const calc = await calculateRoutes(fromLat, fromLng, station.latitude, station.longitude, false, false);
+          if (calc && calc.length > 0) {
+            startNavigation(calc[0]);
+          }
+        }}
+      />
+
+      {/* Modal Nivelador de Cabina 3D e Inclinómetro de Calzos */}
+      <CamperLevelerModal
+        visible={showLevelerModal}
+        onClose={() => setShowLevelerModal(false)}
+      />
+
+      {/* Modal de Modo Pernocta Segura y Vigilancia Nocturna de Toldo */}
+      <OvernightSleepModeModal
+        visible={showSleepModal}
+        latitude={currentLocation?.latitude || DEFAULT_CENTER[1]}
+        longitude={currentLocation?.longitude || DEFAULT_CENTER[0]}
+        onClose={() => setShowSleepModal(false)}
       />
 
       {/* Modal selector de rutas */}

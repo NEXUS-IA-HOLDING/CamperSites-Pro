@@ -34,6 +34,9 @@ interface MapControlDockProps {
   onZoomOut?: () => void;
   onToggleSimulation?: () => void;
   onToggleCamera3D?: () => void;
+  onOpenFuelComparator?: () => void;
+  onOpenLeveler?: () => void;
+  onOpenSleepMode?: () => void;
 }
 
 interface MapLayerOption {
@@ -89,6 +92,9 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   onZoomOut,
   onToggleSimulation,
   onToggleCamera3D,
+  onOpenFuelComparator,
+  onOpenLeveler,
+  onOpenSleepMode,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -251,6 +257,37 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
               ]}>
               DEMO 3D
             </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Herramientas Camper: Diésel/GLP, Nivelador 3D, Pernocta */}
+        {onOpenFuelComparator && (
+          <TouchableOpacity
+            style={[styles.dockBtn, { borderColor: 'rgba(16, 185, 129, 0.4)' }]}
+            onPress={onOpenFuelComparator}
+            activeOpacity={0.8}
+            accessibilityLabel="Gasolineras baratas y GLP">
+            <Icon name="gas-station" size={20} color="#10B981" />
+          </TouchableOpacity>
+        )}
+
+        {onOpenLeveler && (
+          <TouchableOpacity
+            style={[styles.dockBtn, { borderColor: 'rgba(56, 189, 248, 0.4)' }]}
+            onPress={onOpenLeveler}
+            activeOpacity={0.8}
+            accessibilityLabel="Nivelador de cabina 3D">
+            <Icon name="spirit-level" size={20} color="#38BDF8" />
+          </TouchableOpacity>
+        )}
+
+        {onOpenSleepMode && (
+          <TouchableOpacity
+            style={[styles.dockBtn, { borderColor: 'rgba(129, 140, 248, 0.4)' }]}
+            onPress={onOpenSleepMode}
+            activeOpacity={0.8}
+            accessibilityLabel="Modo pernocta segura">
+            <Icon name="bed-king-outline" size={20} color="#818CF8" />
           </TouchableOpacity>
         )}
 
