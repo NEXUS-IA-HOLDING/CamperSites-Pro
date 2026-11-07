@@ -596,18 +596,26 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
                         {distKm} km · {durMin} min
                       </Text>
 
-                      <Text
-                        style={[
-                          styles.routeOptionRadarText,
-                          radarAlertsCount > 0
-                            ? { color: '#FBBF24' }
-                            : { color: '#34D399' },
-                        ]}
-                        numberOfLines={1}>
-                        {radarAlertsCount > 0
-                          ? `⚠️ ${radarAlertsCount} aviso${radarAlertsCount > 1 ? 's' : ''}`
-                          : '✓ Ruta limpia'}
-                      </Text>
+                      {rt.clearanceHazard ? (
+                        <Text
+                          style={[styles.routeOptionRadarText, { color: '#EF4444', fontWeight: '800' }]}
+                          numberOfLines={1}>
+                          ⛔ Gálibo {rt.clearanceHazard.hazard.maxAllowedHeight.toFixed(2)}m
+                        </Text>
+                      ) : (
+                        <Text
+                          style={[
+                            styles.routeOptionRadarText,
+                            radarAlertsCount > 0
+                              ? { color: '#FBBF24' }
+                              : { color: '#34D399' },
+                          ]}
+                          numberOfLines={1}>
+                          {radarAlertsCount > 0
+                            ? `⚠️ ${radarAlertsCount} aviso${radarAlertsCount > 1 ? 's' : ''}`
+                            : '✓ Gálibo OK'}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
