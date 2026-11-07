@@ -19,6 +19,28 @@ const path = require('path');
 
 const ENV_PATH = path.join(__dirname, '../.env');
 const STATE_PATH = path.join(__dirname, '../.telegram-bridge-state.json');
+const OUTBOX_PATH = path.join(__dirname, '../.telegram_outbox.txt');
+
+async function flushOutbox(token, targetChat) {
+  if (fs.existsSync(OUTBOX_PATH)) {
+    try {
+      const msg = fs.readFileSync(OUTBOX_PATH, 'utf8').trim();
+      if (fs.existsSync(OUTBOX_PATH)) {
+        fs.unlinkSync(OUTBOX_PATH);
+      }
+      if (msg && targetChat) {
+        const res = await sendMessage(token, targetChat, msg);
+        if (res.ok) {
+          console.log(`✅ Mensaje enviado desde buzón de salida a Telegram (Chat ${targetChat})`);
+        }
+        return res;
+      }
+    } catch (e) {
+      console.error('Error al vaciar buzón de salida:', e.message);
+    }
+  }
+  return null;
+}
 
 function loadEnv() {
   const env = {};
@@ -182,6 +204,15 @@ async function main() {
     }
   }
 
+  // Modo envío desde buzón de salida: node scripts/telegram-bridge.js --send-outbox
+  if (args.includes('--send-outbox')) {
+    const targetChat = state.chatId || chatId;
+    if (targetChat) {
+      await flushOutbox(token, targetChat);
+    }
+    process.exit(0);
+  }
+
   // Verificar identidad del bot
   const me = await telegramApi(token, 'getMe');
   if (!me.ok) {
@@ -220,6 +251,10 @@ async function main() {
 
   while (true) {
     try {
+      const activeChat = state.chatId || chatId;
+      if (activeChat) {
+        await flushOutbox(token, activeChat);
+      }
       const offset = (state.lastUpdateId || 0) + 1;
       const pollTimeout = checkIncoming ? 2 : 25;
       const res = await telegramApi(token, `getUpdates?offset=${offset}&timeout=${pollTimeout}`);
