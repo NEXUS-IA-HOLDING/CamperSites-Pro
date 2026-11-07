@@ -341,6 +341,74 @@ export const VehicleTelemetryModal: React.FC<Props> = ({
                 {renderMaintenanceCard(telemetry.maintenance.fuelFilter, 'fuelFilter')}
                 {renderMaintenanceCard(telemetry.maintenance.airFilter, 'airFilter')}
                 {renderMaintenanceCard(telemetry.maintenance.brakeFluid, 'brakeFluid')}
+
+                {/* Sección de Tips & Consejos Clave para Mantener el Vehículo al Día */}
+                <View style={styles.tipsSection}>
+                  <View style={styles.tipsHeader}>
+                    <Icon name="lightbulb-on" size={18} color="#F59E0B" style={{ marginRight: 6 }} />
+                    <Text style={styles.tipsTitle}>Tips del Experto Camper para Mantener tu Furgoneta al Día</Text>
+                  </View>
+
+                  <View style={styles.tipCard}>
+                    <View style={styles.tipBullet}>
+                      <Icon name="car-tire-alert" size={16} color="#38BDF8" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tipCardTitle}>Presión y Carga Real (Evita Reventones)</Text>
+                      <Text style={styles.tipCardBody}>
+                        Comprueba la presión siempre en frío antes de iniciar la marcha. Con 3.500 kg de carga habitual, circular con menos de 4.5 bar eleva drásticamente la fricción térmica y es la primera causa de reventón en autovía.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.tipCard}>
+                    <View style={styles.tipBullet}>
+                      <Icon name="oil" size={16} color="#EAB308" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tipCardTitle}>Aceite Motor & Regeneraciones FAP</Text>
+                      <Text style={styles.tipCardBody}>
+                        Si realizas muchas salidas cortas, el filtro antipartículas (FAP) puede abortar ciclos de regeneración e inyectar gasoil al cárter subiendo el nivel de aceite. Usa siempre aceites homologados Low-SAPS (C2/C3).
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.tipCard}>
+                    <View style={styles.tipBullet}>
+                      <Icon name="gas-cylinder" size={16} color="#10B981" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tipCardTitle}>Filtro de Gasoil y Purgado de Agua</Text>
+                      <Text style={styles.tipCardBody}>
+                        El cambio de temperaturas al pernoctar condensa agua en el depósito. Purga el tornillo decantador del filtro de combustible una vez al año y cámbialo cada 30.000 km para proteger la bomba de alta presión.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.tipCard}>
+                    <View style={styles.tipBullet}>
+                      <Icon name="air-filter" size={16} color="#A78BFA" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tipCardTitle}>Filtro de Aire tras Pistas de Tierra</Text>
+                      <Text style={styles.tipCardBody}>
+                        Si frecuentas pistas forestales o accesos de arena a calas, sacude o sustituye el filtro de aire antes de tiempo; un filtro sucio eleva el consumo hasta 1.5 L/100km y ahoga el motor en subidas.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.tipCard}>
+                    <View style={styles.tipBullet}>
+                      <Icon name="car-brake-alert" size={16} color="#EF4444" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tipCardTitle}>Frenos en Bajadas de Puertos de Montaña</Text>
+                      <Text style={styles.tipCardBody}>
+                        Usa siempre freno motor con marchas cortas. El líquido de frenos absorbe humedad con el tiempo y hierve en descensos prolongados con furgonetas pesadas. Renuévalo religiosamente cada 2 años.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
               </View>
             )}
 
@@ -812,5 +880,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.2,
+  },
+  tipsSection: {
+    marginTop: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  tipsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  tipsTitle: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  tipCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(30, 41, 59, 0.6)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#38BDF8',
+  },
+  tipBullet: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  tipCardTitle: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  tipCardBody: {
+    color: '#94A3B8',
+    fontSize: 10.5,
+    lineHeight: 15,
   },
 });
