@@ -37,6 +37,7 @@ interface MapControlDockProps {
   onOpenFuelComparator?: () => void;
   onOpenLeveler?: () => void;
   onOpenSleepMode?: () => void;
+  onOpenTelemetry?: () => void;
 }
 
 interface MapLayerOption {
@@ -95,6 +96,7 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   onOpenFuelComparator,
   onOpenLeveler,
   onOpenSleepMode,
+  onOpenTelemetry,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -288,6 +290,16 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
             activeOpacity={0.8}
             accessibilityLabel="Modo pernocta segura">
             <Icon name="bed-king-outline" size={20} color="#818CF8" />
+          </TouchableOpacity>
+        )}
+
+        {onOpenTelemetry && (
+          <TouchableOpacity
+            style={[styles.dockBtn, { borderColor: 'rgba(56, 189, 248, 0.4)' }]}
+            onPress={onOpenTelemetry}
+            activeOpacity={0.8}
+            accessibilityLabel="Telemetría y Android Auto">
+            <Icon name="car-connected" size={20} color="#38BDF8" />
           </TouchableOpacity>
         )}
 

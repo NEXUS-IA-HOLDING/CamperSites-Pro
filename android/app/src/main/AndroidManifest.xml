@@ -55,5 +55,13 @@
         android:name="com.tiktok.sdk.ClientKey"
         android:value="@string/tiktok_client_key" />
 
+      <!-- Soporte Oficial para Android Auto y Pantallas de Cabina -->
+      <meta-data
+        android:name="com.google.android.gms.car.application"
+        android:resource="@xml/automotive_app_desc" />
+      <meta-data
+        android:name="androidx.car.app.minCarApiLevel"
+        android:value="1" />
+
     </application>
 </manifest>

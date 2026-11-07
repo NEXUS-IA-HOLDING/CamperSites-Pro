@@ -40,6 +40,7 @@ import { CockpitHazardVerificationHUD } from '../components/CockpitHazardVerific
 import { FuelPriceComparatorModal } from '../components/FuelPriceComparatorModal';
 import { CamperLevelerModal } from '../components/CamperLevelerModal';
 import { OvernightSleepModeModal } from '../components/OvernightSleepModeModal';
+import { VehicleTelemetryModal } from '../components/VehicleTelemetryModal';
 import { FuelStationItem } from '../services/FuelPriceService';
 import {
   CommunityAlert,
@@ -394,6 +395,7 @@ const MapScreen = () => {
   const [showFuelModal, setShowFuelModal] = useState<boolean>(false);
   const [showLevelerModal, setShowLevelerModal] = useState<boolean>(false);
   const [showSleepModal, setShowSleepModal] = useState<boolean>(false);
+  const [showTelemetryModal, setShowTelemetryModal] = useState<boolean>(false);
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
   const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
   const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
@@ -2399,6 +2401,7 @@ const MapScreen = () => {
         onOpenFuelComparator={() => setShowFuelModal(true)}
         onOpenLeveler={() => setShowLevelerModal(true)}
         onOpenSleepMode={() => setShowSleepModal(true)}
+        onOpenTelemetry={() => setShowTelemetryModal(true)}
         onToggleSimulation={() =>
           isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation(selectedRoute || routes[0])
         }
@@ -2684,6 +2687,14 @@ const MapScreen = () => {
         latitude={currentLocation?.latitude || DEFAULT_CENTER[1]}
         longitude={currentLocation?.longitude || DEFAULT_CENTER[0]}
         onClose={() => setShowSleepModal(false)}
+      />
+
+      {/* Modal de Telemetría del Vehículo, Neumáticos TPMS, Mantenimiento y Android Auto */}
+      <VehicleTelemetryModal
+        visible={showTelemetryModal}
+        currentSpeedKmH={currentLocation ? (currentLocation.speed * 3.6) : 0}
+        destinationCoord={selectedLocation ? { latitude: selectedLocation.latitude, longitude: selectedLocation.longitude, name: selectedLocation.name } : null}
+        onClose={() => setShowTelemetryModal(false)}
       />
 
       {/* Modal selector de rutas */}
