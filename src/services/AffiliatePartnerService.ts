@@ -11,7 +11,7 @@ import { Linking, Clipboard } from 'react-native';
 
 export interface AffiliatePartner {
   id: string;
-  category: 'fuel_lpg' | 'ferry' | 'insurance' | 'accessories';
+  category: 'fuel_lpg' | 'ferry' | 'insurance' | 'accessories' | 'tech' | 'hosting';
   brandName: string;
   name?: string;
   title: string;
@@ -30,9 +30,43 @@ export interface AffiliatePartner {
   priority?: number;
   deepLinkUri?: string;
   utmCampaign?: string;
+  limitedTimeOffer?: string;
 }
 
 export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
+  // --- HOSTING WEB & CLOUD TECH (HOSTINGER) ---
+  {
+    id: 'hostinger_referral',
+    category: 'hosting',
+    brandName: 'Hostinger',
+    name: 'Hostinger Web & Cloud Hosting',
+    title: 'Hostinger • Servidores VPS & Cloud Hosting',
+    badge: '🔥 20% DTO EXCLUSIVO',
+    badgeText: '🔥 20% Dto. Exclusivo',
+    discountSummary: '20% de descuento directo en tu primera compra',
+    discountText: '20% de descuento en planes de 12 meses o más (VPS, Cloud y Web)',
+    description: 'Alojamiento web de alta velocidad, servidores VPS y servicios en la nube con un 20% de descuento con nuestro código de recomendación oficial.',
+    perks: [
+      '20% de descuento garantizado con el código 2VQAUTHHOXNH',
+      'Válido para Alojamiento VPS, en la nube y agencias (planes 12+ meses)',
+      'Panel hPanel ultra intuitivo, certificados SSL gratis y discos NVMe',
+      'Soporte técnico 24/7 en español y 30 días de garantía',
+    ],
+    benefits: [
+      '20% de descuento directo al aplicar el código de recomendación',
+      'Alojamiento VPS, en la nube y para agencias (planes de 12 meses o más)',
+      'Gana velocidad y estabilidad para tus proyectos online',
+    ],
+    affiliateUrl: 'https://www.hostinger.com/es?REFERRALCODE=2VQAUTHHOXNH',
+    promoCode: '2VQAUTHHOXNH',
+    logoIcon: 'server-network',
+    iconName: 'server-network',
+    accentColor: '#673AB7',
+    priority: 0,
+    limitedTimeOffer: 'Oferta Especial por Tiempo Limitado',
+    utmCampaign: 'hostinger_referral',
+  },
+
   // --- COMBUSTIBLES Y GLP ---
   {
     id: 'repsol_waylet_glp',

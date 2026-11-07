@@ -15,6 +15,9 @@ import {
   RefreshControl,
   ScrollView,
   Keyboard,
+  Alert,
+  Clipboard,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,6 +37,11 @@ import { offlineSpotVault } from '../services/OfflineSpotVaultService';
 import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
 import { CamperAdBanner } from '../components/CamperAdBanner';
 import { AffiliatePartnersModal } from '../components/AffiliatePartnersModal';
+import {
+  AFFILIATE_PARTNERS,
+  AffiliatePartner,
+  affiliatePartnerService,
+} from '../services/AffiliatePartnerService';
 
 interface Location {
   id: string;
@@ -78,6 +86,17 @@ const EXPLORE_MAP_STYLE = {
 // CATEGORÍAS CON EMOJIS NATIVOS (alta calidad)
 // ============================================
 const CATEGORY_SECTIONS = [
+  {
+    title: 'Descuentos & Códigos Referencia',
+    emoji: '🏷️',
+    categories: [
+      { key: 'DESCUENTOS', label: 'Todos los Descuentos', emoji: '🎁', icon: 'tag-multiple', color: '#10B981' },
+      { key: 'HOSTINGER', label: 'Hostinger (20% Dto)', emoji: '🌐', icon: 'server-network', color: '#673AB7' },
+      { key: 'REPSOL_GLP', label: 'Repsol AutoGas GLP', emoji: '⛽', icon: 'gas-station', color: '#FF6D00' },
+      { key: 'BALEARIA', label: 'Baleària Ferries 15%', emoji: '⛴️', icon: 'ferry', color: '#0288D1' },
+      { key: 'IATI_SEGUROS', label: 'Seguros Camper IATI 5%', emoji: '🛡️', icon: 'shield-car', color: '#E65100' },
+    ],
+  },
   {
     title: 'Alojamiento',
     emoji: '🏕️',
@@ -130,7 +149,9 @@ const CATEGORY_SECTIONS = [
 
 const ALL_CATEGORIES = [
   { key: 'ALL', label: 'Todos', emoji: '📍', icon: 'map-marker-multiple', color: '#333' },
-  ...CATEGORY_SECTIONS.flatMap(s => s.categories),
+  { key: 'DESCUENTOS', label: 'Descuentos & Códigos', emoji: '🏷️', icon: 'tag-multiple', color: '#10B981' },
+  { key: 'HOSTINGER', label: 'Hostinger 20% Dto', emoji: '🌐', icon: 'server-network', color: '#673AB7' },
+  ...CATEGORY_SECTIONS.flatMap(s => s.categories).filter(c => c.key !== 'DESCUENTOS' && c.key !== 'HOSTINGER'),
 ];
 
 const getCategoryConfig = (category: string) => {
@@ -141,6 +162,9 @@ const getCategoryConfig = (category: string) => {
   return { key: category, label: category, emoji: '📍', icon: 'map-marker', color: '#999' };
 };
 
+const isAffiliateCategory = (cat: string) =>
+  ['DESCUENTOS', 'HOSTINGER', 'REPSOL_GLP', 'BALEARIA', 'IATI_SEGUROS'].includes(cat);
+
 export default function ExploreScreen() {
   const navigation = useNavigation();
   const [locations, setLocations] = useState<Location[]>([]);
@@ -148,6 +172,46 @@ export default function ExploreScreen() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [copiedPartnerCodeId, setCopiedPartnerCodeId] = useState<string | null>(null);
+
+  const handleCopyPartnerCode = (partner: AffiliatePartner) => {
+    if (!partner.promoCode) return;
+    Clipboard.setString(partner.promoCode);
+    affiliatePartnerService.copyPromoCode(partner.promoCode);
+    setCopiedPartnerCodeId(partner.id);
+    Alert.alert(
+      '✅ Código Copiado',
+      `El código de descuento "${partner.promoCode}" ha sido copiado al portapapeles. Pégalo durante tu compra para disfrutar del descuento.`
+    );
+    setTimeout(() => {
+      setCopiedPartnerCodeId(prev => (prev === partner.id ? null : prev));
+    }, 3000);
+  };
+
+  const handleOpenPartnerLink = async (partner: AffiliatePartner) => {
+    try {
+      await affiliatePartnerService.openPartner(partner);
+    } catch {
+      Linking.openURL(partner.affiliateUrl);
+    }
+  };
+
+  const displayedAffiliates = useMemo(() => {
+    if (!isAffiliateCategory(selectedCategory)) return [];
+    if (selectedCategory === 'HOSTINGER') {
+      return AFFILIATE_PARTNERS.filter(p => p.id === 'hostinger_referral');
+    }
+    if (selectedCategory === 'REPSOL_GLP') {
+      return AFFILIATE_PARTNERS.filter(p => p.category === 'fuel_lpg');
+    }
+    if (selectedCategory === 'BALEARIA') {
+      return AFFILIATE_PARTNERS.filter(p => p.category === 'ferry');
+    }
+    if (selectedCategory === 'IATI_SEGUROS') {
+      return AFFILIATE_PARTNERS.filter(p => p.category === 'insurance');
+    }
+    return AFFILIATE_PARTNERS;
+  }, [selectedCategory]);
 
   const handleJumpToMap = async (item: Location) => {
     try {
@@ -197,6 +261,13 @@ export default function ExploreScreen() {
   }, []);
 
   const fetchLocations = useCallback(async (query: string, category: string, overrideCoords?: [number, number]) => {
+    if (isAffiliateCategory(category)) {
+      if (isMountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+      return;
+    }
     try {
       const activeCoords = overrideCoords || userCoords;
       const userLat = activeCoords[1];
@@ -501,6 +572,88 @@ export default function ExploreScreen() {
     );
   }, []);
 
+  // Renderizador de tarjetas de descuentos y códigos de referencia oficiales
+  const renderAffiliatePartnerCard = useCallback(({ item }: { item: AffiliatePartner }) => {
+    const isCopied = copiedPartnerCodeId === item.id;
+    return (
+      <View style={styles.affiliateCard}>
+        <View style={[styles.cardColorBar, { backgroundColor: item.accentColor }]} />
+
+        {item.limitedTimeOffer ? (
+          <View style={styles.affiliateLimitedRibbon}>
+            <Icon name="clock-fast" size={13} color="#F59E0B" style={{ marginRight: 4 }} />
+            <Text style={styles.affiliateLimitedText}>
+              {item.limitedTimeOffer} • 40% Comisión Titular / 20% Dto Amigo
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.affiliateCardBody}>
+          <View style={styles.affiliateHeaderRow}>
+            <View style={[styles.affiliateLogoBadge, { backgroundColor: item.accentColor }]}>
+              <Icon name={item.logoIcon} size={26} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.affiliateBrandName}>{item.brandName}</Text>
+                <View style={styles.affiliateBadgeTag}>
+                  <Text style={styles.affiliateBadgeText}>{item.badge}</Text>
+                </View>
+              </View>
+              <Text style={styles.affiliateTitle}>{item.title}</Text>
+            </View>
+          </View>
+
+          <View style={styles.affiliateDiscountBox}>
+            <Icon name="sale" size={18} color="#10B981" style={{ marginRight: 6 }} />
+            <Text style={styles.affiliateDiscountText}>{item.discountSummary}</Text>
+          </View>
+
+          <Text style={styles.affiliateDesc}>{item.description}</Text>
+
+          <View style={styles.affiliatePerksBox}>
+            {item.perks.map((perk, i) => (
+              <View key={i} style={styles.affiliatePerkRow}>
+                <Icon name="check-circle" size={14} color="#10B981" style={{ marginRight: 6 }} />
+                <Text style={styles.affiliatePerkText}>{perk}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.affiliateActionRow}>
+            {item.promoCode ? (
+              <TouchableOpacity
+                style={[styles.affiliateCodeBtn, isCopied && styles.affiliateCodeBtnCopied]}
+                onPress={() => handleCopyPartnerCode(item)}
+                activeOpacity={0.8}>
+                <Icon
+                  name={isCopied ? 'check-bold' : 'content-copy'}
+                  size={14}
+                  color={isCopied ? '#10B981' : '#38BDF8'}
+                  style={{ marginRight: 6 }}
+                />
+                <View>
+                  <Text style={styles.affiliateCodeLabel}>CÓDIGO DE DESCUENTO</Text>
+                  <Text style={styles.affiliateCodeVal}>{item.promoCode}</Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.affiliateCtaBtn, { backgroundColor: item.accentColor }]}
+              onPress={() => handleOpenPartnerLink(item)}
+              activeOpacity={0.85}>
+              <Icon name="open-in-new" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.affiliateCtaText}>
+                {item.id === 'hostinger_referral' ? 'Canjear en Hostinger (-20%)' : 'Ir a la Oferta'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }, [copiedPartnerCodeId]);
+
   const renderCategoryGrid = () => (
     <View style={styles.categoryGridContainer}>
       {CATEGORY_SECTIONS.map(section => (
@@ -557,7 +710,9 @@ export default function ExploreScreen() {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Explorar</Text>
           <Text style={styles.headerSubtitle}>
-            {totalCount > 200 ? `${totalCount.toLocaleString()}+ lugares` : `${locations.length} lugares`}
+            {isAffiliateCategory(selectedCategory)
+              ? `${displayedAffiliates.length} acuerdos y códigos de referencia con descuento directo`
+              : (totalCount > 200 ? `${totalCount.toLocaleString()}+ lugares` : `${locations.length} lugares`)}
             {selectedCategory !== 'ALL' ? ` · ${getCategoryConfig(selectedCategory).emoji} ${getCategoryConfig(selectedCategory).label}` : ''}
           </Text>
         </View>
@@ -648,30 +803,30 @@ export default function ExploreScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Banner Monetización: Club Descuentos Camper & Seguros IATI */}
+      {/* Banner Monetización: Club Descuentos Camper & Hostinger */}
       {!showCategoryGrid && (
         <TouchableOpacity
-          style={[styles.travelPlannerBanner, { borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}
-          onPress={() => setShowAffiliatesModal(true)}
+          style={[styles.travelPlannerBanner, { borderColor: 'rgba(103, 58, 183, 0.45)', backgroundColor: 'rgba(103, 58, 183, 0.12)' }]}
+          onPress={() => setSelectedCategory('DESCUENTOS')}
           activeOpacity={0.88}>
           <View style={styles.travelPlannerBannerLeft}>
-            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-              <Icon name="shield-car" size={24} color="#10B981" />
+            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(103, 58, 183, 0.25)' }]}>
+              <Icon name="tag-multiple" size={24} color="#A78BFA" />
             </View>
             <View style={styles.travelPlannerTextBox}>
               <View style={styles.travelPlannerBadgeRow}>
-                <Text style={[styles.travelPlannerBadge, { color: '#10B981' }]}>CLUB DESCUENTOS CAMPER</Text>
-                <View style={[styles.proTag, { backgroundColor: '#10B981' }]}>
-                  <Text style={styles.proTagText}>5% DTO</Text>
+                <Text style={[styles.travelPlannerBadge, { color: '#A78BFA' }]}>DESCUENTOS & COMISIONES</Text>
+                <View style={[styles.proTag, { backgroundColor: '#673AB7' }]}>
+                  <Text style={styles.proTagText}>HOSTINGER -20%</Text>
                 </View>
               </View>
-              <Text style={styles.travelPlannerTitle}>Seguro Camper IATI & GLP Repsol</Text>
+              <Text style={styles.travelPlannerTitle}>Hostinger VPS & Cloud, GLP Repsol & IATI</Text>
               <Text style={styles.travelPlannerSub}>
-                Ahorra en combustible, ferries marítimos y asistencia médica en viaje
+                Ahorra hasta un 20% con nuestros códigos de referencia verificados
               </Text>
             </View>
           </View>
-          <Icon name="chevron-right" size={22} color="#10B981" />
+          <Icon name="chevron-right" size={22} color="#A78BFA" />
         </TouchableOpacity>
       )}
 
@@ -686,7 +841,7 @@ export default function ExploreScreen() {
       )}
 
       {/* Barra de cabecera del mapa de servicios de proximidad */}
-      {!showCategoryGrid && (
+      {!showCategoryGrid && !isAffiliateCategory(selectedCategory) && (
         <View style={styles.servicesMapHeader}>
           <View style={styles.servicesMapHeaderLeft}>
             <Text style={styles.servicesMapHeaderTitle}>Radar de Servicios Cercanos</Text>
@@ -705,7 +860,7 @@ export default function ExploreScreen() {
       )}
 
       {/* Mapa Satelital de Servicios Cercanos a la Posición del Usuario */}
-      {!showCategoryGrid && showServicesMap && (
+      {!showCategoryGrid && !isAffiliateCategory(selectedCategory) && showServicesMap && (
         <View style={styles.servicesMapContainer}>
           <MapLibreGL.MapView
             style={styles.servicesMap}
@@ -755,8 +910,17 @@ export default function ExploreScreen() {
         </View>
       )}
 
-      {/* Lista de locations */}
-      {loading ? (
+      {/* Lista de Códigos de Descuento & Afiliados Oficiales */}
+      {isAffiliateCategory(selectedCategory) ? (
+        <FlatList
+          data={displayedAffiliates}
+          keyExtractor={item => item.id}
+          renderItem={renderAffiliatePartnerCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        />
+      ) : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary.main} />
           <Text style={styles.loadingText}>Buscando lugares...</Text>
@@ -1383,5 +1547,171 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#94A3B8',
     marginTop: 1,
+  },
+  // Tarjetas de Descuentos & Afiliados Oficiales
+  affiliateCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  affiliateLimitedRibbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  affiliateLimitedText: {
+    color: '#F59E0B',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  affiliateCardBody: {
+    padding: 16,
+  },
+  affiliateHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  affiliateLogoBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  affiliateBrandName: {
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  affiliateBadgeTag: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  affiliateBadgeText: {
+    color: '#10B981',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  affiliateTitle: {
+    color: '#94A3B8',
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  affiliateDiscountBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginVertical: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+  },
+  affiliateDiscountText: {
+    color: '#34D399',
+    fontSize: 12,
+    fontWeight: '800',
+    flex: 1,
+  },
+  affiliateDesc: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginVertical: 4,
+  },
+  affiliatePerksBox: {
+    marginVertical: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  affiliatePerkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 2.5,
+  },
+  affiliatePerkText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    flex: 1,
+  },
+  affiliateActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  affiliateCodeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  affiliateCodeBtnCopied: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10B981',
+  },
+  affiliateCodeLabel: {
+    color: '#64748B',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  affiliateCodeVal: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  affiliateCtaBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  affiliateCtaText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

@@ -87,6 +87,14 @@ export const AffiliatePartnersModal: React.FC<AffiliatePartnersModalProps> = ({
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.catChip, selectedCategory === 'hosting' && styles.catChipActive]}
+              onPress={() => setSelectedCategory('hosting')}>
+              <Icon name="server-network" size={14} color={selectedCategory === 'hosting' ? '#000' : '#FFF'} />
+              <Text style={[styles.catChipText, selectedCategory === 'hosting' && styles.catChipTextActive]}>
+                🌐 Hostinger (20% Dto)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.catChip, selectedCategory === 'fuel_lpg' && styles.catChipActive]}
               onPress={() => setSelectedCategory('fuel_lpg')}>
               <Icon name="gas-station" size={14} color={selectedCategory === 'fuel_lpg' ? '#000' : '#FFF'} />
@@ -116,6 +124,14 @@ export const AffiliatePartnersModal: React.FC<AffiliatePartnersModalProps> = ({
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {filteredPartners.map((p) => (
               <View key={p.id} style={styles.card}>
+                {p.limitedTimeOffer && (
+                  <View style={styles.limitedTimeBanner}>
+                    <Icon name="clock-alert-outline" size={13} color="#F59E0B" style={{ marginRight: 4 }} />
+                    <Text style={styles.limitedTimeText}>
+                      {p.limitedTimeOffer} • 40% Comisión Titular / 20% Dto Amigo
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.cardTop}>
                   <View style={[styles.iconBox, { backgroundColor: p.accentColor }]}>
                     <Icon name={p.logoIcon} size={26} color="#FFF" />
@@ -261,6 +277,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#263445',
+  },
+  limitedTimeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 10,
+  },
+  limitedTimeText: {
+    color: '#F59E0B',
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   cardTop: {
     flexDirection: 'row',
