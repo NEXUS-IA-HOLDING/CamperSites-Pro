@@ -2,7 +2,8 @@
 
 <div align="center">
 
-[![Descargar APK](https://img.shields.io/badge/DESCARGAR%20APK-v1.0.0%20(Directo)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)
+[![Descargar APK](https://img.shields.io/badge/DESCARGAR%20APK-v2.0.0%20(Directo)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.0.0/CamperSites-Pro-v2.0.0.apk)
+[![Implementar en Hostinger](https://img.shields.io/badge/Implementar%20en-Hostinger%20(20%25%20Dto)-673AB7?style=for-the-badge&logo=hostinger&logoColor=white)](https://www.hostinger.com/es?REFERRALCODE=2VQAUTHHOXNH)
 [![GitHub Release](https://img.shields.io/github/v/release/NEXUS-IA-HOLDING/CamperSites-Pro?style=for-the-badge&color=0284C7)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases)
 [![Organization](https://img.shields.io/badge/Nexus%20Studio-Nexus%20AI%20Holding-6366F1?style=for-the-badge&logo=github)](https://github.com/NEXUS-IA-HOLDING)
 [![License](https://img.shields.io/badge/Licencia-MIT-amber?style=for-the-badge)](LICENSE)
@@ -12,7 +13,7 @@
 **La suite de navegación GPS de cabina y cartografía libre más completa para furgonetas camper, autocaravanas y vehículos habitables en España y Europa.**  
 *Un producto desarrollado por **Nexus Studio** (Nexus AI Holding).*
 
-[📥 Descargar APK](#-descarga-rápida-en-1-clic) • [✨ Características](#-características-principales) • [🗺️ Navegación de Cabina](#-suite-de-cabina-inteligente) • [📂 Documentación](#-documentación-completa) • [🛠️ Desarrollo](#-instalación-para-desarrolladores)
+[📥 Descargar APK](#-descarga-rápida-en-1-clic) • [🚀 Implementar en Hostinger](#-despliegue-en-la-nube--socios-de-código-abierto-hostinger) • [✨ Características](#-características-principales) • [🗺️ Navegación de Cabina](#-suite-de-cabina-inteligente) • [🛠️ Desarrollo](#-instalación-para-desarrolladores)
 
 </div>
 
@@ -23,10 +24,22 @@
 Para instalar y probar **CamperSites Pro** directamente en cualquier smartphone o tablet Android:
 
 1. Haz clic en el botón de descarga directa:
-   👉 **[Descargar CamperSites-Pro-v1.0.apk (43.3 MB)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v1.0.0/CamperSites-Pro-v1.0.apk)**
+   👉 **[Descargar CamperSites-Pro-v2.0.0.apk (43 MB)](https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.0.0/CamperSites-Pro-v2.0.0.apk)**
 2. Abre el archivo descargado en tu dispositivo móvil.
 3. Pulsa **Instalar** (permite *"Instalar aplicaciones de fuentes desconocidas"* si tu sistema lo solicita).
-4. ¡Listo! La app abrirá con acceso completo a los mapas, radares DGT y pernoctas.
+4. ¡Listo! La app abrirá con acceso completo a los mapas, radares DGT, telemetría y pernoctas.
+
+---
+
+## 🚀 Despliegue en la Nube & Socios de Código Abierto (Hostinger)
+
+CamperSites Pro forma parte del programa oficial **Hostinger Open Source Partners**. Si eres desarrollador o deseas desplegar tu propia instancia del backend, microservicios de navegación o la landing page en servidores de alto rendimiento:
+
+[![Implementar en Hostinger](https://img.shields.io/badge/Deploy%20to-Hostinger%20VPS%20%26%20Cloud-673AB7?style=for-the-badge&logo=hostinger&logoColor=white)](https://www.hostinger.com/es?REFERRALCODE=2VQAUTHHOXNH)
+
+- 🎁 **20% de descuento directo** en tu primera compra de alojamiento VPS, servidores en la nube y hosting web en planes de 12 meses o más.
+- ⚡ **Código de referencia con atribución automática:** [`2VQAUTHHOXNH`](https://www.hostinger.com/es?REFERRALCODE=2VQAUTHHOXNH) (los usuarios son acreditados al registrarse durante el despliegue sin necesidad de copiar cupones).
+- 🛠️ Discos NVMe ultra rápidos, panel intuitivo hPanel, SSL gratuito y soporte técnico 24/7 en español.
 
 ---
 
