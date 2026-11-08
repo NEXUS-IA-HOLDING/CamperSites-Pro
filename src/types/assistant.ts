@@ -26,8 +26,8 @@ export type FuelType =
 // Distintivos ambientales DGT / ZBE
 export type EnvironmentalBadge = '0' | 'ECO' | 'C' | 'B' | 'SIN_DISTINTIVO';
 
-// Estilos de mapa disponibles
-export type MapStyleType = 'satellite' | 'dark' | 'topo' | 'day';
+// Estilos de mapa disponibles (Satelital puro, Híbrido HD con etiquetas, Táctico Dark, Topográfico 3D y Día estándar)
+export type MapStyleType = 'satellite' | 'hybrid' | 'dark' | 'topo' | 'day';
 
 // Modos de aviso de audio
 export type AudioAlertMode = 'multimedia' | 'bluetooth_hfp' | 'silent_visual';

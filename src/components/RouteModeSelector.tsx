@@ -49,6 +49,7 @@ export const RouteModeSelector: React.FC<RouteModeSelectorProps> = ({
   const getStyleLabel = (style: MapStyleType) => {
     switch (style) {
       case 'satellite': return 'Satélite HD';
+      case 'hybrid': return 'Híbrido HD';
       case 'dark': return 'Midnight';
       case 'topo': return 'Outdoor Topo';
       case 'day': return 'Día OSM';
@@ -58,6 +59,7 @@ export const RouteModeSelector: React.FC<RouteModeSelectorProps> = ({
   const getStyleIcon = (style: MapStyleType) => {
     switch (style) {
       case 'satellite': return 'satellite-variant';
+      case 'hybrid': return 'map-legend';
       case 'dark': return 'weather-night';
       case 'topo': return 'terrain';
       case 'day': return 'white-balance-sunny';
@@ -115,6 +117,7 @@ export const RouteModeSelector: React.FC<RouteModeSelectorProps> = ({
             <View style={styles.optionsGrid}>
               {[
                 { style: 'satellite' as MapStyleType, label: 'Satélite HD', icon: 'satellite-variant' },
+                { style: 'hybrid' as MapStyleType, label: 'Híbrido HD', icon: 'map-legend' },
                 { style: 'dark' as MapStyleType, label: 'Táctico Dark', icon: 'weather-night' },
                 { style: 'topo' as MapStyleType, label: 'Outdoor Topo', icon: 'terrain' },
                 { style: 'day' as MapStyleType, label: 'Día Estándar', icon: 'white-balance-sunny' },

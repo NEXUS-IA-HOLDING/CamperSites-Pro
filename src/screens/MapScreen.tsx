@@ -42,6 +42,8 @@ import { CamperLevelerModal } from '../components/CamperLevelerModal';
 import { OvernightSleepModeModal } from '../components/OvernightSleepModeModal';
 import { VehicleTelemetryModal } from '../components/VehicleTelemetryModal';
 import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
+import { CamperVehicleDimensionsModal } from '../components/CamperVehicleDimensionsModal';
+import { CamperValhallaRoutingService } from '../services/CamperValhallaRoutingService';
 import { FuelStationItem } from '../services/FuelPriceService';
 import {
   CommunityAlert,
@@ -156,9 +158,24 @@ function computeGpsBearing(
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-// 4 Estilos de Mapa Conmutables de Alta Definición (100% Libres de API Keys y sin marcas de agua)
+// 5 Estilos de Mapa Conmutables de Alta Definición y Relieve 3D (100% Libres de API Keys y sin marcas de agua)
 const MAP_STYLES: Record<MapStyleType, any> = {
   satellite: Object.freeze({
+    version: 8 as const,
+    sources: {
+      satellite: {
+        type: 'raster' as const,
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: '© Esri World Imagery',
+        maxzoom: 19,
+      },
+    },
+    layers: [
+      { id: 'satellite-pure-layer', type: 'raster' as const, source: 'satellite', minzoom: 0, maxzoom: 19 },
+    ],
+  }),
+  hybrid: Object.freeze({
     version: 8 as const,
     sources: {
       satellite: {
@@ -182,9 +199,28 @@ const MAP_STYLES: Record<MapStyleType, any> = {
         attribution: '© Esri Labels',
         maxzoom: 19,
       },
+      terrain: {
+        type: 'raster-dem' as const,
+        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        encoding: 'terrarium' as const,
+        maxzoom: 15,
+      },
     },
     layers: [
       { id: 'satellite-layer', type: 'raster' as const, source: 'satellite', minzoom: 0, maxzoom: 19 },
+      {
+        id: 'hillshade-layer',
+        type: 'hillshade' as const,
+        source: 'terrain',
+        minzoom: 0,
+        maxzoom: 16,
+        paint: {
+          'hillshade-exaggeration': 0.6,
+          'hillshade-shadow-color': '#111827',
+          'hillshade-highlight-color': '#FFFFFF',
+        },
+      },
       { id: 'roads-layer', type: 'raster' as const, source: 'roads', minzoom: 0, maxzoom: 19 },
       { id: 'labels-layer', type: 'raster' as const, source: 'labels', minzoom: 0, maxzoom: 19 },
     ],
@@ -222,8 +258,27 @@ const MAP_STYLES: Record<MapStyleType, any> = {
         attribution: '© OpenTopoMap',
         maxzoom: 17,
       },
+      terrain: {
+        type: 'raster-dem' as const,
+        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        encoding: 'terrarium' as const,
+        maxzoom: 15,
+      },
     },
-    layers: [{ id: 'topo-layer', type: 'raster' as const, source: 'topo', minzoom: 0, maxzoom: 17 }],
+    layers: [
+      { id: 'topo-layer', type: 'raster' as const, source: 'topo', minzoom: 0, maxzoom: 17 },
+      {
+        id: 'topo-hillshade-layer',
+        type: 'hillshade' as const,
+        source: 'terrain',
+        minzoom: 0,
+        maxzoom: 16,
+        paint: {
+          'hillshade-exaggeration': 0.7,
+        },
+      },
+    ],
   }),
   day: Object.freeze({
     version: 8 as const,
@@ -361,7 +416,7 @@ const MapScreen = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Estados del Asistente Inteligente (Pilar 1, 2, 3, 4, 5)
-  const [currentMapStyle, setCurrentMapStyle] = useState<MapStyleType>('satellite');
+  const [currentMapStyle, setCurrentMapStyle] = useState<MapStyleType>('hybrid');
   const [profileMode, setProfileMode] = useState<VehicleProfileMode>('camper');
   const [drivingPrefs, setDrivingPrefs] = useState<DrivingPreferences>(DEFAULT_DRIVING_PREFS);
   const [vehicleHeight, setVehicleHeight] = useState<number>(2.80);
@@ -398,6 +453,7 @@ const MapScreen = () => {
   const [showSleepModal, setShowSleepModal] = useState<boolean>(false);
   const [showTelemetryModal, setShowTelemetryModal] = useState<boolean>(false);
   const [showTravelPlannerModal, setShowTravelPlannerModal] = useState<boolean>(false);
+  const [showDimensionsModal, setShowDimensionsModal] = useState<boolean>(false);
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
   const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
   const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
@@ -1186,12 +1242,37 @@ const MapScreen = () => {
   ): Promise<Route[]> => {
     setIsCalculatingRoute(true);
     try {
-      // 1. Usar OSRM con timeout controlado (5s)
+      const calculatedRoutes: Route[] = [];
+
+      // 1. Intentar primero con Valhalla Truck (Respeto de Gálibo y Medidas Camper)
+      try {
+        const valhallaRoute = await CamperValhallaRoutingService.calculateTruckRoute(
+          { latitude: fromLat, longitude: fromLng },
+          { latitude: toLat, longitude: toLng }
+        );
+        if (valhallaRoute && valhallaRoute.coordinates.length > 0) {
+          calculatedRoutes.push({
+            id: 'route-valhalla-truck',
+            name: '🛡️ Valhalla Gálibo Seguro',
+            subtitle: 'Ruta verificada sin puentes bajos ni pasos estrechos',
+            badge: 'Gálibo OK',
+            coordinates: valhallaRoute.coordinates,
+            distance: valhallaRoute.distanceMeters,
+            duration: valhallaRoute.durationSeconds,
+            incidents: detectIncidents(valhallaRoute.coordinates.map(c => [c.longitude, c.latitude])),
+            type: 'fastest',
+            rawRoute: valhallaRoute,
+          });
+        }
+      } catch (valhallaErr) {
+        Logger.warn('MapScreen', 'Valhalla Truck fallback a OSRM');
+      }
+
+      // 2. Usar OSRM para rutas complementarias y alternativas
       const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true&annotations=true&alternatives=true`;
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const calculatedRoutes: Route[] = [];
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
 
       try {
         const response = await fetch(url, { signal: controller.signal });
@@ -1201,6 +1282,8 @@ const MapScreen = () => {
           const data = await response.json();
           if (data.routes && data.routes.length > 0) {
             data.routes.forEach((route: any, idx: number) => {
+              // Si ya tenemos Valhalla como fastest, las de OSRM son alternativas
+              const isFirst = calculatedRoutes.length === 0 && idx === 0;
               calculatedRoutes.push({
                 coordinates: route.geometry.coordinates.map((coord: number[]) => ({
                   latitude: coord[1],
@@ -1209,7 +1292,7 @@ const MapScreen = () => {
                 distance: route.distance,
                 duration: route.duration,
                 incidents: detectIncidents(route.geometry.coordinates),
-                type: idx === 0 ? 'fastest' : 'alternative',
+                type: isFirst ? 'fastest' : 'alternative',
                 rawRoute: route,
               });
             });
@@ -2386,6 +2469,31 @@ const MapScreen = () => {
         speedLimit={currentSpeedLimit}
       />
 
+      {/* Selector Flotante Rápido de 3 Modos Visuales: 🛰️ Satélite / 🗺️ Híbrido / 📐 Vectorial */}
+      <View style={styles.floatingModeSelector}>
+        <TouchableOpacity
+          style={[styles.modeBtn, currentMapStyle === 'satellite' && styles.modeBtnActive]}
+          onPress={() => setCurrentMapStyle('satellite')}
+          activeOpacity={0.8}
+          accessibilityLabel="Modo Satélite Puro">
+          <Text style={styles.modeIcon}>🛰️</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.modeBtn, currentMapStyle === 'hybrid' && styles.modeBtnActive]}
+          onPress={() => setCurrentMapStyle('hybrid')}
+          activeOpacity={0.8}
+          accessibilityLabel="Modo Híbrido HD">
+          <Text style={styles.modeIcon}>🗺️</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.modeBtn, currentMapStyle === 'day' && styles.modeBtnActive]}
+          onPress={() => setCurrentMapStyle('day')}
+          activeOpacity={0.8}
+          accessibilityLabel="Modo Vectorial OSM">
+          <Text style={styles.modeIcon}>📐</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Dock agrupado en el lado inferior derecho: Capas desplegables + 3D/2D + Recentrador GPS + Reporte sutil */}
       <MapControlDock
         currentMapStyle={currentMapStyle}
@@ -2405,6 +2513,7 @@ const MapScreen = () => {
         onOpenSleepMode={() => setShowSleepModal(true)}
         onOpenTelemetry={() => setShowTelemetryModal(true)}
         onOpenCopilot={() => setShowTravelPlannerModal(true)}
+        onOpenDimensions={() => setShowDimensionsModal(true)}
         onToggleSimulation={() =>
           isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation(selectedRoute || routes[0])
         }
@@ -2726,6 +2835,18 @@ const MapScreen = () => {
           });
           AudioAlertService.speak(`Etapa seleccionada: ${endCity}`);
           setShowTravelPlannerModal(false);
+        }}
+      />
+
+      {/* Modal de Gálibo y Medidas Camper (Valhalla Truck Routing & Descarga Offline) */}
+      <CamperVehicleDimensionsModal
+        visible={showDimensionsModal}
+        onClose={() => setShowDimensionsModal(false)}
+        currentLocation={currentLocation ? { latitude: currentLocation.latitude, longitude: currentLocation.longitude } : null}
+        onDimensionsSaved={() => {
+          if (selectedLocation && currentLocation) {
+            calculateRoutes(currentLocation.latitude, currentLocation.longitude, selectedLocation.latitude, selectedLocation.longitude);
+          }
         }}
       />
 
@@ -3438,6 +3559,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.3,
+  },
+  floatingModeSelector: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 194 : 178,
+    right: 14,
+    zIndex: 9998,
+    flexDirection: 'column',
+    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    borderRadius: 22,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  modeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 2,
+  },
+  modeBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.35)',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+  },
+  modeIcon: {
+    fontSize: 16,
   },
 });
 

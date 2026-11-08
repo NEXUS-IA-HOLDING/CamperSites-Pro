@@ -39,6 +39,7 @@ interface MapControlDockProps {
   onOpenSleepMode?: () => void;
   onOpenTelemetry?: () => void;
   onOpenCopilot?: () => void;
+  onOpenDimensions?: () => void;
 }
 
 interface MapLayerOption {
@@ -58,9 +59,16 @@ const MAP_LAYERS: MapLayerOption[] = [
     badge: '🛰️',
   },
   {
+    key: 'hybrid',
+    label: 'Híbrido HD',
+    sublabel: 'Satélite + Vías + Relieve',
+    icon: 'map-legend',
+    badge: '🗺️',
+  },
+  {
     key: 'topo',
     label: 'Relieve',
-    sublabel: 'Curvas de nivel y cumbres',
+    sublabel: 'Curvas de nivel y 3D DEM',
     icon: 'image-filter-hdr',
     badge: '⛰️',
   },
@@ -73,10 +81,10 @@ const MAP_LAYERS: MapLayerOption[] = [
   },
   {
     key: 'day',
-    label: 'Día',
+    label: 'Vectorial',
     sublabel: 'OpenStreetMap estándar',
     icon: 'white-balance-sunny',
-    badge: '🗺️',
+    badge: '📐',
   },
 ];
 
@@ -99,6 +107,7 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   onOpenSleepMode,
   onOpenTelemetry,
   onOpenCopilot,
+  onOpenDimensions,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -312,6 +321,16 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
             activeOpacity={0.8}
             accessibilityLabel="Copiloto IA y Rutas">
             <Icon name="brain" size={20} color="#A78BFA" />
+          </TouchableOpacity>
+        )}
+
+        {onOpenDimensions && (
+          <TouchableOpacity
+            style={[styles.dockBtn, { borderColor: 'rgba(16, 185, 129, 0.45)' }]}
+            onPress={onOpenDimensions}
+            activeOpacity={0.8}
+            accessibilityLabel="Gálibo y Medidas Camper">
+            <Icon name="truck-cargo-container" size={20} color="#10B981" />
           </TouchableOpacity>
         )}
 
