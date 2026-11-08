@@ -41,6 +41,7 @@ import { FuelPriceComparatorModal } from '../components/FuelPriceComparatorModal
 import { CamperLevelerModal } from '../components/CamperLevelerModal';
 import { OvernightSleepModeModal } from '../components/OvernightSleepModeModal';
 import { VehicleTelemetryModal } from '../components/VehicleTelemetryModal';
+import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
 import { FuelStationItem } from '../services/FuelPriceService';
 import {
   CommunityAlert,
@@ -396,6 +397,7 @@ const MapScreen = () => {
   const [showLevelerModal, setShowLevelerModal] = useState<boolean>(false);
   const [showSleepModal, setShowSleepModal] = useState<boolean>(false);
   const [showTelemetryModal, setShowTelemetryModal] = useState<boolean>(false);
+  const [showTravelPlannerModal, setShowTravelPlannerModal] = useState<boolean>(false);
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
   const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
   const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
@@ -2402,6 +2404,7 @@ const MapScreen = () => {
         onOpenLeveler={() => setShowLevelerModal(true)}
         onOpenSleepMode={() => setShowSleepModal(true)}
         onOpenTelemetry={() => setShowTelemetryModal(true)}
+        onOpenCopilot={() => setShowTravelPlannerModal(true)}
         onToggleSimulation={() =>
           isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation(selectedRoute || routes[0])
         }
@@ -2695,6 +2698,35 @@ const MapScreen = () => {
         currentSpeedKmH={currentLocation ? (currentLocation.speed * 3.6) : 0}
         destinationCoord={selectedLocation ? { latitude: selectedLocation.latitude, longitude: selectedLocation.longitude, name: selectedLocation.name } : null}
         onClose={() => setShowTelemetryModal(false)}
+      />
+
+      {/* Modal de Planificador de Viajes e Itinerarios con Copiloto IA */}
+      <CamperTravelPlannerModal
+        visible={showTravelPlannerModal}
+        onClose={() => setShowTravelPlannerModal(false)}
+        onStartNavigation={(startCity, endCity, coordinates) => {
+          const locItem: Location = {
+            id: `plan_dest_${Date.now()}`,
+            name: `${endCity} (Itinerario)`,
+            latitude: coordinates[1],
+            longitude: coordinates[0],
+            category: 'AREA_SERVICIOS',
+            address: `Ruta desde ${startCity} hacia ${endCity}`,
+            description: `Destino de etapa generado por el Copiloto IA de CamperSites Pro`,
+          };
+          setSelectedLocation(locItem);
+          const targetCoord: [number, number] = [coordinates[0], coordinates[1]];
+          currentMapCenterRef.current = targetCoord;
+          setCameraCenter(targetCoord);
+          setCameraZoom(16.5);
+          cameraRef.current?.setCamera({
+            centerCoordinate: targetCoord,
+            zoomLevel: 16.5,
+            animationDuration: 1000,
+          });
+          AudioAlertService.speak(`Etapa seleccionada: ${endCity}`);
+          setShowTravelPlannerModal(false);
+        }}
       />
 
       {/* Modal selector de rutas */}

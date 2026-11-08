@@ -38,6 +38,7 @@ interface MapControlDockProps {
   onOpenLeveler?: () => void;
   onOpenSleepMode?: () => void;
   onOpenTelemetry?: () => void;
+  onOpenCopilot?: () => void;
 }
 
 interface MapLayerOption {
@@ -97,6 +98,7 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   onOpenLeveler,
   onOpenSleepMode,
   onOpenTelemetry,
+  onOpenCopilot,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -300,6 +302,16 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
             activeOpacity={0.8}
             accessibilityLabel="Telemetría y Android Auto">
             <Icon name="car-connected" size={20} color="#38BDF8" />
+          </TouchableOpacity>
+        )}
+
+        {onOpenCopilot && (
+          <TouchableOpacity
+            style={[styles.dockBtn, { borderColor: 'rgba(167, 139, 250, 0.45)' }]}
+            onPress={onOpenCopilot}
+            activeOpacity={0.8}
+            accessibilityLabel="Copiloto IA y Rutas">
+            <Icon name="brain" size={20} color="#A78BFA" />
           </TouchableOpacity>
         )}
 

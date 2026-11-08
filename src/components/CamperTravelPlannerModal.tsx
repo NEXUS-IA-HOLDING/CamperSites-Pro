@@ -26,6 +26,7 @@ import {
   Alert,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
@@ -35,6 +36,11 @@ import {
   VehicleCategory,
 } from '../services/CamperTravelPlannerService';
 import { affiliatePartnerService } from '../services/AffiliatePartnerService';
+import {
+  CamperAICopilotService,
+  QUICK_PROMPTS,
+  QuickPromptItem,
+} from '../services/CamperAICopilotService';
 
 const { width } = Dimensions.get('window');
 
@@ -45,7 +51,7 @@ interface Props {
   onOpenB2BBooking?: (overnightName: string) => void;
 }
 
-type TabType = 'presets' | 'create' | 'saved';
+type TabType = 'ai_copilot' | 'presets' | 'create' | 'saved';
 
 export const CamperTravelPlannerModal: React.FC<Props> = ({
   visible,
@@ -53,10 +59,21 @@ export const CamperTravelPlannerModal: React.FC<Props> = ({
   onStartNavigation,
   onOpenB2BBooking,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('presets');
+  const [activeTab, setActiveTab] = useState<TabType>('ai_copilot');
   const [plans, setPlans] = useState<TravelPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<TravelPlan | null>(null);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+
+  // Estado del Copiloto IA
+  const [aiPrompt, setAiPrompt] = useState(
+    '3 días desde Madrid a Cantabria con playas tranquilas, pernocta gratis y sin barreras de altura'
+  );
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiProgressText, setAiProgressText] = useState('');
+  const [filterAvoidBarriers, setFilterAvoidBarriers] = useState(true);
+  const [filterFreeOvernight, setFilterFreeOvernight] = useState(true);
+  const [filterMitecoFuel, setFilterMitecoFuel] = useState(true);
+  const [filterWindSafety, setFilterWindSafety] = useState(true);
 
   // Formulario de creación
   const [origin, setOrigin] = useState('Madrid');
@@ -92,6 +109,39 @@ export const CamperTravelPlannerModal: React.FC<Props> = ({
       `"${plan.title}" es ahora tu viaje activo. Las etapas y paradas se sincronizarán con el mapa de cabina.`,
       [{ text: 'Entendido' }]
     );
+  };
+
+  const handleGenerateAIItinerary = async (overridePrompt?: string) => {
+    const promptToUse = overridePrompt || aiPrompt;
+    if (!promptToUse.trim()) {
+      Alert.alert('Escribe tu viaje', 'Indica qué tipo de viaje deseas para que el Copiloto IA diseñe la ruta.');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiProgressText('Iniciando Copiloto IA...');
+
+    try {
+      const plan = await CamperAICopilotService.generateItinerary(
+        promptToUse,
+        {
+          vehicleCategory: vehicleType,
+          avoidHeightBarriers: filterAvoidBarriers,
+          preferFreeOvernight: filterFreeOvernight,
+          cheapFuelMiteco: filterMitecoFuel,
+          checkWindSafety: filterWindSafety,
+        },
+        (step) => setAiProgressText(step)
+      );
+
+      await loadData();
+      setSelectedPlan(plan);
+    } catch (err: any) {
+      Alert.alert('Error', 'No se pudo generar la ruta: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setAiLoading(false);
+      setAiProgressText('');
+    }
   };
 
   const handleGenerateCustom = async () => {
@@ -378,6 +428,20 @@ export const CamperTravelPlannerModal: React.FC<Props> = ({
             {/* TABS DE SELECCIÓN */}
             <View style={styles.tabBar}>
               <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'ai_copilot' && styles.tabButtonActiveAi]}
+                onPress={() => setActiveTab('ai_copilot')}>
+                <Icon
+                  name="robot-happy-outline"
+                  size={18}
+                  color={activeTab === 'ai_copilot' ? '#A78BFA' : '#94A3B8'}
+                />
+                <Text
+                  style={[styles.tabButtonText, activeTab === 'ai_copilot' && styles.tabButtonTextActiveAi]}>
+                  Copiloto IA
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.tabButton, activeTab === 'presets' && styles.tabButtonActive]}
                 onPress={() => setActiveTab('presets')}>
                 <Icon
@@ -401,7 +465,7 @@ export const CamperTravelPlannerModal: React.FC<Props> = ({
                 />
                 <Text
                   style={[styles.tabButtonText, activeTab === 'create' && styles.tabButtonTextActive]}>
-                  Diseñar Ruta
+                  Manual
                 </Text>
               </TouchableOpacity>
 
@@ -415,13 +479,169 @@ export const CamperTravelPlannerModal: React.FC<Props> = ({
                 />
                 <Text
                   style={[styles.tabButtonText, activeTab === 'saved' && styles.tabButtonTextActive]}>
-                  Mis Viajes ({plans.length})
+                  Guardados ({plans.length})
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* CONTENIDO SEGÚN LA PESTAÑA */}
             <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+              {/* PESTAÑA COPILOTO IA */}
+              {activeTab === 'ai_copilot' && (
+                <View style={styles.aiCopilotContainer}>
+                  {/* Banner Header IA */}
+                  <View style={styles.aiHeroBanner}>
+                    <View style={styles.aiHeroIconBox}>
+                      <Icon name="brain" size={28} color="#A78BFA" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.aiBadgeRow}>
+                        <Text style={styles.aiBadgeLabel}>CAMPER AI COPILOT 2.0</Text>
+                        <View style={styles.aiPillPro}>
+                          <Text style={styles.aiPillProText}>PROACTIVO</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.aiHeroTitle}>Pide tu viaje soñado en tus propias palabras</Text>
+                      <Text style={styles.aiHeroSubtitle}>
+                        La IA diseña etapas con pernocta gratis, vaciado, gasolineras baratas MITECO y sin barreras de altura.
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Caja de Prompt en Lenguaje Natural */}
+                  <View style={styles.aiPromptCard}>
+                    <Text style={styles.aiPromptLabel}>¿A DÓNDE Y CÓMO QUIERES VIAJAR?</Text>
+                    <View style={styles.aiInputWrap}>
+                      <TextInput
+                        style={styles.aiTextInput}
+                        multiline
+                        numberOfLines={3}
+                        placeholder="Ej: 3 días desde Madrid a Cantabria con playas tranquilas, pernocta gratis y sin barreras de altura..."
+                        placeholderTextColor="#64748B"
+                        value={aiPrompt}
+                        onChangeText={setAiPrompt}
+                        editable={!aiLoading}
+                      />
+                      {aiPrompt.length > 0 && !aiLoading && (
+                        <TouchableOpacity style={styles.aiClearBtn} onPress={() => setAiPrompt('')}>
+                          <Icon name="close-circle" size={18} color="#64748B" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Botón Principal Generador */}
+                    <TouchableOpacity
+                      style={[styles.aiGenerateBtn, aiLoading && styles.aiGenerateBtnDisabled]}
+                      onPress={() => handleGenerateAIItinerary()}
+                      disabled={aiLoading}
+                      activeOpacity={0.85}>
+                      {aiLoading ? (
+                        <View style={styles.aiLoadingRow}>
+                          <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                          <Text style={styles.aiGenerateBtnText}>{aiProgressText || 'Diseñando tu viaje...'}</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.aiBtnRow}>
+                          <Icon name="sparkles" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                          <Text style={styles.aiGenerateBtnText}>GENERAR RUTA CON COPILOTO IA</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Filtros Inteligentes de la IA */}
+                  <View style={styles.aiFiltersCard}>
+                    <Text style={styles.aiFiltersHeading}>FILTROS INTELIGENTES INTEGRADOS</Text>
+
+                    <TouchableOpacity
+                      style={styles.filterCheckRow}
+                      onPress={() => setFilterAvoidBarriers(!filterAvoidBarriers)}>
+                      <Icon
+                        name={filterAvoidBarriers ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                        size={20}
+                        color={filterAvoidBarriers ? '#10B981' : '#64748B'}
+                      />
+                      <View style={{ marginLeft: 10, flex: 1 }}>
+                        <Text style={styles.filterCheckTitle}>🛡️ Evitar Barreras de Altura (2.0 - 2.3m)</Text>
+                        <Text style={styles.filterCheckSub}>Filtra contra el catálogo oficial de accesos con gálibo limitado</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.filterCheckRow}
+                      onPress={() => setFilterFreeOvernight(!filterFreeOvernight)}>
+                      <Icon
+                        name={filterFreeOvernight ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                        size={20}
+                        color={filterFreeOvernight ? '#10B981' : '#64748B'}
+                      />
+                      <View style={{ marginLeft: 10, flex: 1 }}>
+                        <Text style={styles.filterCheckTitle}>🏖️ Priorizar Pernoctas 100% Gratis (0 €)</Text>
+                        <Text style={styles.filterCheckSub}>Calas, miradores y áreas públicas sin coste de estancia</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.filterCheckRow}
+                      onPress={() => setFilterMitecoFuel(!filterMitecoFuel)}>
+                      <Icon
+                        name={filterMitecoFuel ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                        size={20}
+                        color={filterMitecoFuel ? '#10B981' : '#64748B'}
+                      />
+                      <View style={{ marginLeft: 10, flex: 1 }}>
+                        <Text style={styles.filterCheckTitle}>⛽ Gasolineras Baratas Oficiales MITECO</Text>
+                        <Text style={styles.filterCheckSub}>Calcula paradas de diésel y GLP al precio más bajo del corredor</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.filterCheckRow}
+                      onPress={() => setFilterWindSafety(!filterWindSafety)}>
+                      <Icon
+                        name={filterWindSafety ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                        size={20}
+                        color={filterWindSafety ? '#10B981' : '#64748B'}
+                      />
+                      <View style={{ marginLeft: 10, flex: 1 }}>
+                        <Text style={styles.filterCheckTitle}>💨 Alerta de Rachas de Viento para Toldo</Text>
+                        <Text style={styles.filterCheckSub}>Comprueba seguridad de apertura de toldo (&lt;35 km/h) en pernocta</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Píldoras de Rutas Rápidas en 1 Toque */}
+                  <View style={styles.quickPromptsSection}>
+                    <Text style={styles.quickPromptsTitle}>O ELIGE UNA RUTA POPULAR LISTA:</Text>
+                    {QUICK_PROMPTS.map((qp) => (
+                      <TouchableOpacity
+                        key={qp.id}
+                        style={styles.quickPromptCard}
+                        onPress={() => {
+                          setAiPrompt(qp.prompt);
+                          handleGenerateAIItinerary(qp.prompt);
+                        }}
+                        activeOpacity={0.8}>
+                        <View style={styles.qpTopRow}>
+                          <View style={styles.qpBadge}>
+                            <Text style={styles.qpBadgeText}>{qp.badge}</Text>
+                          </View>
+                          <Text style={styles.qpDaysText}>{qp.days} Días</Text>
+                        </View>
+                        <Text style={styles.qpTitle}>{qp.title}</Text>
+                        <Text style={styles.qpPrompt}>{qp.prompt}</Text>
+                        <View style={styles.qpTagsRow}>
+                          {qp.tags.map((t, idx) => (
+                            <View key={idx} style={styles.qpTag}>
+                              <Text style={styles.qpTagText}>{t}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
               {activeTab === 'presets' && (
                 <View style={styles.presetsList}>
                   <Text style={styles.sectionSubtitle}>
@@ -1261,5 +1481,233 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0F172A',
     marginLeft: 8,
+  },
+  // ESTILOS COPILOTO IA
+  tabButtonActiveAi: {
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+  },
+  tabButtonTextActiveAi: {
+    color: '#A78BFA',
+    fontWeight: '800',
+  },
+  aiCopilotContainer: {
+    paddingBottom: 30,
+  },
+  aiHeroBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(103, 58, 183, 0.15)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    padding: 14,
+    marginBottom: 14,
+  },
+  aiHeroIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(139, 92, 246, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  aiBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  aiBadgeLabel: {
+    color: '#A78BFA',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  aiPillPro: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    marginLeft: 6,
+  },
+  aiPillProText: {
+    color: '#FFF',
+    fontSize: 8.5,
+    fontWeight: '900',
+  },
+  aiHeroTitle: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  aiHeroSubtitle: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  aiPromptCard: {
+    backgroundColor: '#131D31',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  aiPromptLabel: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  aiInputWrap: {
+    position: 'relative',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    padding: 10,
+    marginBottom: 12,
+  },
+  aiTextInput: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    minHeight: 65,
+    textAlignVertical: 'top',
+    paddingRight: 24,
+  },
+  aiClearBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+  },
+  aiGenerateBtn: {
+    backgroundColor: '#7C3AED',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  aiGenerateBtnDisabled: {
+    backgroundColor: '#4C1D95',
+  },
+  aiBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiGenerateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  aiFiltersCard: {
+    backgroundColor: '#131D31',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  aiFiltersHeading: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  filterCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+  },
+  filterCheckTitle: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterCheckSub: {
+    color: '#94A3B8',
+    fontSize: 10.5,
+    marginTop: 1,
+  },
+  quickPromptsSection: {
+    marginTop: 4,
+  },
+  quickPromptsTitle: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  quickPromptCard: {
+    backgroundColor: '#131D31',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  qpTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  qpBadge: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  qpBadgeText: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  qpDaysText: {
+    color: '#F59E0B',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  qpTitle: {
+    color: '#F8FAFC',
+    fontSize: 13.5,
+    fontWeight: '800',
+    marginVertical: 2,
+  },
+  qpPrompt: {
+    color: '#94A3B8',
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  qpTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  qpTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  qpTagText: {
+    color: '#CBD5E1',
+    fontSize: 9.5,
+    fontWeight: '600',
   },
 });
