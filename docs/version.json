@@ -1,9 +1,9 @@
 {
-  "version": "2.0.1",
-  "versionCode": 3,
-  "releaseDate": "2026-11-07",
+  "version": "2.0.2",
+  "versionCode": 4,
+  "releaseDate": "2026-11-08",
   "downloadUrl": "https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.0.0/CamperSites-Pro-v2.0.0.apk",
   "fallbackUrl": "https://nexus-ia-holding.github.io/CamperSites-Pro/#descarga",
   "mandatory": true,
-  "releaseNotes": "v2.0.1: Integración oficial de Android Auto y proyección al salpicadero, Telemetría TPMS de presión y temperatura de neumáticos en 4 ruedas, Mantenimiento predictivo de filtros y aceite, Comparador en directo MITECO de gasolineras, Nivelador 3D con calzos, Modo Pernocta OLED con alarma de viento y avisador de obstáculos estilo Waze."
+  "releaseNotes": "v2.0.2: Cartografía Fotorrealista Satelital Esri HD, Modo Híbrido con viales y toponimia, Terreno 3D Terrarium con sombreado de laderas Hillshade, Motor de Navegación Valhalla con Gálibo Camper (evita puentes bajos y túneles según dimensiones del vehículo), selector rápido flotante de 3 modos (🛰️ / 🗺️ / 📐) y descarga de cuadrícula satelital offline."
 }
