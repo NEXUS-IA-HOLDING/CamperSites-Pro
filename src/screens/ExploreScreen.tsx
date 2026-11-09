@@ -803,6 +803,35 @@ export default function ExploreScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Banner 1: Pase Fundador Pionero VIP (Crowdfunding & Impulso Google Play) */}
+      {!showCategoryGrid && (
+        <TouchableOpacity
+          style={[styles.travelPlannerBanner, { borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.12)', marginBottom: 10 }]}
+          onPress={() => {
+            Linking.openURL('https://nexus-ia-holding.github.io/CamperSites-Pro/patrocinios.html');
+          }}
+          activeOpacity={0.88}>
+          <View style={styles.travelPlannerBannerLeft}>
+            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.25)' }]}>
+              <Icon name="crown" size={24} color="#10B981" />
+            </View>
+            <View style={styles.travelPlannerTextBox}>
+              <View style={styles.travelPlannerBadgeRow}>
+                <Text style={[styles.travelPlannerBadge, { color: '#10B981' }]}>PASE FUNDADOR VIP</Text>
+                <View style={[styles.proTag, { backgroundColor: '#10B981' }]}>
+                  <Text style={styles.proTagText}>19,99€ VITALICIO</Text>
+                </View>
+              </View>
+              <Text style={styles.travelPlannerTitle}>Hazte Miembro Pionero (Solo 100 Plazas)</Text>
+              <Text style={styles.travelPlannerSub}>
+                Acceso ilimitado de por vida y apoya el lanzamiento en Google Play y Apple Store
+              </Text>
+            </View>
+          </View>
+          <Icon name="open-in-new" size={20} color="#10B981" />
+        </TouchableOpacity>
+      )}
+
       {/* Banner Monetización: Club Descuentos Camper & Hostinger */}
       {!showCategoryGrid && (
         <TouchableOpacity

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patrocinios & Pase Fundador | CamperSites Pro</title>
+  <link rel="icon" type="image/png" href="assets/icon.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-dark: #0B1120;
+      --card-bg: #1E293B;
+      --card-border: #334155;
+      --emerald: #10B981;
+      --emerald-glow: rgba(16, 185, 129, 0.2);
+      --sky: #38BDF8;
+      --gold: #FBBF24;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
+    header {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.8) 0%, rgba(11, 17, 32, 0) 100%);
+      padding: 24px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+    .header-content {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+    .logo-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+    }
+    .logo-text {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .logo-text span {
+      color: var(--emerald);
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover {
+      color: var(--emerald);
+    }
+    .hero {
+      max-width: 900px;
+      margin: 50px auto 30px;
+      padding: 0 20px;
+      text-align: center;
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--emerald);
+      color: var(--emerald);
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 18px;
+      letter-spacing: -1px;
+    }
+    h1 span {
+      background: linear-gradient(135deg, #34D399 0%, #38BDF8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* GRID DE OPCIONES */
+    .pricing-grid {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 28px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(16, 185, 129, 0.4);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+    .card.highlight {
+      border: 2px solid var(--emerald);
+      box-shadow: 0 0 25px var(--emerald-glow);
+    }
+    .card-ribbon {
+      position: absolute;
+      top: -12px;
+      right: 24px;
+      background: var(--emerald);
+      color: #000;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+    .card-icon {
+      font-size: 2.2rem;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .card-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+      min-height: 48px;
+    }
+    .price-tag {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-bottom: 24px;
+    }
+    .price-val {
+      font-size: 2.8rem;
+      font-weight: 900;
+      color: var(--text-main);
+    }
+    .price-period {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .features-list {
+      list-style: none;
+      margin-bottom: 30px;
+      flex-grow: 1;
+    }
+    .features-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #CBD5E1;
+      font-size: 0.92rem;
+      margin-bottom: 12px;
+    }
+    .features-list li i {
+      color: var(--emerald);
+      font-size: 0.9rem;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.1s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn:hover {
+      opacity: 0.9;
+    }
+    .btn-emerald {
+      background: var(--emerald);
+      color: #064E3B;
+    }
+    .btn-sky {
+      background: var(--sky);
+      color: #0C4A6E;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+    .btn-outline:hover {
+      border-color: var(--emerald);
+      color: var(--emerald);
+    }
+
+    /* SECCION DE IMPACTO */
+    .impact-section {
+      max-width: 900px;
+      margin: 60px auto;
+      padding: 30px;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      text-align: center;
+    }
+    .impact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-top: 25px;
+    }
+    .impact-item h3 {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--emerald);
+    }
+    .impact-item p {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 4px;
+    }
+
+    footer {
+      max-width: 1100px;
+      margin: 60px auto 0;
+      padding: 24px 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    footer a:hover {
+      color: var(--emerald);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-content">
+      <a href="index.html" class="logo-container">
+        <img src="assets/icon.png" alt="CamperSites Pro" class="logo-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3203/3203071.png'">
+        <div class="logo-text">CamperSites <span>Pro</span></div>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#descarga"><i class="fa-solid fa-arrow-left"></i> Volver a la App</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="badge-pill">
+      <i class="fa-solid fa-rocket"></i> Impulso y Despegue Oficial
+    </div>
+    <h1>Invierte en el Futuro del <span>Caravaning Inteligente</span></h1>
+    <p>Apoya el lanzamiento en Google Play y Apple Store, promociona tu área camper con máxima visibilidad o conviértete en patrocinador oficial.</p>
+  </section>
+
+  <!-- PRICING & TIERS -->
+  <div class="pricing-grid">
+
+    <!-- 1. PASE FUNDADOR PIONERO -->
+    <div class="card highlight">
+      <div class="card-ribbon">Solo 100 Plazas</div>
+      <div class="card-icon">👑</div>
+      <div class="card-title">Pase Fundador Pionero</div>
+      <div class="card-desc">Acceso VIP de por vida a la app sin cuotas mensuales y apoyo directo al lanzamiento en Play Store.</div>
+      <div class="price-tag">
+        <div class="price-val">19,99€</div>
+        <div class="price-period">pago único vitalicio</div>
+      </div>
+      <ul class="features-list">
+        <li><i class="fa-solid fa-circle-check"></i> Acceso VIP de por vida (ahorro de 48€/año)</li>
+        <li><i class="fa-solid fa-circle-check"></i> Navegador Valhalla con control de gálibo</li>
+        <li><i class="fa-solid fa-circle-check"></i> Satélite Esri HD y Terreno 3D Terrarium</li>
+        <li><i class="fa-solid fa-circle-check"></i> Avisador de radares DGT y controles en tiempo real</li>
+        <li><i class="fa-solid fa-circle-check"></i> Insignia dorada "Fundador #001" en perfil</li>
+        <li><i class="fa-solid fa-circle-check"></i> Financia la cuenta de desarrollador oficial</li>
+      </ul>
+      <a href="https://t.me/Antigravity_officialbot?start=fundador" class="btn btn-emerald" target="_blank">
+        <i class="fa-brands fa-telegram"></i> Reservar Mi Pase Fundador
+      </a>
+    </div>
+
+    <!-- 2. B2B PARA CAMPINGS Y ÁREAS -->
+    <div class="card">
+      <div class="card-icon">🏕️</div>
+      <div class="card-title">Área Camper Verificada</div>
+      <div class="card-desc">Dirigido a propietarios de campings y áreas privadas que quieran llenar sus plazas los 365 días.</div>
+      <div class="price-tag">
+        <div class="price-val">29€</div>
+        <div class="price-period">/año (Lanzamiento)</div>
+      </div>
+      <ul class="features-list">
+        <li><i class="fa-solid fa-circle-check"></i> Ficha destacada con estrella dorada en el mapa</li>
+        <li><i class="fa-solid fa-circle-check"></i> Enrutamiento sin puentes bajos hacia tu puerta</li>
+        <li><i class="fa-solid fa-circle-check"></i> Botón de llamada y reserva directa sin comisiones</li>
+        <li><i class="fa-solid fa-circle-check"></i> Fotos en alta definición y descripción completa</li>
+        <li><i class="fa-solid fa-circle-check"></i> Notificación a conductores en un radio de 50 km</li>
+      </ul>
+      <a href="https://t.me/Antigravity_officialbot?start=areacamper" class="btn btn-sky" target="_blank">
+        <i class="fa-solid fa-map-pin"></i> Destacar Mi Área en el Mapa
+      </a>
+    </div>
+
+    <!-- 3. MARCAS Y PATROCINADORES -->
+    <div class="card">
+      <div class="card-icon">🤝</div>
+      <div class="card-title">Patrocinador Oficial</div>
+      <div class="card-desc">Marcas de furgonetas, placas solares, baterías, seguros y accesorios camper de primer nivel.</div>
+      <div class="price-tag">
+        <div class="price-val">Desde 50€</div>
+        <div class="price-period">/mes</div>
+      </div>
+      <ul class="features-list">
+        <li><i class="fa-solid fa-circle-check"></i> Presencia destacada en la sección "Explorar & Descuentos"</li>
+        <li><i class="fa-solid fa-circle-check"></i> Recomendación contextual del Copiloto IA</li>
+        <li><i class="fa-solid fa-circle-check"></i> Código de descuento exclusivo para la comunidad</li>
+        <li><i class="fa-solid fa-circle-check"></i> Difusión en campañas de TikTok y redes oficiales</li>
+        <li><i class="fa-solid fa-circle-check"></i> Facturación oficial para tu empresa</li>
+      </ul>
+      <a href="mailto:nexus.ia.holding@gmail.com?subject=Propuesta%20Patrocinio%20CamperSites%20Pro" class="btn btn-outline">
+        <i class="fa-solid fa-envelope"></i> Contactar para Patrocinio
+      </a>
+    </div>
+
+  </div>
+
+  <!-- IMPACTO -->
+  <section class="impact-section">
+    <h2>¿A Dónde Va Tu Aportación?</h2>
+    <p style="color: var(--text-muted); margin-top: 6px;">Transparencia total para llevar este proyecto a la élite del sector.</p>
+    <div class="impact-grid">
+      <div class="impact-item">
+        <h3>100%</h3>
+        <p>Google Play Console & Apple Store</p>
+      </div>
+      <div class="impact-item">
+        <h3>24/7</h3>
+        <p>Servidores de alta velocidad sin pausas</p>
+      </div>
+      <div class="impact-item">
+        <h3>0€</h3>
+        <p>Comisiones abusivas de intermediarios</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div>© 2026 CamperSites Pro • Nexus AI Holding. Todos los derechos reservados.</div>
+    <div style="display: flex; gap: 16px;">
+      <a href="privacy.html">Privacidad</a>
+      <a href="terms.html">Términos</a>
+      <a href="https://t.me/Antigravity_officialbot" target="_blank"><i class="fa-brands fa-telegram"></i> Bot Telegram</a>
+    </div>
+  </footer>
+
+</body>
+</html>

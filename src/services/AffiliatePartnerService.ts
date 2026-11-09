@@ -34,6 +34,70 @@ export interface AffiliatePartner {
 }
 
 export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
+  // --- PASE FUNDADOR PIONERO (FINANCIACIÓN GOOGLE PLAY & APPLE STORE) ---
+  {
+    id: 'founder_pass_vip',
+    category: 'tech',
+    brandName: 'CamperSites Pro',
+    name: 'Pase Fundador Pionero VIP',
+    title: '👑 Pase Fundador Pionero • Acceso VIP Vitalicio',
+    badge: '⭐ SOLO 100 PLAZAS',
+    badgeText: '⭐ Solo 100 Plazas',
+    discountSummary: 'Pago único 19,99€ (Ahorro vitalicio de 48€/año)',
+    discountText: 'Acceso ilimitado de por vida sin suscripciones',
+    description: 'Conviértete en uno de los 100 primeros miembros pioneros. Tu aportación financia directamente la publicación oficial en Google Play Store y Apple Developer.',
+    perks: [
+      'Acceso VIP permanente de por vida a todas las funciones presentes y futuras',
+      'Satélite fotorrealista Esri HD, 3D Terrarium y Rutas Valhalla sin restricciones',
+      'Insignia dorada exclusiva "Fundador #001" visible en tu perfil público',
+      'Acceso prioritario a betas cerradas y canal privado con el equipo',
+    ],
+    benefits: [
+      'Sin cuotas mensuales ni renovaciones anuales jamás',
+      'Impulso directo para publicar la app en Google Play y Apple Store',
+      'Comunidad exclusiva de autocaravanistas pioneros',
+    ],
+    affiliateUrl: 'https://nexus-ia-holding.github.io/CamperSites-Pro/patrocinios.html',
+    promoCode: 'FUNDADOR-100',
+    logoIcon: 'crown',
+    iconName: 'crown',
+    accentColor: '#10B981',
+    priority: -2,
+    limitedTimeOffer: 'Plazas Limitadas para la Comunidad',
+    utmCampaign: 'founder_pass',
+  },
+
+  // --- ENERGÍA SOLAR & BATERÍAS LIFEPO4 (ECOFLOW & BLUETTI) ---
+  {
+    id: 'ecoflow_solar_generators',
+    category: 'accessories',
+    brandName: 'EcoFlow & Bluetti',
+    name: 'EcoFlow Estaciones Solares LiFePO4',
+    title: 'EcoFlow & Bluetti • Energía Solar 230V Portátil',
+    badge: '☀️ 10% DTO CAMPER',
+    badgeText: '☀️ 10% Dto. Camper',
+    discountSummary: 'Hasta 10% de descuento en generadores solares y placas',
+    discountText: 'Independencia energética 230V silenciosa para microondas y aire acondicionado',
+    description: 'Baterías portátiles LiFePO4 de carga ultra rápida (0 a 80% en 50 min) y paneles solares plegables para no depender de tomas de camping.',
+    perks: [
+      'Onda senoidal pura de 600W a 2400W para cocinar y trabajar en remoto',
+      'Baterías de química LiFePO4 con más de 3.000 ciclos de vida (10 años)',
+      'Carga solar directa con hasta 500W desde el techo de la camper',
+    ],
+    benefits: [
+      'Total libertad de pernocta sin necesidad de engancharte a 220V',
+      'Silencioso: cero emisiones y sin ruidos de generadores de gasolina',
+    ],
+    affiliateUrl: 'https://es.ecoflow.com/',
+    promoCode: 'CAMPERPRO10',
+    logoIcon: 'solar-power',
+    iconName: 'solar-power',
+    accentColor: '#0284C7',
+    priority: -1,
+    limitedTimeOffer: 'Campaña Primavera - Verano',
+    utmCampaign: 'ecoflow_camper',
+  },
+
   // --- HOSTING WEB & CLOUD TECH (HOSTINGER) ---
   {
     id: 'hostinger_referral',
