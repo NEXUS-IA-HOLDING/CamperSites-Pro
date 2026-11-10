@@ -57,7 +57,7 @@ export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
       'Impulso directo para publicar la app en Google Play y Apple Store',
       'Comunidad exclusiva de autocaravanistas pioneros',
     ],
-    affiliateUrl: 'https://camper.nexusaiholding.com/patrocinios.html',
+    affiliateUrl: 'https://paddlecraft5.gumroad.com/l/phjqix',
     promoCode: 'FUNDADOR-2ANOS',
     logoIcon: 'crown',
     iconName: 'crown',

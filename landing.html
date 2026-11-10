@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pase Fundador Pionero (2 Años VIP) • CamperSites Pro</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark: '#0B1120',
+              card: '#131D31',
+              border: '#24324D',
+              emerald: '#10B981',
+              emeraldLight: '#34D399',
+              sky: '#38BDF8',
+              gold: '#FBBF24',
+              accent: '#6366F1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Regla oficial Gumroad: Ocultar formulario de waitlist una vez publicado el producto */
+    html[data-gumroad-launched] form[data-gumroad-waitlist] {
+      display: none !important;
+    }
+
+    /* Animaciones suaves */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+    .glow-effect {
+      animation: pulseGlow 4s ease-in-out infinite;
+    }
+    .custom-gradient-text {
+      background: linear-gradient(135deg, #34D399 0%, #38BDF8 50%, #818CF8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .card-hover {
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .card-hover:hover {
+      transform: translateY(-4px);
+      border-color: rgba(52, 211, 153, 0.4);
+      box-shadow: 0 16px 36px -10px rgba(16, 185, 129, 0.2);
+    }
+  </style>
+</head>
+<body class="bg-[#0B1120] text-slate-100 antialiased selection:bg-emerald-500 selection:text-white min-h-screen flex flex-col justify-between">
+
+  <!-- TOP BANNER DE URGENCIA -->
+  <aside aria-label="Alerta de plazas limitadas" class="bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 border-b border-emerald-500/20 py-2.5 px-4 text-center text-xs sm:text-sm font-medium sticky top-0 z-50 backdrop-blur-md">
+    <div class="max-w-6xl mx-auto flex items-center justify-center gap-2 flex-wrap">
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+        EDICIÓN LIMITADA
+      </span>
+      <span class="text-slate-300">Solo 100 Pases Pioneros disponibles para la comunidad camper.</span>
+      <a href="#comprar" data-gumroad-action="buy" class="text-emerald-400 hover:text-emerald-300 underline font-semibold ml-1 cursor-pointer">
+        Reclamar mi plaza &rarr;
+      </a>
+    </div>
+  </aside>
+
+  <!-- NAVEGACIÓN -->
+  <header class="max-w-6xl mx-auto w-full px-6 py-6 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <!-- Icono SVG Camper Pro -->
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-sky-500 p-0.5 shadow-lg shadow-emerald-500/20 flex items-center justify-center">
+        <div class="w-full h-full bg-[#0B1120] rounded-[10px] flex items-center justify-center">
+          <svg class="w-6 h-6 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v7c0 .6.4 1 1 1h1"></path>
+            <circle cx="7" cy="17" r="2"></circle>
+            <path d="M9 17h6"></path>
+            <circle cx="17" cy="17" r="2"></circle>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <span class="font-extrabold text-lg tracking-tight text-white block">CamperSites <span class="text-emerald-400">Pro</span></span>
+        <span class="text-[10px] tracking-wider uppercase font-semibold text-slate-400 block -mt-1">Nexus AI Holding</span>
+      </div>
+    </div>
+
+    <!-- Rating Fallback con datos Gumroad -->
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/80 px-3 py-1.5 rounded-full text-xs font-semibold">
+        <span class="text-amber-400">★★★★★</span>
+        <span data-gumroad-field="rating">5.0</span>
+        <span class="text-slate-400">&bull;</span>
+        <span class="text-slate-300" data-gumroad-field="review-count">100 Miembros Fundadores</span>
+      </div>
+      <a href="#comprar" data-gumroad-action="buy" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm transition-all shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer">
+        <span>Comprar Pase</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- HERO SECTION -->
+  <main class="max-w-6xl mx-auto px-6 pt-8 pb-16 w-full">
+    <div class="text-center max-w-3xl mx-auto space-y-6">
+      
+      <!-- Badge de Pre-Lanzamiento -->
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span>Financiación Oficial de Google Play & Apple Store</span>
+      </div>
+
+      <!-- Título Interpolado Gumroad -->
+      <h1 class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight sm:leading-none text-white">
+        <span data-gumroad-field="name">Pase Fundador CamperSites Pro</span>
+        <span class="block custom-gradient-text mt-2 sm:mt-3">2 Años de Acceso VIP Pro</span>
+      </h1>
+
+      <!-- Descripción Interpolada Gumroad -->
+      <p class="text-slate-300 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto" data-gumroad-field="description">
+        Viaja con tranquilidad absoluta. Navegación con gálibo inteligente para evitar puentes bajos, cartografía 3D fotorrealista vía satélite, avisador de radares DGT en directo y más de 517.000 puntos camper en Europa.
+      </p>
+
+      <!-- CAJA DE PRECIO Y CTA PRINCIPAL -->
+      <div id="comprar" class="pt-4 pb-2">
+        <div class="inline-block bg-slate-900/90 border-2 border-emerald-500/60 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-emerald-500/10 max-w-md w-full relative">
+          <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-slate-950 text-xs font-black px-4 py-1 rounded-full uppercase tracking-wider shadow">
+            Ahorro superior al 60%
+          </div>
+
+          <div class="flex items-baseline justify-center gap-2 mt-2">
+            <span class="text-4xl sm:text-5xl font-black text-white" data-gumroad-field="price">19,99 €</span>
+            <span class="text-slate-400 font-semibold text-sm">/ 2 Años Completos</span>
+          </div>
+          <p class="text-xs text-emerald-400 font-medium mt-1">Equivale a menos de 0,83 € al mes (Tarifa normal: 24,99 €/año)</p>
+
+          <!-- BOTÓN DE COMPRA GUMROAD (REQUERIDO) -->
+          <div class="mt-6">
+            <button data-gumroad-action="buy" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-3 cursor-pointer">
+              <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>Reclamar Mi Pase (2 Años)</span>
+            </button>
+          </div>
+
+          <!-- Métodos de pago e insignias de seguridad -->
+          <div class="mt-4 flex items-center justify-center gap-4 text-xs text-slate-400">
+            <span class="flex items-center gap-1">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              Pago 100% Seguro
+            </span>
+            <span>&bull;</span>
+            <span>Apple Pay / Google Pay / Tarjeta</span>
+          </div>
+
+          <!-- Formulario Waitlist oficial Gumroad (si no estuviera publicado) -->
+          <form data-gumroad-waitlist class="mt-6 pt-6 border-t border-slate-800 text-left">
+            <label class="block text-xs font-semibold text-slate-300 mb-2">O apúntate a la lista prioritaria antes del lanzamiento:</label>
+            <div class="flex gap-2">
+              <input type="email" name="email" required placeholder="tu-email@ejemplo.com" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm flex-1 focus:outline-none focus:border-emerald-500" />
+              <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-all">Avisarme</button>
+            </div>
+            <p data-gumroad-waitlist-message class="text-xs text-emerald-400 mt-2"></p>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CARACTERÍSTICAS PRINCIPALES -->
+    <section class="mt-20 pt-12 border-t border-slate-800/80">
+      <div class="text-center max-w-2xl mx-auto mb-12">
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-white">¿Qué Incluye el Pase Fundador?</h2>
+        <p class="text-slate-400 text-sm sm:text-base mt-2">Todo el arsenal tecnológico de navegación camper activado durante 2 años completos.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- Card 1: Valhalla Gálibo -->
+        <div class="bg-[#131D31] border border-slate-800 rounded-2xl p-6 card-hover">
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"></path></svg>
+          </div>
+          <h3 class="font-bold text-lg text-white mb-2">Rutas Seguras sin Puentes Bajos</h3>
+          <p class="text-slate-300 text-sm leading-relaxed">
+            Motor de enrutamiento <b>Valhalla Truck</b> configurado con la altura (ej. 3.2m), anchura y peso de tu autocaravana. Esquiva automáticamente túneles estrechos, gálibos peligrosos y balconadas.
+          </p>
+        </div>
+
+        <!-- Card 2: Satélite 3D Esri -->
+        <div class="bg-[#131D31] border border-slate-800 rounded-2xl p-6 card-hover">
+          <div class="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"></path></svg>
+          </div>
+          <h3 class="font-bold text-lg text-white mb-2">Satélite Fotorrealista & 3D Terrarium</h3>
+          <p class="text-slate-300 text-sm leading-relaxed">
+            Imágenes de satélite Esri de máxima resolución (z19) con relieve montañoso continuo (Hillshade) y vista de cabina inclinada a 60° con auto-zoom predictivo según la velocidad.
+          </p>
+        </div>
+
+        <!-- Card 3: Radares DGT & Telemetría -->
+        <div class="bg-[#131D31] border border-slate-800 rounded-2xl p-6 card-hover">
+          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"></path></svg>
+          </div>
+          <h3 class="font-bold text-lg text-white mb-2">Radares DGT, Clima de Toldo & TPMS</h3>
+          <p class="text-slate-300 text-sm leading-relaxed">
+            Avisador de radares de tramo y fijos oficiales de la DGT por voz (TTS), telemetría de neumáticos TPMS, detector de rachas de viento para toldos y comparador de gasolineras MITECO.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TABLA COMPARATIVA -->
+    <section class="mt-20">
+      <div class="bg-[#131D31] border border-slate-800 rounded-3xl p-6 sm:p-10 overflow-x-auto">
+        <h2 class="text-2xl font-bold text-white mb-6 text-center">Comparativa: ¿Por Qué Vale la Pena?</h2>
+        
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead>
+            <tr class="border-b border-slate-700/80 text-xs uppercase tracking-wider text-slate-400">
+              <th class="py-3 px-4">Característica</th>
+              <th class="py-3 px-4 text-center">Versión Gratuita</th>
+              <th class="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-500/10 rounded-t-xl">Pase Fundador (2 Años)</th>
+              <th class="py-3 px-4 text-center">Suscripción Estándar</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800">
+            <tr>
+              <td class="py-3.5 px-4 font-semibold text-white">Coste total</td>
+              <td class="py-3.5 px-4 text-center text-slate-400">0 €</td>
+              <td class="py-3.5 px-4 text-center font-bold text-emerald-400 bg-emerald-500/10">19,99 € (pago único)</td>
+              <td class="py-3.5 px-4 text-center text-slate-300">49,98 € (24,99€ x 2)</td>
+            </tr>
+            <tr>
+              <td class="py-3.5 px-4 font-semibold text-white">Duración</td>
+              <td class="py-3.5 px-4 text-center">Ilimitada</td>
+              <td class="py-3.5 px-4 text-center font-bold text-emerald-400 bg-emerald-500/10">2 Años Completos</td>
+              <td class="py-3.5 px-4 text-center">1 Año renovable</td>
+            </tr>
+            <tr>
+              <td class="py-3.5 px-4 font-semibold text-white">Motor Valhalla Truck (Gálibo)</td>
+              <td class="py-3.5 px-4 text-center text-slate-500">&cross;</td>
+              <td class="py-3.5 px-4 text-center font-bold text-emerald-400 bg-emerald-500/10">&check; Ilimitado</td>
+              <td class="py-3.5 px-4 text-center">&check;</td>
+            </tr>
+            <tr>
+              <td class="py-3.5 px-4 font-semibold text-white">Satélite Esri HD & Relieve 3D</td>
+              <td class="py-3.5 px-4 text-center text-slate-400">Estándar OSM</td>
+              <td class="py-3.5 px-4 text-center font-bold text-emerald-400 bg-emerald-500/10">&check; Fotorrealista</td>
+              <td class="py-3.5 px-4 text-center">&check;</td>
+            </tr>
+            <tr>
+              <td class="py-3.5 px-4 font-semibold text-white">Descarga de Mapas Offline</td>
+              <td class="py-3.5 px-4 text-center text-slate-500">&cross;</td>
+              <td class="py-3.5 px-4 text-center font-bold text-emerald-400 bg-emerald-500/10">&check; Bóveda Completa</td>
+              <td class="py-3.5 px-4 text-center">&check;</td>
+            </tr>
+            <tr>
+              <td class="py-3.5 px-4 font-semibold text-white">Insignia "Fundador Pionero"</td>
+              <td class="py-3.5 px-4 text-center text-slate-500">&cross;</td>
+              <td class="py-3.5 px-4 text-center font-bold text-amber-400 bg-emerald-500/10 rounded-b-xl">★ Dorada Exclusiva</td>
+              <td class="py-3.5 px-4 text-center text-slate-500">&cross;</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="mt-20 max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold text-white mb-6 text-center">Preguntas Frecuentes</h2>
+
+      <div class="space-y-4">
+        <details class="bg-[#131D31] border border-slate-800 rounded-2xl p-5 group cursor-pointer">
+          <summary class="font-bold text-white flex justify-between items-center list-none">
+            <span>¿Cómo se activa mi pase tras la compra?</span>
+            <span class="text-emerald-400 group-open:rotate-180 transition-transform">&darr;</span>
+          </summary>
+          <p class="text-slate-300 text-sm mt-3 leading-relaxed">
+            Al completar tu compra en Gumroad, recibirás un recibo oficial con tu código de activación VIP. Solo tienes que introducirlo en la app móvil en Ajustes o en el bot de Telegram y tu cuenta quedará vinculada automáticamente durante 2 años.
+          </p>
+        </details>
+
+        <details class="bg-[#131D31] border border-slate-800 rounded-2xl p-5 group cursor-pointer">
+          <summary class="font-bold text-white flex justify-between items-center list-none">
+            <span>¿En qué se invierten los 19,99€?</span>
+            <span class="text-emerald-400 group-open:rotate-180 transition-transform">&darr;</span>
+          </summary>
+          <p class="text-slate-300 text-sm mt-3 leading-relaxed">
+            El 100% de la recaudación de los 100 pases fundadores va destinado a pagar la cuenta oficial de Google Play Console ($25), Apple Developer Program ($99/año) y mantener los servidores de mapas y cálculo de gálibo Valhalla activos 24/7 sin pausas.
+          </p>
+        </details>
+
+        <details class="bg-[#131D31] border border-slate-800 rounded-2xl p-5 group cursor-pointer">
+          <summary class="font-bold text-white flex justify-between items-center list-none">
+            <span>¿Qué pasa cuando pasen los 2 años?</span>
+            <span class="text-emerald-400 group-open:rotate-180 transition-transform">&darr;</span>
+          </summary>
+          <p class="text-slate-300 text-sm mt-3 leading-relaxed">
+            Como miembro fundador pionero, mantendrás para siempre tu insignia dorada y tendrás derecho a renovar con un descuento preferente vitalicio, o seguir usando la versión gratuita sin ningún coste.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <!-- CTA FINAL -->
+    <section class="mt-20 text-center bg-gradient-to-b from-[#131D31] to-[#0B1120] border border-emerald-500/30 rounded-3xl p-8 sm:p-12 relative overflow-hidden">
+      <div class="relative z-10 max-w-xl mx-auto space-y-4">
+        <h2 class="text-2xl sm:text-3xl font-black text-white">Sé Uno de los 100 Pioneros</h2>
+        <p class="text-slate-300 text-sm sm:text-base">
+          Ayuda a impulsar la mejor aplicación de caravaning de Europa y disfruta de 2 años de navegación con gálibo inteligente.
+        </p>
+        <div class="pt-2">
+          <a href="#comprar" data-gumroad-action="buy" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-8 py-4 rounded-2xl text-base transition-all shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 cursor-pointer">
+            <span>Comprar Pase Fundador por 19,99 €</span>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg>
+          </a>
+        </div>
+        <p class="text-xs text-slate-400">Garantía de reembolso de 14 días si no estás 100% satisfecho.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-slate-800/80 bg-[#070C16] py-8 text-center text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        &copy; 2026 CamperSites Pro &bull; Nexus AI Holding. Todos los derechos reservados.
+      </div>
+      <div class="flex items-center gap-6">
+        <a href="https://camper.nexusaiholding.com/privacy.html" target="_blank" class="hover:text-slate-300">Privacidad</a>
+        <a href="https://camper.nexusaiholding.com/terms.html" target="_blank" class="hover:text-slate-300">Términos</a>
+        <a href="https://camper.nexusaiholding.com" target="_blank" class="hover:text-emerald-400">Web Oficial</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
