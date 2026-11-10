@@ -808,7 +808,7 @@ export default function ExploreScreen() {
         <TouchableOpacity
           style={[styles.travelPlannerBanner, { borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.12)', marginBottom: 10 }]}
           onPress={() => {
-            Linking.openURL('https://nexus-ia-holding.github.io/CamperSites-Pro/patrocinios.html');
+            Linking.openURL('https://camper.nexusaiholding.com/patrocinios.html');
           }}
           activeOpacity={0.88}>
           <View style={styles.travelPlannerBannerLeft}>
@@ -819,12 +819,12 @@ export default function ExploreScreen() {
               <View style={styles.travelPlannerBadgeRow}>
                 <Text style={[styles.travelPlannerBadge, { color: '#10B981' }]}>PASE FUNDADOR VIP</Text>
                 <View style={[styles.proTag, { backgroundColor: '#10B981' }]}>
-                  <Text style={styles.proTagText}>19,99€ VITALICIO</Text>
+                  <Text style={styles.proTagText}>2 AÑOS VIP (19,99€)</Text>
                 </View>
               </View>
-              <Text style={styles.travelPlannerTitle}>Hazte Miembro Pionero (Solo 100 Plazas)</Text>
+              <Text style={styles.travelPlannerTitle}>Pase Pionero 2 Años (Solo 100 Plazas)</Text>
               <Text style={styles.travelPlannerSub}>
-                Acceso ilimitado de por vida y apoya el lanzamiento en Google Play y Apple Store
+                2 Años completos de acceso VIP Pro y apoya el lanzamiento en Google Play y Apple Store
               </Text>
             </View>
           </View>

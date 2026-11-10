@@ -47,9 +47,9 @@ CamperSites Pro forma parte del programa oficial **Hostinger Open Source Partner
 
 ¿Quieres apoyar el desarrollo y despegue de CamperSites Pro en Google Play y Apple Store?
 
-- 🎟️ **[Pase Fundador Pionero (19,99€ vitalicio)](https://nexus-ia-holding.github.io/CamperSites-Pro/patrocinios.html):** Solo 100 plazas con acceso VIP de por vida a todas las funciones presentes y futuras.
-- 🏕️ **[Áreas Camper y Campings Verificados (29€/año)](https://nexus-ia-holding.github.io/CamperSites-Pro/patrocinios.html):** Ficha destacada con estrella dorada y navegación guiada sin puentes bajos hacia tu puerta.
-- 🤝 **[Dossier de Patrocinadores Oficiales](https://nexus-ia-holding.github.io/CamperSites-Pro/patrocinios.html):** Marcas de energía solar (EcoFlow/Bluetti), seguros camper (IATI), ferris (Baleària) y accesorios de viaje.
+- 🎟️ **[Pase Fundador Pionero (19,99€ por 2 Años)](https://camper.nexusaiholding.com/patrocinios.html):** Solo 100 plazas con 2 Años completos de acceso VIP Pro (ahorro >60%) y apoyo al lanzamiento oficial.
+- 🏕️ **[Áreas Camper y Campings Verificados (29€/año)](https://camper.nexusaiholding.com/patrocinios.html):** Ficha destacada con estrella dorada y navegación guiada sin puentes bajos hacia tu puerta.
+- 🤝 **[Dossier de Patrocinadores Oficiales](https://camper.nexusaiholding.com/patrocinios.html):** Marcas de energía solar (EcoFlow/Bluetti), seguros camper (IATI), ferris (Baleària) y accesorios de viaje.
 
 ---
 
