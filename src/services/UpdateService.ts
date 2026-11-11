@@ -17,6 +17,8 @@ export interface ReleaseInfo {
   downloadUrl: string;
   fallbackUrl?: string;
   mandatory?: boolean;
+  sha256?: string;
+  sizeBytes?: number;
   isNewer: boolean;
 }
 

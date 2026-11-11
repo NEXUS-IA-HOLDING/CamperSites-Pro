@@ -4,6 +4,8 @@
   "releaseDate": "2026-11-11",
   "downloadUrl": "https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.1.0/app-release.apk",
   "fallbackUrl": "https://camper.nexusaiholding.com/#descarga",
+  "sha256": "064f0b0e624fa276224511757ce561a20122dc47fb75a657b93895ebaf905165",
+  "sizeBytes": 45608639,
   "mandatory": false,
   "releaseNotes": "v2.1.0: Resolución integral de UX y GPS. Alternativas de ruta con gálibo e indicación de tiempo (+X min), catálogo de vehículos ampliado a más de 100 modelos y 49 marcas europeas, integración de Autodoc y Amazon, 14 rutas panorámicas 3D multidía, rediseño oscuro en Explorar y persistencia total de configuración."
 }
