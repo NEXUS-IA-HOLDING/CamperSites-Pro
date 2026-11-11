@@ -356,6 +356,8 @@ interface Route {
   rawRoute?: any;
 }
 
+export type DestinationSheetMode = 'minimized' | 'standard' | 'full';
+
 // Memoizar configuración de marcadores - evita recreación en cada render
 const MARKER_CONFIG_CACHE: Record<string, { icon: string; color: string }> = {};
 const getMarkerConfig = (category: string): { icon: string; color: string } => {
@@ -462,7 +464,11 @@ const MapScreen = () => {
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
   const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
   const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
-  const [isDestinationCardMinimized, setIsDestinationCardMinimized] = useState<boolean>(false);
+  const [destinationSheetMode, setDestinationSheetMode] = useState<DestinationSheetMode>('standard');
+  const isDestinationCardMinimized = destinationSheetMode === 'minimized';
+  const setIsDestinationCardMinimized = useCallback((minimized: boolean) => {
+    setDestinationSheetMode(minimized ? 'minimized' : 'standard');
+  }, []);
   const currentMapCenterRef = useRef<[number, number]>(DEFAULT_CENTER);
   const lastStableHeading = useRef<number>(0);
 
@@ -729,6 +735,7 @@ const MapScreen = () => {
             await AsyncStorage.removeItem('@campersites_jump_to_location');
             const target: Location & { _autoCalculateRoute?: boolean } = JSON.parse(raw);
             setSelectedLocation(target);
+            setDestinationSheetMode('standard');
             const targetCoord: [number, number] = [target.longitude, target.latitude];
             currentMapCenterRef.current = targetCoord;
             setCameraCenter(targetCoord);
@@ -1480,6 +1487,9 @@ const MapScreen = () => {
 
       // Etiquetar nombres, subtítulos y verificar gálibos/puentes bajos en todas las rutas
       calculatedRoutes.forEach((route, idx) => {
+        if (!route.id) {
+          route.id = `route-${route.type || 'calc'}-${idx}`;
+        }
         // 1. Verificación de puentes bajos en esta alternativa según la altura configurada del vehículo
         const hazardsOnRoute = VehicleRoutingService.checkClearanceHazards(
           route.coordinates,
@@ -2231,7 +2241,7 @@ const MapScreen = () => {
           onSelectSearchResult={async (result) => {
             const locItem = result as Location;
             setSelectedLocation(locItem);
-            setShowFullDetailSheet(false);
+            setDestinationSheetMode('standard');
             currentMapCenterRef.current = [result.longitude, result.latitude];
             cameraRef.current?.setCamera({
               centerCoordinate: [result.longitude, result.latitude],

@@ -738,6 +738,84 @@ export default function ExploreScreen() {
   const renderExploreFeedHeader = useCallback(() => {
     return (
       <View style={{ marginBottom: 8 }}>
+        {/* Header con gradiente visual */}
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Explorar</Text>
+            <Text style={styles.headerSubtitle}>
+              {isAffiliateCategory(selectedCategory)
+                ? `${displayedAffiliates.length} acuerdos y códigos de referencia con descuento directo`
+                : (totalCount > 200 ? `${totalCount.toLocaleString()}+ lugares` : `${locations.length} lugares`)}
+              {selectedCategory !== 'ALL' ? ` · ${getCategoryConfig(selectedCategory).emoji} ${getCategoryConfig(selectedCategory).label}` : ''}
+            </Text>
+          </View>
+        </View>
+
+        {/* Barra de búsqueda mejorada */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Text style={styles.searchEmoji}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar por nombre, ciudad, provincia..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+              returnKeyType="search"
+              onSubmitEditing={Keyboard.dismiss}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+                <Icon name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[styles.filterButton, hasActiveAdvancedCriteria && styles.filterButtonActive]}
+            onPress={() => setShowAdvancedFilters(true)}>
+            <Icon
+              name="tune-variant"
+              size={20}
+              color={hasActiveAdvancedCriteria ? '#FFF' : theme.colors.primary.main}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, showCategoryGrid && styles.filterButtonActive]}
+            onPress={() => setShowCategoryGrid(!showCategoryGrid)}>
+            <Icon
+              name={showCategoryGrid ? 'close' : 'grid-large'}
+              size={20}
+              color={showCategoryGrid ? '#FFF' : (selectedCategory !== 'ALL' ? theme.colors.primary.main : '#666')}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Filtros horizontal */}
+        {!showCategoryGrid && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoriesScroll}
+            contentContainerStyle={styles.categoriesList}
+            keyboardShouldPersistTaps="handled">
+            {ALL_CATEGORIES.slice(0, 8).map(renderCategoryChip)}
+            <TouchableOpacity
+              style={styles.moreChip}
+              onPress={() => setShowCategoryGrid(true)}>
+              <Text style={styles.moreChipEmoji}>➕</Text>
+              <Text style={styles.moreChipText}>Más</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+
+        {/* Grid de categorías expandido */}
+        {showCategoryGrid && (
+          <View style={styles.categoryGridScroll}>
+            {renderCategoryGrid()}
+          </View>
+        )}
+
         {/* Banner Destacado: Travel Planner Camper */}
         <TouchableOpacity
           style={styles.travelPlannerBanner}
@@ -873,14 +951,15 @@ export default function ExploreScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Mapa Satelital de Servicios Cercanos */}
-            {showServicesMap && (
+            {/* Mapa Satelital de Servicios Cercanos (Desmontado en blur con isFocused para liberar 150MB+ VRAM) */}
+            {isFocused && showServicesMap && (
               <View style={styles.servicesMapContainer}>
                 <MapLibreGL.MapView
                   style={styles.servicesMap}
                   mapStyle={EXPLORE_MAP_STYLE}
                   logoEnabled={false}
-                  attributionEnabled={false}>
+                  attributionEnabled={false}
+                  scrollEnabled={false}>
                   <MapLibreGL.Camera
                     ref={exploreCameraRef}
                     defaultSettings={{
@@ -915,88 +994,24 @@ export default function ExploreScreen() {
         )}
       </View>
     );
-  }, [showServicesMap, selectedCategory, userCoords, displayedLocations]);
+  }, [
+    isFocused,
+    showServicesMap,
+    selectedCategory,
+    userCoords,
+    displayedLocations,
+    displayedAffiliates.length,
+    totalCount,
+    locations.length,
+    searchQuery,
+    hasActiveAdvancedCriteria,
+    showCategoryGrid,
+    renderCategoryChip,
+    renderCategoryGrid,
+  ]);
 
   return (
     <View style={styles.container}>
-      {/* Header con gradiente visual */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Explorar</Text>
-          <Text style={styles.headerSubtitle}>
-            {isAffiliateCategory(selectedCategory)
-              ? `${displayedAffiliates.length} acuerdos y códigos de referencia con descuento directo`
-              : (totalCount > 200 ? `${totalCount.toLocaleString()}+ lugares` : `${locations.length} lugares`)}
-            {selectedCategory !== 'ALL' ? ` · ${getCategoryConfig(selectedCategory).emoji} ${getCategoryConfig(selectedCategory).label}` : ''}
-          </Text>
-        </View>
-      </View>
-
-      {/* Barra de búsqueda mejorada */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Text style={styles.searchEmoji}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar por nombre, ciudad, provincia..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCorrect={false}
-            returnKeyType="search"
-            onSubmitEditing={Keyboard.dismiss}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
-              <Icon name="close-circle" size={20} color="#999" />
-            </TouchableOpacity>
-          )}
-        </View>
-        <TouchableOpacity
-          style={[styles.filterButton, hasActiveAdvancedCriteria && styles.filterButtonActive]}
-          onPress={() => setShowAdvancedFilters(true)}>
-          <Icon
-            name="tune-variant"
-            size={20}
-            color={hasActiveAdvancedCriteria ? '#FFF' : theme.colors.primary.main}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterButton, showCategoryGrid && styles.filterButtonActive]}
-          onPress={() => setShowCategoryGrid(!showCategoryGrid)}>
-          <Icon
-            name={showCategoryGrid ? 'close' : 'grid-large'}
-            size={20}
-            color={showCategoryGrid ? '#FFF' : (selectedCategory !== 'ALL' ? theme.colors.primary.main : '#666')}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Filtros horizontal */}
-      {!showCategoryGrid && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesScroll}
-          contentContainerStyle={styles.categoriesList}
-          keyboardShouldPersistTaps="handled">
-          {ALL_CATEGORIES.slice(0, 8).map(renderCategoryChip)}
-          <TouchableOpacity
-            style={styles.moreChip}
-            onPress={() => setShowCategoryGrid(true)}>
-            <Text style={styles.moreChipEmoji}>➕</Text>
-            <Text style={styles.moreChipText}>Más</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      )}
-
-      {/* Grid de categorías expandido */}
-      {showCategoryGrid && (
-        <ScrollView style={styles.categoryGridScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-          {renderCategoryGrid()}
-        </ScrollView>
-      )}
-
       {/* Lista de Códigos de Descuento & Afiliados Oficiales */}
       {isAffiliateCategory(selectedCategory) ? (
         <FlatList
@@ -1004,21 +1019,32 @@ export default function ExploreScreen() {
           keyExtractor={item => item.id}
           renderItem={renderAffiliatePartnerCard}
           contentContainerStyle={styles.listContent}
+          ListHeaderComponent={renderExploreFeedHeader}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         />
       ) : loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary.main} />
-          <Text style={styles.loadingText}>Buscando lugares...</Text>
-        </View>
+        <FlatList
+          data={[]}
+          keyExtractor={() => 'loading'}
+          renderItem={() => null}
+          ListHeaderComponent={
+            <>
+              {renderExploreFeedHeader()}
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary.main} />
+                <Text style={styles.loadingText}>Buscando lugares...</Text>
+              </View>
+            </>
+          }
+        />
       ) : (
         <FlatList
           data={displayedLocations}
           keyExtractor={item => item.id}
           renderItem={renderLocationCard}
           contentContainerStyle={styles.listContent}
-          ListHeaderComponent={!showCategoryGrid ? renderExploreFeedHeader : undefined}
+          ListHeaderComponent={renderExploreFeedHeader}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           removeClippedSubviews={true}
