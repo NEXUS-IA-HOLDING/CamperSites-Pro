@@ -399,10 +399,10 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
     <View style={styles.container}>
       {/* Barra de Búsqueda de Cabina (Glassmorphism Oscuro) */}
       <View style={styles.searchBar}>
-        <Icon name="magnify" size={22} color="#94A3B8" style={styles.searchIcon} />
+        <Icon name="magnify" size={22} color="#38BDF8" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar áreas camper, gasolineras, comida, pueblos..."
+          placeholder="¿A dónde quieres ir? (Ciudad, área o ruta...)"
           placeholderTextColor="#94A3B8"
           value={query}
           onChangeText={(text) => {
@@ -495,60 +495,62 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
         </View>
       )}
 
-      {/* Chips de Filtro Rápido (Desplazamiento horizontal fluido) */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterScroll}
-        style={styles.filterContainer}>
-        {onOpenAdvancedFilters && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={onOpenAdvancedFilters}
-            style={[
-              styles.filterChip,
-              styles.advancedFilterTrigger,
-              hasActiveAdvancedFilters && styles.advancedFilterTriggerActive,
-            ]}>
-            <Icon
-              name="tune-variant"
-              size={15}
-              color={hasActiveAdvancedFilters ? '#FFFFFF' : '#38BDF8'}
-              style={{ marginRight: 5 }}
-            />
-            <Text
-              style={[
-                styles.filterChipText,
-                { color: hasActiveAdvancedFilters ? '#FFFFFF' : '#38BDF8', fontWeight: '800' },
-              ]}>
-              Filtros Pro
-            </Text>
-          </TouchableOpacity>
-        )}
-        {QUICK_FILTERS.map((f) => {
-          const isActive = activeFilterId === f.id;
-          return (
+      {/* Chips de Filtro Rápido (Desplazamiento horizontal fluido - Solo visible sin desplegable activo) */}
+      {!showResults && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+          style={styles.filterContainer}>
+          {onOpenAdvancedFilters && (
             <TouchableOpacity
-              key={f.id}
               activeOpacity={0.8}
-              onPress={() => onSelectFilter(f)}
+              onPress={onOpenAdvancedFilters}
               style={[
                 styles.filterChip,
-                isActive && {
-                  backgroundColor: f.color,
-                  borderColor: f.color,
-                  shadowColor: f.color,
-                  shadowOpacity: 0.4,
-                  elevation: 6,
-                },
+                styles.advancedFilterTrigger,
+                hasActiveAdvancedFilters && styles.advancedFilterTriggerActive,
               ]}>
-              <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                {f.label}
+              <Icon
+                name="tune-variant"
+                size={15}
+                color={hasActiveAdvancedFilters ? '#FFFFFF' : '#38BDF8'}
+                style={{ marginRight: 5 }}
+              />
+              <Text
+                style={[
+                  styles.filterChipText,
+                  { color: hasActiveAdvancedFilters ? '#FFFFFF' : '#38BDF8', fontWeight: '800' },
+                ]}>
+                Filtros Pro
               </Text>
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          )}
+          {QUICK_FILTERS.map((f) => {
+            const isActive = activeFilterId === f.id;
+            return (
+              <TouchableOpacity
+                key={f.id}
+                activeOpacity={0.8}
+                onPress={() => onSelectFilter(f)}
+                style={[
+                  styles.filterChip,
+                  isActive && {
+                    backgroundColor: f.color,
+                    borderColor: f.color,
+                    shadowColor: f.color,
+                    shadowOpacity: 0.4,
+                    elevation: 6,
+                  },
+                ]}>
+                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 };
