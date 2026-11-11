@@ -314,6 +314,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       colleagues: 'COMPIS',
       founders: 'PIONERO',
       staff: 'STAFF',
+      general: 'GUMROAD',
+      partners: 'PARTNER',
     };
     const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const generated = `${prefixes[newCodeGroup]}-${suffix}`;

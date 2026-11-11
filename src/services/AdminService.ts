@@ -109,7 +109,7 @@ export interface AccessInviteCode {
   id: string;
   code: string; // ej. 'FAMILIA-VIP', 'COMPIS-PRO', 'FUNDADOR-100'
   label: string; // ej. 'Pase Familiares (VIP Vitalicio)'
-  targetGroup: 'family' | 'friends' | 'colleagues' | 'founders' | 'staff';
+  targetGroup: 'family' | 'friends' | 'colleagues' | 'founders' | 'staff' | 'general' | 'partners';
   grantedPlan: UserPlan; // 'lifetime_vip' | 'pro_annual' | 'pro_monthly' | 'free'
   grantedRole: UserRole; // 'user' | 'moderator' | 'staff' | 'admin'
   bonusPoints: number;
@@ -982,6 +982,66 @@ class AdminService {
         usedCount: 0,
         isActive: true,
         createdAt: '2026-11-01',
+        redeemedBy: [],
+      },
+      {
+        id: 'code-seed-gumroad-mensual',
+        code: 'PRO-MENSUAL',
+        label: 'Plan Escapadas Mensual (Gumroad)',
+        targetGroup: 'general',
+        grantedPlan: 'pro_monthly',
+        grantedRole: 'user',
+        bonusPoints: 100,
+        offlineCredits: 3,
+        maxUses: 500,
+        usedCount: 0,
+        isActive: true,
+        createdAt: '2026-11-11',
+        redeemedBy: [],
+      },
+      {
+        id: 'code-seed-gumroad-anual',
+        code: 'PRO-ANUAL',
+        label: 'Plan Rutero Anual (Gumroad)',
+        targetGroup: 'general',
+        grantedPlan: 'pro_annual',
+        grantedRole: 'user',
+        bonusPoints: 350,
+        offlineCredits: 12,
+        maxUses: 500,
+        usedCount: 0,
+        isActive: true,
+        createdAt: '2026-11-11',
+        redeemedBy: [],
+      },
+      {
+        id: 'code-seed-gumroad-lifetime',
+        code: 'LIFETIME-VIP',
+        label: 'Plan Nómada Eterno Vitalicio (Gumroad)',
+        targetGroup: 'founders',
+        grantedPlan: 'lifetime_vip',
+        grantedRole: 'user',
+        bonusPoints: 1000,
+        offlineCredits: 52,
+        maxUses: 500,
+        usedCount: 0,
+        isActive: true,
+        createdAt: '2026-11-11',
+        redeemedBy: [],
+      },
+      {
+        id: 'code-seed-gumroad-areab2b',
+        code: 'AREA-CAMPER-B2B',
+        label: 'Ficha Área Camper Verificada B2B (Gumroad)',
+        targetGroup: 'partners',
+        grantedPlan: 'pro_annual',
+        grantedRole: 'moderator',
+        bonusPoints: 500,
+        offlineCredits: 15,
+        maxUses: 100,
+        usedCount: 0,
+        isActive: true,
+        createdAt: '2026-11-11',
         redeemedBy: [],
       },
       {
