@@ -1,0 +1,6 @@
+Contact: mailto:contacto@nexusaiholding.com
+Contact: mailto:soporte@nexusaiholding.com
+Expires: 2027-11-11T00:00:00.000Z
+Preferred-Languages: es, en
+Canonical: https://camper.nexusaiholding.com/.well-known/security.txt
+Policy: https://camper.nexusaiholding.com/terms.html
