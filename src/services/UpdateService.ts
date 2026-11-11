@@ -20,8 +20,8 @@ export interface ReleaseInfo {
   isNewer: boolean;
 }
 
-export const CURRENT_VERSION = '2.0.0';
-export const CURRENT_VERSION_CODE = 2;
+export const CURRENT_VERSION = '2.1.0';
+export const CURRENT_VERSION_CODE = 5;
 
 const GITHUB_REPO = 'NEXUS-IA-HOLDING/CamperSites-Pro';
 const PAGES_VERSION_URL = 'https://nexus-ia-holding.github.io/CamperSites-Pro/version.json';

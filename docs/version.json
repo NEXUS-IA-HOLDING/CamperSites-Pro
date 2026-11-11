@@ -1,9 +1,9 @@
 {
-  "version": "2.0.2",
-  "versionCode": 4,
-  "releaseDate": "2026-11-08",
-  "downloadUrl": "https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.0.0/CamperSites-Pro-v2.0.0.apk",
+  "version": "2.1.0",
+  "versionCode": 5,
+  "releaseDate": "2026-11-11",
+  "downloadUrl": "https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.1.0/app-release.apk",
   "fallbackUrl": "https://camper.nexusaiholding.com/#descarga",
   "mandatory": false,
-  "releaseNotes": "v2.0.2: Cartografía Fotorrealista Satelital Esri HD, Modo Híbrido con viales y toponimia, Terreno 3D Terrarium con sombreado de laderas Hillshade, Motor de Navegación Valhalla con Gálibo Camper (evita puentes bajos y túneles según dimensiones del vehículo), selector rápido flotante de 3 modos (🛰️ / 🗺️ / 📐) y descarga de cuadrícula satelital offline."
+  "releaseNotes": "v2.1.0: Resolución integral de UX y GPS. Alternativas de ruta con gálibo e indicación de tiempo (+X min), catálogo de vehículos ampliado a más de 100 modelos y 49 marcas europeas, integración de Autodoc y Amazon, 14 rutas panorámicas 3D multidía, rediseño oscuro en Explorar y persistencia total de configuración."
 }
