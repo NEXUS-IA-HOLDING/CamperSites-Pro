@@ -264,6 +264,119 @@
       margin-top: 4px;
     }
 
+    /* MODAL DE CONTACTO */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .modal-backdrop.active {
+      display: flex;
+    }
+    .modal-box {
+      background: #131D31;
+      border: 1px solid #334155;
+      border-radius: 24px;
+      max-width: 500px;
+      width: 100%;
+      padding: 32px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+      position: relative;
+      animation: modalSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalSlide {
+      from { opacity: 0; transform: translateY(20px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .modal-close {
+      position: absolute;
+      top: 18px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #94A3B8;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, color 0.2s;
+    }
+    .modal-close:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #EF4444;
+    }
+    .modal-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .modal-desc {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+    }
+    .modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .contact-option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      text-decoration: none;
+      color: #F8FAFC;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .contact-option:hover {
+      background: #24324D;
+      border-color: var(--emerald);
+      transform: translateX(4px);
+    }
+    .contact-option i {
+      font-size: 1.25rem;
+      width: 24px;
+      text-align: center;
+    }
+    .contact-option .opt-sub {
+      display: block;
+      font-size: 0.78rem;
+      color: #94A3B8;
+      font-weight: normal;
+    }
+    .copy-toast {
+      display: none;
+      margin-top: 14px;
+      padding: 10px 16px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--emerald);
+      color: #34D399;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      text-align: center;
+      font-weight: 600;
+    }
+
     footer {
       max-width: 1100px;
       margin: 60px auto 0;
@@ -355,6 +468,9 @@
       <a href="https://t.me/Antigravity_officialbot?start=areacamper" class="btn btn-sky" target="_blank">
         <i class="fa-solid fa-map-pin"></i> Destacar Mi Área en el Mapa
       </a>
+      <a href="javascript:void(0)" onclick="openContactModal('area')" style="display: block; text-align: center; font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; text-decoration: underline; cursor: pointer;">
+        O contactar por correo electrónico
+      </a>
     </div>
 
     <!-- 3. MARCAS Y PATROCINADORES -->
@@ -373,9 +489,9 @@
         <li><i class="fa-solid fa-circle-check"></i> Difusión en campañas de TikTok y redes oficiales</li>
         <li><i class="fa-solid fa-circle-check"></i> Facturación oficial para tu empresa</li>
       </ul>
-      <a href="mailto:nexus.ia.holding@gmail.com?subject=Propuesta%20Patrocinio%20CamperSites%20Pro" class="btn btn-outline">
+      <button type="button" onclick="openContactModal('patrocinio')" class="btn btn-outline">
         <i class="fa-solid fa-envelope"></i> Contactar para Patrocinio
-      </a>
+      </button>
     </div>
 
   </div>
@@ -399,6 +515,121 @@
       </div>
     </div>
   </section>
+
+  <!-- MODAL DE CONTACTO -->
+  <div id="contactModal" class="modal-backdrop" onclick="handleBackdropClick(event)">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeContactModal()" aria-label="Cerrar modal">&times;</button>
+      <div id="modalTitle" class="modal-title">🤝 Contactar con el Equipo</div>
+      <p id="modalDesc" class="modal-desc">Elige cómo prefieres comunicarte con nosotros. Respondemos en menos de 2 horas.</p>
+
+      <div class="modal-actions">
+        <!-- 1. COPIAR CORREO -->
+        <div class="contact-option" onclick="copyEmailToClipboard()">
+          <i class="fa-solid fa-copy" style="color: var(--emerald);"></i>
+          <div style="flex-grow: 1;">
+            <div>Copiar Correo Oficial</div>
+            <span class="opt-sub">nexus.ia.holding@gmail.com</span>
+          </div>
+          <span style="font-size: 0.8rem; color: var(--emerald); font-weight: 700;">COPIAR</span>
+        </div>
+
+        <!-- 2. ABRIR EN GMAIL WEB -->
+        <a id="linkGmail" href="https://mail.google.com/mail/?view=cm&fs=1&to=nexus.ia.holding@gmail.com&su=Propuesta%20Patrocinio%20CamperSites%20Pro" target="_blank" class="contact-option">
+          <i class="fa-solid fa-envelope-open-text" style="color: #EA4335;"></i>
+          <div>
+            <div>Abrir en Gmail Web</div>
+            <span class="opt-sub">Redactar mensaje directamente en tu navegador</span>
+          </div>
+        </a>
+
+        <!-- 3. ABRIR EN OUTLOOK WEB -->
+        <a id="linkOutlook" href="https://outlook.live.com/mail/0/deeplink/compose?to=nexus.ia.holding@gmail.com&subject=Propuesta%20Patrocinio%20CamperSites%20Pro" target="_blank" class="contact-option">
+          <i class="fa-brands fa-microsoft" style="color: #0078D4;"></i>
+          <div>
+            <div>Abrir en Outlook Web</div>
+            <span class="opt-sub">Redactar mensaje en Hotmail / Outlook</span>
+          </div>
+        </a>
+
+        <!-- 4. APP DE CORREO PREDETERMINADA -->
+        <a id="linkMailto" href="mailto:nexus.ia.holding@gmail.com?subject=Propuesta%20Patrocinio%20CamperSites%20Pro" class="contact-option">
+          <i class="fa-solid fa-paper-plane" style="color: var(--sky);"></i>
+          <div>
+            <div>Abrir en tu App de Correo</div>
+            <span class="opt-sub">Mail de Apple, Thunderbird o cliente local</span>
+          </div>
+        </a>
+
+        <!-- 5. TELEGRAM DIRECTO -->
+        <a href="https://t.me/Antigravity_officialbot" target="_blank" class="contact-option">
+          <i class="fa-brands fa-telegram" style="color: #229ED9;"></i>
+          <div>
+            <div>Canal Oficial de Telegram</div>
+            <span class="opt-sub">Atención directa e interactiva</span>
+          </div>
+        </a>
+      </div>
+
+      <div id="copyToast" class="copy-toast">
+        <i class="fa-solid fa-circle-check"></i> ¡Correo nexus.ia.holding@gmail.com copiado al portapapeles!
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openContactModal(type) {
+      const modal = document.getElementById('contactModal');
+      const title = document.getElementById('modalTitle');
+      const desc = document.getElementById('modalDesc');
+      const linkGmail = document.getElementById('linkGmail');
+      const linkOutlook = document.getElementById('linkOutlook');
+      const linkMailto = document.getElementById('linkMailto');
+
+      let subject = "Propuesta de Patrocinio - CamperSites Pro";
+      if (type === 'area') {
+        subject = "Alta y Verificación de Área Camper - CamperSites Pro";
+        title.innerHTML = "🏕️ Destacar Área Camper en el Mapa";
+        desc.innerText = "Ponte en contacto para verificar tu camping o área privada y posicionarte en el mapa.";
+      } else {
+        title.innerHTML = "🤝 Contactar para Patrocinio Oficial";
+        desc.innerText = "Cuéntanos sobre tu marca o producto y diseñemos una colaboración a medida.";
+      }
+
+      const encodedSub = encodeURIComponent(subject);
+      linkGmail.href = `https://mail.google.com/mail/?view=cm&fs=1&to=nexus.ia.holding@gmail.com&su=${encodedSub}`;
+      linkOutlook.href = `https://outlook.live.com/mail/0/deeplink/compose?to=nexus.ia.holding@gmail.com&subject=${encodedSub}`;
+      linkMailto.href = `mailto:nexus.ia.holding@gmail.com?subject=${encodedSub}`;
+
+      modal.classList.add('active');
+    }
+
+    function closeContactModal() {
+      document.getElementById('contactModal').classList.remove('active');
+    }
+
+    function handleBackdropClick(e) {
+      if (e.target.id === 'contactModal') {
+        closeContactModal();
+      }
+    }
+
+    function copyEmailToClipboard() {
+      const email = 'nexus.ia.holding@gmail.com';
+      navigator.clipboard.writeText(email).then(() => {
+        const toast = document.getElementById('copyToast');
+        toast.style.display = 'block';
+        setTimeout(() => {
+          toast.style.display = 'none';
+        }, 3500);
+      });
+    }
+
+    // Cerrar con Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeContactModal();
+    });
+  </script>
 
   <!-- FOOTER -->
   <footer>
