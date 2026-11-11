@@ -3,7 +3,7 @@
   "versionCode": 4,
   "releaseDate": "2026-11-08",
   "downloadUrl": "https://github.com/NEXUS-IA-HOLDING/CamperSites-Pro/releases/download/v2.0.0/CamperSites-Pro-v2.0.0.apk",
-  "fallbackUrl": "https://nexus-ia-holding.github.io/CamperSites-Pro/#descarga",
+  "fallbackUrl": "https://camper.nexusaiholding.com/#descarga",
   "mandatory": false,
   "releaseNotes": "v2.0.2: Cartografía Fotorrealista Satelital Esri HD, Modo Híbrido con viales y toponimia, Terreno 3D Terrarium con sombreado de laderas Hillshade, Motor de Navegación Valhalla con Gálibo Camper (evita puentes bajos y túneles según dimensiones del vehículo), selector rápido flotante de 3 modos (🛰️ / 🗺️ / 📐) y descarga de cuadrícula satelital offline."
 }
