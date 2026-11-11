@@ -105,3 +105,20 @@ Este documento registra los fallos encontrados durante el ciclo de vida del proy
      - Ejecutar `cd android && ./gradlew assembleRelease` para empaquetar el bundle JS/TS real dentro de `android/app/build/outputs/apk/release/app-release.apk`.
      - Publicar la Release correspondiente en GitHub Releases con el archivo `.apk` adjunto y actualizar los enlaces de descarga en `docs/index.html`.
   2. Mantener siempre el doble canal OTA (`docs/version.json` en GitHub Pages + API de GitHub Releases) junto con `UpdateAvailableBanner.tsx` en `App.tsx` para garantizar que los avisos de actualización lleguen sin bloqueos por límites de peticiones (rate-limit).
+
+---
+
+## 12. Rendimiento en Pantallas GPS, Ciclos de Renderizado y Estabilidad en Dispositivo Real
+
+* **Problema:** En terminales reales, la ventana emergente de sugerencias de destinos se reabría de manera infinita cada 1-2 segundos sin dejar cerrarla, provocando lentitud progresiva y advertencias críticas de memoria (`TRIM_MEMORY_RUNNING_CRITICAL`).
+  * **Causa Raíz:** En `CockpitSearchBar.tsx`, el `useEffect` vigilaba `[query, currentCoords]`. En cada pulso de señal GPS, `currentCoords` cambiaba de referencia, recalculando las sugerencias para `query=""` y forzando `setShowResults(true)` en bucle continuo.
+  * **Solución Permanente:** Desacoplar la escucha reactiva del GPS del cálculo de sugerencias, y añadir un flag de cierre manual explícito (`manuallyClosed = true`) que bloquee la reapertura hasta que el usuario vuelva a enfocar o escribir activamente en el input.
+* **Problema:** El sistema de gamificación y vídeos de recompensa (`CamperRewardsService`) informaba falsamente de *"Vehículo en movimiento a >1.5 km/h"* impidiendo ver vídeos o canjear puntos incluso con el móvil inmóvil en una mesa.
+  * **Causa Raíz:** El umbral de velocidad estaba fijado en 0.5 km/h (0.13 m/s), muy por debajo del ruido y la deriva habitual de los relojes de satélite GPS en teléfonos inteligentes (1.5 - 2.5 km/h).
+  * **Solución Permanente:** Fijar un umbral calibrado de **3.5 km/h** tanto en el servicio de recompensas como en el motor de simulación de anuncios, filtrando el ruido estático sin comprometer la seguridad vial real.
+* **Problema:** Sobrecarga de VRAM y calentamiento del procesador gráfico al navegar entre el mapa principal y la pestaña Explorar.
+  * **Causa Raíz:** MapLibreGL mantenía dos instancias nativas de mapas con texturas vectoriales 3D cargadas simultáneamente en memoria (mapa principal + radar en explorar).
+  * **Solución Permanente:** Desmontar condicionalmente la vista de mapa del radar de proximidad en `ExploreScreen` cuando la pantalla pierde el foco (`isFocused === false`), liberando de golpe más de 150 MB de texturas de GPU.
+* **Problema:** Superposición de iconos de satélite, 3D, brújula y botones de reporte en la columna derecha de la pantalla.
+  * **Causa Raíz:** Múltiples componentes (`floatingModeSelector`, `quickReportFloatingBtn` y `MapControlDock`) posicionados de forma absoluta fija en `right: 14` con alturas fijas que colisionaban entre sí en pantallas estándar.
+  * **Solución Permanente:** Retirar botones flotantes redundantes y centralizar todas las utilidades camper (diésel/GLP, nivelador, pernocta, telemetría, medidas, copiloto y demo) dentro de un único botón compacto con flyout desplegable (`Herramientas Camper`), manteniendo la columna en menos de 5 botones limpios y bien espaciados.
