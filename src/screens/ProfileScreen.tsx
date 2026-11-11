@@ -45,6 +45,8 @@ import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal
 import { GooglePlaySupportCard } from '../components/GooglePlaySupportCard';
 import { AdminDashboardModal, AdminTab } from '../components/AdminDashboardModal';
 import { adminService, UserPlan, UserRole } from '../services/AdminService';
+import { VehicleCatalogModal } from '../components/VehicleCatalogModal';
+import { vehicleCatalogService, UserVehicleSetup } from '../services/VehicleCatalogService';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
@@ -197,6 +199,8 @@ export default function ProfileScreen() {
     environmentalBadge: 'C', name: '',
   });
   const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [exactVehicleSetup, setExactVehicleSetup] = useState<UserVehicleSetup | null>(null);
   const [tempVehicle, setTempVehicle] = useState<VehicleConfig>({
     type: '', height: '', width: '', length: '', weight: '', axles: '2',
     fuelType: 'diesel', rangeKm: '', tankCapacity: '', avgConsumption: '',
@@ -369,9 +373,47 @@ export default function ProfileScreen() {
 
   const loadVehicleConfig = async () => {
     try {
+      const exact = await vehicleCatalogService.loadUserVehicleSetup();
+      setExactVehicleSetup(exact);
       const saved = await AsyncStorage.getItem(VEHICLE_STORAGE_KEY);
-      if (saved) setVehicleConfig(JSON.parse(saved));
+      if (saved) {
+        setVehicleConfig(JSON.parse(saved));
+      } else if (exact) {
+        setVehicleConfig({
+          type: exact.category,
+          height: String(exact.height),
+          width: String(exact.width),
+          length: String(exact.length),
+          weight: String(Math.round(exact.weight * 1000)),
+          axles: '2',
+          fuelType: exact.fuelType,
+          rangeKm: '',
+          tankCapacity: String(exact.tankCapacityL),
+          avgConsumption: String(exact.avgConsumptionL100km),
+          environmentalBadge: exact.environmentalBadge,
+          name: `${exact.brand} ${exact.model}`,
+        });
+      }
     } catch (e) {}
+  };
+
+  const handleVehicleSavedFromCatalog = (setup: UserVehicleSetup) => {
+    setExactVehicleSetup(setup);
+    setVehicleConfig({
+      type: setup.category,
+      height: String(setup.height),
+      width: String(setup.width),
+      length: String(setup.length),
+      weight: String(Math.round(setup.weight * 1000)),
+      axles: '2',
+      fuelType: setup.fuelType,
+      rangeKm: '',
+      tankCapacity: String(setup.tankCapacityL),
+      avgConsumption: String(setup.avgConsumptionL100km),
+      environmentalBadge: setup.environmentalBadge,
+      name: `${setup.brand} ${setup.model}`,
+    });
+    setShowCatalogModal(false);
   };
 
   const saveVehicleConfig = async (config: VehicleConfig) => {
@@ -420,8 +462,7 @@ export default function ProfileScreen() {
   };
 
   const openVehicleModal = () => {
-    setTempVehicle({ ...vehicleConfig });
-    setShowVehicleModal(true);
+    setShowCatalogModal(true);
   };
 
   const getVehicleEmoji = () => {
@@ -599,6 +640,33 @@ export default function ProfileScreen() {
           <Text style={styles.vehicleHint}>
             Las rutas se adaptarán a las dimensiones de tu vehículo
           </Text>
+
+          {/* Accesos Rápidos a Catálogo, Recambios Autodoc y Gadgets Amazon */}
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
+            <TouchableOpacity
+              style={styles.vehicleQuickBtn}
+              activeOpacity={0.8}
+              onPress={() => setShowCatalogModal(true)}>
+              <Icon name="book-open-page-variant" size={14} color="#38BDF8" style={{ marginRight: 4 }} />
+              <Text style={styles.vehicleQuickBtnText}>Catálogo</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.vehicleQuickBtn, { borderColor: 'rgba(16, 185, 129, 0.4)' }]}
+              activeOpacity={0.8}
+              onPress={() => setShowCatalogModal(true)}>
+              <Icon name="wrench" size={14} color="#10B981" style={{ marginRight: 4 }} />
+              <Text style={[styles.vehicleQuickBtnText, { color: '#10B981' }]}>Autodoc</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.vehicleQuickBtn, { borderColor: 'rgba(251, 191, 36, 0.4)' }]}
+              activeOpacity={0.8}
+              onPress={() => setShowCatalogModal(true)}>
+              <Icon name="storefront-outline" size={14} color="#FBBF24" style={{ marginRight: 4 }} />
+              <Text style={[styles.vehicleQuickBtnText, { color: '#FBBF24' }]}>Amazon</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ============================================ */}
@@ -1497,6 +1565,13 @@ export default function ProfileScreen() {
           loadActivePrivilege();
         }}
       />
+
+      {/* MODAL CATÁLOGO OFICIAL DE VEHÍCULOS, MEDIDAS Y RECAMBIOS */}
+      <VehicleCatalogModal
+        visible={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        onVehicleSaved={handleVehicleSavedFromCatalog}
+      />
     </View>
   );
 }
@@ -1680,6 +1755,22 @@ const styles = StyleSheet.create({
   dimText: { fontSize: 13, fontWeight: '600', color: '#CBD5E1' },
   vehicleHint: {
     fontSize: 12, color: '#64748B', marginTop: 8, fontStyle: 'italic', textAlign: 'center',
+  },
+  vehicleQuickBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E293B',
+    borderRadius: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  vehicleQuickBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#38BDF8',
   },
 
   // Premium

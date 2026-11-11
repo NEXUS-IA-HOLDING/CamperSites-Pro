@@ -537,55 +537,6 @@ class AdminService {
       }
     } catch {}
 
-    // Si aún no hay incidencias locales guardadas, inicializar con registros reales de muestra para que el panel sea claro
-    if (list.length === 0) {
-      const seedIncidents: AppIncidentRecord[] = [
-        {
-          id: 'inc-seed-1',
-          title: ' Puente de 2.6m sin señalizar en carretera comarcal CV-310',
-          description: 'Usuario en Autocaravana Capuchina (3.1m) reporta paso inferior estrecho a la salida de Náquera. Solicita añadir restricción de gálibo al mapa.',
-          severity: 'map_data',
-          status: 'open',
-          userEmail: 'carlos.camper@gmail.com',
-          userName: 'Carlos Viajero',
-          vehicleType: 'Autocaravana >7m',
-          latitude: 39.6572,
-          longitude: -0.4256,
-          appVersion: '1.1.0',
-          createdAt: 'Hoy, 11:20',
-        },
-        {
-          id: 'inc-seed-2',
-          title: '🆘 Aviso Pista Forestal Cortada por Desprendimiento (Ruta Moto Trail)',
-          description: 'Grupo de 3 motos trail reporta pista forestal bloqueada por caída de pinos tras lluvia en Sierra de Guadarrama. Ruta alternativa por asfalto necesaria.',
-          severity: 'critical_sos',
-          status: 'investigating',
-          userEmail: 'david.gs1250@mototrail.es',
-          userName: 'David Adventure GS',
-          vehicleType: 'Moto Trail / Enduro',
-          latitude: 40.7824,
-          longitude: -3.9912,
-          appVersion: '1.1.0',
-          createdAt: 'Hoy, 09:45',
-        },
-        {
-          id: 'inc-seed-3',
-          title: '✅ Verificación de Velocidad GPS en Modo 3D Completada',
-          description: 'El motor de cámara 3D Look-Ahead y cálculo de velocidad por delta Haversine funciona sin tirones en Samsung Galaxy S23.',
-          severity: 'feedback',
-          status: 'resolved',
-          userEmail: 'lucia.rutas@outlook.es',
-          userName: 'Lucía Autocaravanas',
-          vehicleType: 'Furgoneta Camper',
-          appVersion: '1.1.0',
-          createdAt: 'Ayer, 19:30',
-          resolvedAt: 'Ayer, 20:15',
-        },
-      ];
-      await AsyncStorage.setItem(ADMIN_INCIDENTS_KEY, JSON.stringify(seedIncidents));
-      return seedIncidents;
-    }
-
     return list;
   }
 
@@ -855,62 +806,6 @@ class AdminService {
       });
     }
 
-    if (records.length <= 1) {
-      const seedUsers: AdminUserRecord[] = [
-        {
-          id: 'usr-demo-1',
-          email: 'carlos.camper@gmail.com',
-          displayName: 'Carlos Viajero (Camper)',
-          role: 'user',
-          plan: 'pro_monthly',
-          isBlocked: false,
-          createdAt: '2026-10-25',
-          lastLogin: 'Hace 2 horas',
-          totalSpentEur: 4.99,
-        },
-        {
-          id: 'usr-demo-2',
-          email: 'lucia.rutas@outlook.es',
-          displayName: 'Lucía Autocaravanas',
-          role: 'staff',
-          plan: 'pro_annual',
-          isBlocked: false,
-          createdAt: '2026-10-20',
-          lastLogin: 'Ayer',
-          totalSpentEur: 39.99,
-        },
-        {
-          id: 'usr-demo-3',
-          email: 'david.gs1250@mototrail.es',
-          displayName: 'David GS (Moto Trail)',
-          role: 'user',
-          plan: 'pro_annual',
-          isBlocked: false,
-          createdAt: '2026-10-18',
-          lastLogin: 'Hace 35 min',
-          totalSpentEur: 39.99,
-        },
-        {
-          id: 'usr-demo-4',
-          email: 'spam.bot@suspicious.net',
-          displayName: 'Usuario Sospechoso',
-          role: 'user',
-          plan: 'free',
-          isBlocked: true,
-          createdAt: '2026-10-29',
-          lastLogin: 'Hace 3 días',
-          totalSpentEur: 0,
-        },
-      ];
-
-      seedUsers.forEach((u) => {
-        if (!seenEmails.has(u.email.toLowerCase())) {
-          records.push(u);
-        }
-      });
-      await AsyncStorage.setItem(ADMIN_LOCAL_USERS_KEY, JSON.stringify(records));
-    }
-
     return records;
   }
 
@@ -1039,13 +934,10 @@ class AdminService {
         bonusPoints: 1000,
         offlineCredits: 52,
         maxUses: 25,
-        usedCount: 2,
+        usedCount: 0,
         isActive: true,
         createdAt: '2026-11-01',
-        redeemedBy: [
-          { emailOrName: 'Hermano / Familia', date: '02/11 18:30' },
-          { emailOrName: 'Primo Ruta Camper', date: '03/11 10:15' },
-        ],
+        redeemedBy: [],
       },
       {
         id: 'code-seed-amigos',
@@ -1057,14 +949,10 @@ class AdminService {
         bonusPoints: 500,
         offlineCredits: 10,
         maxUses: 50,
-        usedCount: 3,
+        usedCount: 0,
         isActive: true,
         createdAt: '2026-11-01',
-        redeemedBy: [
-          { emailOrName: 'Carlos Viajero', date: '02/11 21:00' },
-          { emailOrName: 'Dani Furgoneta', date: '03/11 14:20' },
-          { emailOrName: 'Marta Overland', date: '04/11 09:10' },
-        ],
+        redeemedBy: [],
       },
       {
         id: 'code-seed-compis',
@@ -1076,10 +964,10 @@ class AdminService {
         bonusPoints: 500,
         offlineCredits: 15,
         maxUses: 50,
-        usedCount: 1,
+        usedCount: 0,
         isActive: true,
         createdAt: '2026-11-01',
-        redeemedBy: [{ emailOrName: 'David GS1250', date: '03/11 19:45' }],
+        redeemedBy: [],
       },
       {
         id: 'code-seed-fundador',
@@ -1091,10 +979,10 @@ class AdminService {
         bonusPoints: 350,
         offlineCredits: 5,
         maxUses: 100,
-        usedCount: 4,
+        usedCount: 0,
         isActive: true,
         createdAt: '2026-11-01',
-        redeemedBy: [{ emailOrName: 'Pionero #1', date: '01/11 12:00' }],
+        redeemedBy: [],
       },
       {
         id: 'code-seed-staff',
@@ -1106,10 +994,10 @@ class AdminService {
         bonusPoints: 1500,
         offlineCredits: 52,
         maxUses: 10,
-        usedCount: 1,
+        usedCount: 0,
         isActive: true,
         createdAt: '2026-11-01',
-        redeemedBy: [{ emailOrName: 'Lucía Moderación', date: '01/11 16:40' }],
+        redeemedBy: [],
       },
     ];
   }

@@ -66,8 +66,8 @@ class LocationReviewsService {
       Logger.error('LocationReviews', 'Error leyendo caché local', e);
     }
 
-    // Mock realista si no hay reseñas aún
-    return this.getMockReviews(locationId);
+    // Si no hay reseñas registradas aún en Supabase ni en caché local, retornar lista vacía limpia
+    return [];
   }
 
   /**
@@ -149,35 +149,6 @@ class LocationReviewsService {
       safetyScorePercentage: safetyPercent,
       noiseDominant: dominantNoise,
     };
-  }
-
-  private getMockReviews(locationId: string): LocationReview[] {
-    return [
-      {
-        id: 'mock_1_' + locationId,
-        location_id: locationId,
-        user_display_name: 'Carlos - Autocaravana 7.2m',
-        vehicle_type: 'camper',
-        rating: 5,
-        safety_rating: 'SEGURO',
-        noise_level: 'SILENCIOSO',
-        verified_services: ['Agua potable', 'Vaciado aguas negras', 'Sombra'],
-        comment: 'Sitio estupendo para pernoctar. Iluminado por la noche, suelo nivelado y muy tranquilo.',
-        created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: 'mock_2_' + locationId,
-        location_id: locationId,
-        user_display_name: 'Manuel - Transporte Pesado 40T',
-        vehicle_type: 'truck',
-        rating: 4,
-        safety_rating: 'SEGURO',
-        noise_level: 'MODERADO',
-        verified_services: ['Parking articulados', 'Restaurante 24h', 'Duchas limpias'],
-        comment: 'Buen acceso desde la autovía, plazas amplias para tráiler. Menú del día económico.',
-        created_at: new Date(Date.now() - 6 * 24 * 3600 * 1000).toISOString(),
-      },
-    ];
   }
 }
 

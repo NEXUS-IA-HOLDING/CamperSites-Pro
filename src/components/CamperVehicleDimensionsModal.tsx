@@ -21,6 +21,8 @@ import {
   DEFAULT_CAMPER_DIMENSIONS,
 } from '../services/CamperValhallaRoutingService';
 import { OfflineMapTileService } from '../services/OfflineMapTileService';
+import { VehicleCatalogModal } from './VehicleCatalogModal';
+import { UserVehicleSetup } from '../services/VehicleCatalogService';
 
 interface Props {
   visible: boolean;
@@ -41,6 +43,7 @@ export const CamperVehicleDimensionsModal: React.FC<Props> = ({
   const [weight, setWeight] = useState<number>(DEFAULT_CAMPER_DIMENSIONS.weight);
   const [excludeTolls, setExcludeTolls] = useState<boolean>(false);
   const [isDownloadingOffline, setIsDownloadingOffline] = useState<boolean>(false);
+  const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (visible) {
@@ -139,6 +142,19 @@ export const CamperVehicleDimensionsModal: React.FC<Props> = ({
                 <Text style={styles.boldText}>{height.toFixed(2)}m</Text> y calles no aptas para tu longitud.
               </Text>
             </View>
+
+            {/* Botón Catálogo Oficial de Modelos */}
+            <TouchableOpacity
+              style={styles.catalogShortcutBtn}
+              activeOpacity={0.85}
+              onPress={() => setShowCatalogModal(true)}>
+              <Icon name="book-open-page-variant" size={20} color="#38BDF8" style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.catalogShortcutTitle}>Elegir Modelo Exacto del Catálogo</Text>
+                <Text style={styles.catalogShortcutSub}>Fiat Ducato, VW California, Benimar, Sprinter, etc.</Text>
+              </View>
+              <Icon name="chevron-right" size={20} color="#38BDF8" />
+            </TouchableOpacity>
 
             {/* Selector de Altura */}
             <View style={styles.fieldCard}>
@@ -282,6 +298,18 @@ export const CamperVehicleDimensionsModal: React.FC<Props> = ({
           </View>
         </View>
       </View>
+
+      <VehicleCatalogModal
+        visible={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        onVehicleSaved={(setup) => {
+          setHeight(setup.height);
+          setWidth(setup.width);
+          setLength(setup.length);
+          setWeight(setup.weight);
+          setShowCatalogModal(false);
+        }}
+      />
     </Modal>
   );
 };
@@ -344,7 +372,27 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.3)',
+    marginBottom: 10,
+  },
+  catalogShortcutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 132, 199, 0.15)',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
     marginBottom: 14,
+  },
+  catalogShortcutTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#38BDF8',
+  },
+  catalogShortcutSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
   },
   safetyText: {
     color: '#D1FAE5',

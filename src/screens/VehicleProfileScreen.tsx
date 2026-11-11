@@ -24,6 +24,8 @@ import { supabase } from '../lib/supabase';
 import { sanitizeInput } from '../lib/security';
 import { Logger } from '../utils/logger';
 import { profileAssistantService, VehicleProfileData, ConversationStep } from '../services/ProfileAssistantService';
+import { VehicleCatalogModal } from '../components/VehicleCatalogModal';
+import { UserVehicleSetup } from '../services/VehicleCatalogService';
 
 interface VehicleProfileScreenProps {
   onComplete: () => void;
@@ -42,6 +44,25 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
   });
   const [inputValue, setInputValue] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+
+  const handleVehicleSavedFromCatalog = async (setup: UserVehicleSetup) => {
+    setShowCatalogModal(false);
+    setIsSaving(true);
+    try {
+      await AsyncStorage.setItem('@camper_profile_completed', 'true');
+      await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
+      Alert.alert(
+        '¡Vehículo Configurado!',
+        `Se ha guardado tu ${setup.brand} ${setup.model} (${setup.height}m / ${setup.length}m) con motor de ${setup.horsepower} CV.`,
+        [{ text: 'Comenzar a Viajar', onPress: onComplete }]
+      );
+    } catch (e) {
+      onComplete();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Iniciar conversación al montar
   useEffect(() => {
@@ -342,6 +363,19 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
         <Text style={styles.subtitle}>Configura el gálibo y medidas de tu vehículo para evitar puentes bajos y calles estrechas</Text>
       </View>
 
+      {/* Acceso directo al Catálogo Oficial de Vehículos */}
+      <TouchableOpacity
+        style={styles.catalogBannerBtn}
+        activeOpacity={0.85}
+        onPress={() => setShowCatalogModal(true)}>
+        <Icon name="book-open-page-variant" size={20} color="#38BDF8" style={{ marginRight: 10 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.catalogBannerTitle}>¿Elegir modelo del Catálogo Oficial?</Text>
+          <Text style={styles.catalogBannerSub}>Medidas exactas de Fiat Ducato, VW, Ford, Benimar, etc.</Text>
+        </View>
+        <Icon name="chevron-right" size={20} color="#38BDF8" />
+      </TouchableOpacity>
+
       <View style={styles.progressBarContainer}>
         <View style={[styles.progressBar, { width: `${progress}%` }]} />
         <Text style={styles.progressText}>{Math.round(progress)}%</Text>
@@ -389,6 +423,12 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
           <ActivityIndicator size="small" color="#38BDF8" />
         )}
       </View>
+
+      <VehicleCatalogModal
+        visible={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        onVehicleSaved={handleVehicleSavedFromCatalog}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -421,6 +461,27 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: Platform.OS === 'android' ? 44 : 20,
     alignItems: 'center',
+  },
+  catalogBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 132, 199, 0.15)',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+  },
+  catalogBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#38BDF8',
+  },
+  catalogBannerSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
   },
   iconContainer: {
     width: 68,

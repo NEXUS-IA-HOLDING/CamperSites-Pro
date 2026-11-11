@@ -14,6 +14,7 @@ import {
   Platform,
   Alert,
   TextInput,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
@@ -302,6 +303,36 @@ export const VehicleTelemetryModal: React.FC<Props> = ({
                   <Icon name="tune-variant" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                   <Text style={styles.calibrateTiresBtnText}>Fijar / Calibrar Presión Objetivo</Text>
                 </TouchableOpacity>
+
+                {/* Banner Accesorios Amazon: TPMS & Compresor */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+                    borderWidth: 1.5,
+                    borderColor: 'rgba(217, 119, 6, 0.4)',
+                    borderRadius: 14,
+                    padding: 12,
+                    marginTop: 10,
+                    marginBottom: 4,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    const url = 'https://www.amazon.es/s?k=tpms+solar+autocaravana+compresor+12v&tag=campersites-21';
+                    Linking.openURL(url).catch(() => {});
+                  }}>
+                  <Icon name="amazon" size={22} color="#FBBF24" style={{ marginRight: 10 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#FBBF24' }}>
+                      📦 Sensores TPMS y Compresor 12V en Amazon
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                      Kits de inflado rápido y monitorización continua de temperatura
+                    </Text>
+                  </View>
+                  <Icon name="chevron-right" size={20} color="#FBBF24" />
+                </TouchableOpacity>
               </View>
             )}
 
@@ -341,6 +372,35 @@ export const VehicleTelemetryModal: React.FC<Props> = ({
                 {renderMaintenanceCard(telemetry.maintenance.fuelFilter, 'fuelFilter')}
                 {renderMaintenanceCard(telemetry.maintenance.airFilter, 'airFilter')}
                 {renderMaintenanceCard(telemetry.maintenance.brakeFluid, 'brakeFluid')}
+
+                {/* Banner de Recambios Homologados Autodoc */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    borderWidth: 1.5,
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    borderRadius: 14,
+                    padding: 12,
+                    marginBottom: 14,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    const url = 'https://www.autodoc.es/repuestos/fiat/ducato?tag=campersitespro';
+                    Linking.openURL(url).catch(() => {});
+                  }}>
+                  <Icon name="wrench-check" size={24} color="#10B981" style={{ marginRight: 10 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#10B981' }}>
+                      🛠️ Comprar Recambios Homologados en Autodoc
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                      Filtros de aceite, combustible, pastillas y recambios oficiales
+                    </Text>
+                  </View>
+                  <Icon name="chevron-right" size={20} color="#10B981" />
+                </TouchableOpacity>
 
                 {/* Sección de Tips & Consejos Clave para Mantener el Vehículo al Día */}
                 <View style={styles.tipsSection}>
