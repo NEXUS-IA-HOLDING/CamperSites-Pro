@@ -77,6 +77,8 @@ export interface CockpitLocationDetailSheetProps {
   distanceKm?: number;
   vehicleHeight?: number;
   onClose: () => void;
+  onCollapseToStandard?: () => void;
+  onMinimizeToBar?: () => void;
   onStartRoute: (location: LocationItem) => void;
   onOpenReviews: (location: LocationItem) => void;
   routes?: any[];
@@ -92,6 +94,8 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
   distanceKm,
   vehicleHeight,
   onClose,
+  onCollapseToStandard,
+  onMinimizeToBar,
   onStartRoute,
   onOpenReviews,
   routes,
@@ -302,7 +306,15 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
       <TouchableOpacity
         style={styles.dragHandleContainer}
         activeOpacity={0.7}
-        onPress={() => setIsExpanded(!isExpanded)}>
+        onPress={() => {
+          if (isExpanded) {
+            setIsExpanded(false);
+          } else if (onCollapseToStandard) {
+            onCollapseToStandard();
+          } else {
+            setIsExpanded(!isExpanded);
+          }
+        }}>
         <View style={styles.dragHandle} />
         <View style={styles.expandHintRow}>
           <Icon
@@ -314,6 +326,8 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
           <Text style={styles.expandHintText}>
             {isExpanded
               ? 'Contraer panel táctico'
+              : onCollapseToStandard
+              ? 'Toca para contraer a resumen o desliza'
               : 'Toca aquí o en el título para ampliar y modificar servicios / rutas'}
           </Text>
         </View>
@@ -393,9 +407,20 @@ export const CockpitLocationDetailSheet: React.FC<CockpitLocationDetailSheetProp
             <Icon name="google-maps" size={18} color="#38BDF8" />
           </TouchableOpacity>
 
+          {onCollapseToStandard && (
+            <TouchableOpacity
+              onPress={onCollapseToStandard}
+              style={styles.actionIconBtn}
+              accessibilityLabel="Contraer a resumen"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="chevron-down" size={22} color="#38BDF8" />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             onPress={onClose}
             style={styles.closeBtn}
+            accessibilityLabel="Cerrar destino"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Icon name="close" size={20} color="#94A3B8" />
           </TouchableOpacity>
