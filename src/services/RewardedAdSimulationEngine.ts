@@ -63,7 +63,7 @@ export interface AdSimulationCallbacks {
 }
 
 export const AD_SIMULATION_DURATION_SECONDS = 5;
-export const STATIONARY_SPEED_THRESHOLD_KMH = 5.0;
+export const STATIONARY_SPEED_THRESHOLD_KMH = 3.5;
 
 export class RewardedAdSimulationEngine {
   private active = false;

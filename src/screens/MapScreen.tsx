@@ -2120,31 +2120,100 @@ const MapScreen = () => {
     }
   }, [isNavigating, currentLocation]);
 
-  // Generar GeoJSON para la ruta seleccionada
-  const routeGeoJSON = selectedRoute ? {
-    type: 'FeatureCollection' as const,
-    features: [{
-      type: 'Feature' as const,
-      geometry: {
-        type: 'LineString' as const,
-        coordinates: selectedRoute.coordinates.map(c => [c.longitude, c.latitude]),
-      },
-      properties: {},
-    }],
-  } : null;
+  // Generar GeoJSON memoizado para la ruta seleccionada con metadatos de gálibo
+  const routeGeoJSON = useMemo(() => {
+    if (!selectedRoute) return null;
+    return {
+      type: 'FeatureCollection' as const,
+      features: [{
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: selectedRoute.coordinates.map(c => [c.longitude, c.latitude]),
+        },
+        properties: {
+          id: selectedRoute.id || 'selected-route',
+          hasClearanceHazard: !!selectedRoute.clearanceHazard,
+        },
+      }],
+    };
+  }, [selectedRoute]);
 
-  // GeoJSON para rutas alternativas
-  const altRoutesGeoJSON = routes.filter(r => r !== selectedRoute).length > 0 ? {
-    type: 'FeatureCollection' as const,
-    features: routes.filter(r => r !== selectedRoute).map(route => ({
-      type: 'Feature' as const,
-      geometry: {
-        type: 'LineString' as const,
-        coordinates: route.coordinates.map(c => [c.longitude, c.latitude]),
-      },
-      properties: {},
-    })),
-  } : null;
+  // GeoJSON para rutas alternativas con identificadores para selección táctil en mapa
+  const altRoutesGeoJSON = useMemo(() => {
+    const alts = routes.filter(r => r !== selectedRoute);
+    if (alts.length === 0) return null;
+
+    return {
+      type: 'FeatureCollection' as const,
+      features: alts.map((route, index) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: route.coordinates.map(c => [c.longitude, c.latitude]),
+        },
+        properties: {
+          routeId: route.id || `alt-route-${index}`,
+          routeIndex: routes.indexOf(route),
+        },
+      })),
+    };
+  }, [routes, selectedRoute]);
+
+  // Manejador de selección táctil directa sobre el trazado de rutas alternativas en el mapa
+  const handleAltRoutePress = useCallback((event: any) => {
+    const clickedFeature = event?.features?.[0];
+    if (!clickedFeature) return;
+
+    const rId = clickedFeature.properties?.routeId;
+    const rIdx = clickedFeature.properties?.routeIndex;
+
+    const matchedRoute = routes.find(r => r.id && r.id === rId) ??
+      (typeof rIdx === 'number' && routes[rIdx] ? routes[rIdx] : null);
+
+    if (matchedRoute && matchedRoute !== selectedRoute) {
+      setSelectedRoute(matchedRoute);
+    }
+  }, [routes, selectedRoute]);
+
+  // Badges flotantes de ETA (+X min) en el punto medio de rutas alternativas
+  const alternativeRouteBadges = useMemo(() => {
+    if (!selectedRoute || routes.length <= 1) return [];
+
+    return routes
+      .filter(r => r !== selectedRoute && r.coordinates && r.coordinates.length > 1)
+      .map((altRoute, index) => {
+        const midIdx = Math.floor(altRoute.coordinates.length / 2);
+        const midCoord = altRoute.coordinates[midIdx];
+
+        const diffSec = altRoute.duration - selectedRoute.duration;
+        const diffMin = Math.round(diffSec / 60);
+
+        let label = '';
+        if (diffMin > 0) {
+          label = `+${diffMin} min`;
+        } else if (diffMin < 0) {
+          label = `${diffMin} min`;
+        } else {
+          label = 'Mismo tiempo';
+        }
+
+        return {
+          id: altRoute.id || `alt-badge-${index}`,
+          route: altRoute,
+          coordinate: [midCoord.longitude, midCoord.latitude] as [number, number],
+          label,
+          diffMin,
+          hasClearanceHazard: !!altRoute.clearanceHazard,
+          hazardHeight: altRoute.clearanceHazard?.hazard.maxAllowedHeight,
+        };
+      });
+  }, [routes, selectedRoute]);
+
+  // Detección de peligro de gálibo activo en la ruta actual o en proximidad
+  const displayedClearanceHazard = useMemo(() => {
+    return selectedRoute?.clearanceHazard?.hazard || activeClearanceHazard?.hazard || null;
+  }, [selectedRoute?.clearanceHazard, activeClearanceHazard]);
 
   // Filtrar ubicaciones según filtros avanzados (Park4Night), filtros rápidos o perfil de vehículo
   const filteredLocations = useMemo(() => {
@@ -2241,6 +2310,7 @@ const MapScreen = () => {
           onSelectSearchResult={async (result) => {
             const locItem = result as Location;
             setSelectedLocation(locItem);
+            setDestinationSheetMode('standard');
             setDestinationSheetMode('standard');
             currentMapCenterRef.current = [result.longitude, result.latitude];
             cameraRef.current?.setCamera({
@@ -2446,7 +2516,7 @@ const MapScreen = () => {
               coordinate={[location.longitude, location.latitude]}
               onSelected={() => {
                 setSelectedLocation(location);
-                setShowFullDetailSheet(false);
+                setDestinationSheetMode('standard');
                 const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
                 const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
                 calculateRoutes(fromLat, fromLng, location.latitude, location.longitude, false, false);
@@ -2517,25 +2587,57 @@ const MapScreen = () => {
           );
         })}
 
-        {/* Ruta seleccionada (Doble capa: Borde oscuro de contraste + Trazo azul Waze/Google Maps HD) */}
-        {routeGeoJSON && (
-          <MapLibreGL.ShapeSource id="route-source" shape={routeGeoJSON}>
+        {/* Rutas alternativas (Doble capa: Casing oscuro + Trazo slate con tap-to-select interactivo) */}
+        {altRoutesGeoJSON && (
+          <MapLibreGL.ShapeSource
+            id="alt-routes-source"
+            shape={altRoutesGeoJSON}
+            hitbox={{ width: 44, height: 44 }}
+            onPress={handleAltRoutePress}
+          >
             <MapLibreGL.LineLayer
-              id="route-casing"
-              belowLayerID="route-line"
+              id="alt-routes-casing"
+              belowLayerID="alt-routes-core"
               style={{
-                lineColor: '#0D47A1',
-                lineWidth: 9,
+                lineColor: '#1E293B',
+                lineWidth: 7,
+                lineCap: 'round',
+                lineJoin: 'round',
+                lineOpacity: 0.8,
+              }}
+            />
+            <MapLibreGL.LineLayer
+              id="alt-routes-core"
+              style={{
+                lineColor: '#94A3B8',
+                lineWidth: 4.5,
                 lineCap: 'round',
                 lineJoin: 'round',
                 lineOpacity: 0.85,
               }}
             />
+          </MapLibreGL.ShapeSource>
+        )}
+
+        {/* Ruta seleccionada (Doble capa Waze/Google Maps: Casing marino/carmesí + Core azul/rojo gálibo) */}
+        {routeGeoJSON && (
+          <MapLibreGL.ShapeSource id="route-source" shape={routeGeoJSON}>
             <MapLibreGL.LineLayer
-              id="route-line"
+              id="route-casing"
+              belowLayerID="route-core"
               style={{
-                lineColor: '#29B6F6',
-                lineWidth: 5.5,
+                lineColor: selectedRoute?.clearanceHazard ? '#7F1D1D' : '#1E3A8A',
+                lineWidth: 10,
+                lineCap: 'round',
+                lineJoin: 'round',
+                lineOpacity: 0.9,
+              }}
+            />
+            <MapLibreGL.LineLayer
+              id="route-core"
+              style={{
+                lineColor: selectedRoute?.clearanceHazard ? '#EF4444' : '#2563EB',
+                lineWidth: 6,
                 lineCap: 'round',
                 lineJoin: 'round',
                 lineOpacity: 1.0,
@@ -2544,31 +2646,82 @@ const MapScreen = () => {
           </MapLibreGL.ShapeSource>
         )}
 
-        {/* Rutas alternativas */}
-        {altRoutesGeoJSON && (
-          <MapLibreGL.ShapeSource id="alt-routes-source" shape={altRoutesGeoJSON}>
-            <MapLibreGL.LineLayer
-              id="alt-routes-casing"
-              belowLayerID="alt-routes-line"
-              style={{
-                lineColor: '#374151',
-                lineWidth: 6,
-                lineCap: 'round',
-                lineJoin: 'round',
-                lineOpacity: 0.6,
-              }}
-            />
-            <MapLibreGL.LineLayer
-              id="alt-routes-line"
-              style={{
-                lineColor: '#94A3B8',
-                lineWidth: 3.5,
-                lineCap: 'round',
-                lineJoin: 'round',
-                lineDasharray: [3, 3],
-              }}
-            />
-          </MapLibreGL.ShapeSource>
+        {/* Badges de ETA (+X min) en el punto medio de rutas alternativas */}
+        {alternativeRouteBadges.map((badge) => (
+          <MapLibreGL.PointAnnotation
+            key={`alt-eta-${badge.id}`}
+            id={`alt-eta-${badge.id}`}
+            coordinate={badge.coordinate}
+            onSelected={() => setSelectedRoute(badge.route)}
+          >
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setSelectedRoute(badge.route)}
+              style={[
+                styles.altRouteEtaBadge,
+                badge.hasClearanceHazard && styles.altRouteEtaBadgeHazard,
+              ]}
+            >
+              {badge.hasClearanceHazard ? (
+                <>
+                  <Icon name="alert-octagon" size={13} color="#EF4444" style={{ marginRight: 3 }} />
+                  <Text style={styles.altRouteEtaHazardText}>
+                    ⛔ {badge.hazardHeight ? `${badge.hazardHeight.toFixed(1)}m` : 'Gálibo'}
+                  </Text>
+                  <Text style={[styles.altRouteEtaText, { marginLeft: 3 }]}>
+                    {badge.label}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Icon name="clock-outline" size={12} color="#94A3B8" style={{ marginRight: 3 }} />
+                  <Text style={styles.altRouteEtaText}>{badge.label}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </MapLibreGL.PointAnnotation>
+        ))}
+
+        {/* Marcador de Gálibo Crítico en ruta (Pórtico / Barrera / Puente bajo) */}
+        {displayedClearanceHazard && (
+          <MapLibreGL.PointAnnotation
+            key={`hazard-${displayedClearanceHazard.id}`}
+            id={`hazard-${displayedClearanceHazard.id}`}
+            coordinate={[displayedClearanceHazard.longitude, displayedClearanceHazard.latitude]}
+          >
+            <View style={styles.clearanceHazardPin}>
+              <View style={styles.clearanceHazardPinBadge}>
+                <Icon name="alert-octagon" size={14} color="#FFFFFF" style={{ marginRight: 3 }} />
+                <Text style={styles.clearanceHazardPinText}>
+                  ⛔ {displayedClearanceHazard.maxAllowedHeight.toFixed(1)}m
+                </Text>
+              </View>
+              <View style={styles.clearanceHazardPinNeedle} />
+            </View>
+            <MapLibreGL.Callout title={`⛔ Gálibo ${displayedClearanceHazard.maxAllowedHeight.toFixed(2)}m`}>
+              <View style={styles.clearanceHazardCallout}>
+                <View style={styles.clearanceHazardCalloutHeader}>
+                  <Icon name="alert-octagon" size={16} color="#EF4444" style={{ marginRight: 5 }} />
+                  <Text style={styles.clearanceHazardCalloutTitle}>
+                    Peligro Gálibo: {displayedClearanceHazard.maxAllowedHeight.toFixed(2)}m
+                  </Text>
+                </View>
+                <Text style={styles.clearanceHazardCalloutDesc}>
+                  {displayedClearanceHazard.description}
+                </Text>
+                {displayedClearanceHazard.roadName && (
+                  <Text style={styles.clearanceHazardCalloutMeta}>
+                    Vía: {displayedClearanceHazard.roadName}
+                  </Text>
+                )}
+                {displayedClearanceHazard.spotName && (
+                  <Text style={styles.clearanceHazardCalloutMeta}>
+                    Punto: {displayedClearanceHazard.spotName}
+                  </Text>
+                )}
+              </View>
+            </MapLibreGL.Callout>
+          </MapLibreGL.PointAnnotation>
         )}
       </MapLibreGL.MapView>
 
@@ -3145,6 +3298,7 @@ const MapScreen = () => {
               description: `Destino de etapa generado por el Copiloto IA de CamperSites Pro`,
             };
             setSelectedLocation(locItem);
+            setDestinationSheetMode('standard');
             const targetCoord: [number, number] = [coordinates[0], coordinates[1]];
             currentMapCenterRef.current = targetCoord;
             setCameraCenter(targetCoord);
@@ -3913,6 +4067,92 @@ const styles = StyleSheet.create({
   },
   modeIcon: {
     fontSize: 16,
+  },
+  altRouteEtaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#64748B',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  altRouteEtaBadgeHazard: {
+    borderColor: '#EF4444',
+    backgroundColor: 'rgba(127, 29, 29, 0.92)',
+  },
+  altRouteEtaText: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  altRouteEtaHazardText: {
+    color: '#FCA5A5',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  clearanceHazardPin: {
+    alignItems: 'center',
+  },
+  clearanceHazardPinBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#FEE2E2',
+    elevation: 8,
+  },
+  clearanceHazardPinText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  clearanceHazardPinNeedle: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#DC2626',
+  },
+  clearanceHazardCallout: {
+    backgroundColor: '#0F172A',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#DC2626',
+    maxWidth: 220,
+  },
+  clearanceHazardCalloutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  clearanceHazardCalloutTitle: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  clearanceHazardCalloutDesc: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  clearanceHazardCalloutMeta: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 3,
   },
 });
 

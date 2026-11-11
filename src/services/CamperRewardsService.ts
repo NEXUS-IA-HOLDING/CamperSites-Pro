@@ -96,7 +96,7 @@ export interface CommunityPointClaim {
 }
 
 const STORAGE_KEY = '@campersites_rewards_profile';
-export const STATIONARY_SPEED_THRESHOLD_KMH = 5.0; // Tolerancia estándar automotriz a deriva y ruido GPS estático en parado (evita falsos positivos de movimiento a pie o en escritorio)
+export const STATIONARY_SPEED_THRESHOLD_KMH = 3.5; // Tolerancia realista a deriva y ruido GPS estático en parado (evita falsos positivos de movimiento)
 export const MAX_DAILY_ADS = 3;
 export const AD_REWARD_POINTS = 15;
 export const AD_COOLDOWN_MS = 60000; // 60 segundos entre anuncios
