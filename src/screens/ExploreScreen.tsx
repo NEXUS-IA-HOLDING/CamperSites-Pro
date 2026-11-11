@@ -816,82 +816,72 @@ export default function ExploreScreen() {
           </View>
         )}
 
-        {/* Banner Destacado: Travel Planner Camper */}
-        <TouchableOpacity
-          style={styles.travelPlannerBanner}
-          onPress={() => setShowTravelPlanner(true)}
-          activeOpacity={0.88}>
-          <View style={styles.travelPlannerBannerLeft}>
-            <View style={styles.travelPlannerIconBox}>
-              <Icon name="map-clock-outline" size={24} color="#38BDF8" />
+        {/* Carrusel Horizontal de Acciones Destacadas (Travel Planner 3D, Pase Pionero VIP y Descuentos Oficiales) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingVertical: 4 }}
+          style={{ marginBottom: 6 }}>
+          {/* Card 1: Travel Planner 3D */}
+          <TouchableOpacity
+            style={[styles.carouselCard, { borderColor: 'rgba(56, 189, 248, 0.4)' }]}
+            onPress={() => setShowTravelPlanner(true)}
+            activeOpacity={0.88}>
+            <View style={[styles.carouselIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.2)' }]}>
+              <Icon name="map-clock-outline" size={22} color="#38BDF8" />
             </View>
-            <View style={styles.travelPlannerTextBox}>
-              <View style={styles.travelPlannerBadgeRow}>
-                <Text style={styles.travelPlannerBadge}>TRAVEL PLANNER</Text>
-                <View style={styles.proTag}>
-                  <Text style={styles.proTagText}>PRO 3D</Text>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <Text style={[styles.carouselBadge, { color: '#38BDF8' }]}>PLANNER 3D</Text>
+                <View style={[styles.proTag, { backgroundColor: '#0284C7' }]}>
+                  <Text style={styles.proTagText}>PRO</Text>
                 </View>
               </View>
-              <Text style={styles.travelPlannerTitle}>Diseña tu Itinerario por Etapas</Text>
-              <Text style={styles.travelPlannerSub}>
-                14+ Rutas 3D con pernocta segura, vaciado y GLP
-              </Text>
+              <Text style={styles.carouselTitle} numberOfLines={1}>Rutas por Etapas</Text>
+              <Text style={styles.carouselSub} numberOfLines={1}>24+ Rutas con 3D y pernocta</Text>
             </View>
-          </View>
-          <Icon name="chevron-right" size={22} color="#38BDF8" />
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* Banner 1: Pase Fundador Pionero VIP (Crowdfunding & Impulso Google Play) */}
-        <TouchableOpacity
-          style={[styles.travelPlannerBanner, { borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.12)', marginBottom: 10 }]}
-          onPress={() => {
-            Linking.openURL('https://camper.nexusaiholding.com/patrocinios.html');
-          }}
-          activeOpacity={0.88}>
-          <View style={styles.travelPlannerBannerLeft}>
-            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.25)' }]}>
-              <Icon name="crown" size={24} color="#10B981" />
+          {/* Card 2: Pase Fundador Pionero VIP */}
+          <TouchableOpacity
+            style={[styles.carouselCard, { borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.08)' }]}
+            onPress={() => Linking.openURL('https://paddlecraft5.gumroad.com/l/phjqix')}
+            activeOpacity={0.88}>
+            <View style={[styles.carouselIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.22)' }]}>
+              <Icon name="crown" size={22} color="#10B981" />
             </View>
-            <View style={styles.travelPlannerTextBox}>
-              <View style={styles.travelPlannerBadgeRow}>
-                <Text style={[styles.travelPlannerBadge, { color: '#10B981' }]}>PASE FUNDADOR VIP</Text>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <Text style={[styles.carouselBadge, { color: '#10B981' }]}>PASE VIP</Text>
                 <View style={[styles.proTag, { backgroundColor: '#10B981' }]}>
-                  <Text style={styles.proTagText}>2 AÑOS VIP (19,99€)</Text>
+                  <Text style={styles.proTagText}>2 AÑOS</Text>
                 </View>
               </View>
-              <Text style={styles.travelPlannerTitle}>Pase Pionero 2 Años (Solo 100 Plazas)</Text>
-              <Text style={styles.travelPlannerSub}>
-                2 Años completos de acceso VIP Pro y apoya el lanzamiento
-              </Text>
+              <Text style={styles.carouselTitle} numberOfLines={1}>Pase Pionero 2 Años</Text>
+              <Text style={styles.carouselSub} numberOfLines={1}>Solo 100 plazas (19,99€)</Text>
             </View>
-          </View>
-          <Icon name="open-in-new" size={20} color="#10B981" />
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* Banner Monetización: Club Descuentos Camper & Hostinger */}
-        <TouchableOpacity
-          style={[styles.travelPlannerBanner, { borderColor: 'rgba(103, 58, 183, 0.45)', backgroundColor: 'rgba(103, 58, 183, 0.12)', marginBottom: 12 }]}
-          onPress={() => setSelectedCategory('DESCUENTOS')}
-          activeOpacity={0.88}>
-          <View style={styles.travelPlannerBannerLeft}>
-            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(103, 58, 183, 0.25)' }]}>
-              <Icon name="tag-multiple" size={24} color="#A78BFA" />
+          {/* Card 3: Club Descuentos 20% */}
+          <TouchableOpacity
+            style={[styles.carouselCard, { borderColor: 'rgba(167, 139, 250, 0.45)', backgroundColor: 'rgba(167, 139, 250, 0.08)' }]}
+            onPress={() => setSelectedCategory('DESCUENTOS')}
+            activeOpacity={0.88}>
+            <View style={[styles.carouselIconBox, { backgroundColor: 'rgba(167, 139, 250, 0.22)' }]}>
+              <Icon name="tag-multiple" size={22} color="#A78BFA" />
             </View>
-            <View style={styles.travelPlannerTextBox}>
-              <View style={styles.travelPlannerBadgeRow}>
-                <Text style={[styles.travelPlannerBadge, { color: '#A78BFA' }]}>DESCUENTOS EXCLUSIVOS</Text>
-                <View style={[styles.proTag, { backgroundColor: '#673AB7' }]}>
-                  <Text style={styles.proTagText}>-20% DTO</Text>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <Text style={[styles.carouselBadge, { color: '#A78BFA' }]}>DESCUENTOS</Text>
+                <View style={[styles.proTag, { backgroundColor: '#7C3AED' }]}>
+                  <Text style={styles.proTagText}>-20%</Text>
                 </View>
               </View>
-              <Text style={styles.travelPlannerTitle}>Hostinger, GLP Repsol, IATI & Autodoc</Text>
-              <Text style={styles.travelPlannerSub}>
-                20% de descuento verificado con nuestros códigos
-              </Text>
+              <Text style={styles.carouselTitle} numberOfLines={1}>Códigos Verificados</Text>
+              <Text style={styles.carouselSub} numberOfLines={1}>Hostinger, Repsol, IATI</Text>
             </View>
-          </View>
-          <Icon name="chevron-right" size={22} color="#A78BFA" />
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </ScrollView>
 
         {/* Sección Autodoc Recambios & Amazon Camper Gadgets */}
         <View style={styles.showcaseSection}>
@@ -1593,6 +1583,40 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontSize: 9,
     fontWeight: '600',
+    marginTop: 1,
+  },
+  carouselCard: {
+    width: 215,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  carouselIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  carouselBadge: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  carouselTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#F8FAFC',
+  },
+  carouselSub: {
+    fontSize: 10,
+    color: '#94A3B8',
     marginTop: 1,
   },
   travelPlannerBanner: {

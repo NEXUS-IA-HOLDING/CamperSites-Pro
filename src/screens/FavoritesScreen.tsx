@@ -17,6 +17,8 @@ import {
   Modal,
   ScrollView,
   Switch,
+  Share,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -530,6 +532,20 @@ export default function FavoritesScreen() {
                 Ver en Mapa
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tag, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}
+              onPress={() => {
+                const googleUrl = `https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`;
+                Share.share({
+                  title: `${item.name} - CamperSites Pro`,
+                  message: `📍 ${item.name}\nCoordenadas: ${item.latitude.toFixed(5)}, ${item.longitude.toFixed(5)}\nVer en Google Maps: ${googleUrl}\n\nEnviado desde CamperSites Pro`,
+                }).catch(() => {});
+              }}>
+              <Icon name="share-variant" size={12} color="#38BDF8" />
+              <Text style={[styles.tagText, { color: '#38BDF8', fontWeight: '700' }]}>
+                Compartir
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -574,6 +590,20 @@ export default function FavoritesScreen() {
                 <Icon name="replay" size={13} color="#10B981" />
                 <Text style={[styles.tagText, { color: '#10B981', fontWeight: '800' }]}>
                   Repetir Ruta 3D
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tag, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}
+                onPress={() => {
+                  const googleUrl = `https://www.google.com/maps/search/?api=1&query=${item.toLat},${item.toLng}`;
+                  Share.share({
+                    title: `Ruta a ${item.destinationName}`,
+                    message: `📍 Ruta a ${item.destinationName}\nDistancia: ${distKm} km • Duración: ${durMin} min\nVer destino en Google Maps: ${googleUrl}\n\nEnviado desde CamperSites Pro`,
+                  }).catch(() => {});
+                }}>
+                <Icon name="share-variant" size={12} color="#38BDF8" />
+                <Text style={[styles.tagText, { color: '#38BDF8', fontWeight: '700' }]}>
+                  Compartir
                 </Text>
               </TouchableOpacity>
               {item.routeName && (

@@ -48,6 +48,7 @@ import { AdminDashboardModal, AdminTab } from '../components/AdminDashboardModal
 import { adminService, UserPlan, UserRole } from '../services/AdminService';
 import { VehicleCatalogModal } from '../components/VehicleCatalogModal';
 import { vehicleCatalogService, UserVehicleSetup } from '../services/VehicleCatalogService';
+import AuthScreen from './AuthScreen';
 
 const VEHICLE_STORAGE_KEY = '@camper_vehicle_config';
 
@@ -253,6 +254,7 @@ export default function ProfileScreen() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showTravelPlannerModal, setShowTravelPlannerModal] = useState(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<AdminTab>('servers');
   const [isAdminAuthorized, setIsAdminAuthorized] = useState(false);
 
@@ -528,15 +530,18 @@ export default function ProfileScreen() {
             )}
           </View>
         ) : (
-          <TouchableOpacity style={styles.loginCard} onPress={() => Alert.alert('Próximamente', 'Login disponible pronto.')}>
+          <TouchableOpacity
+            style={styles.loginCard}
+            onPress={() => setShowAuthModal(true)}
+            activeOpacity={0.85}>
             <View style={styles.loginIconContainer}>
               <Icon name="account-plus" size={32} color={theme.colors.primary.main} />
             </View>
             <View style={styles.loginInfo}>
-              <Text style={styles.loginTitle}>Inicia sesión</Text>
+              <Text style={styles.loginTitle}>Inicia sesión o Regístrate</Text>
               <Text style={styles.loginSubtitle}>Reporta alertas, gana puntos y sube de nivel</Text>
             </View>
-            <Icon name="chevron-right" size={24} color="#CCC" />
+            <Icon name="chevron-right" size={24} color="#CBD5E1" />
           </TouchableOpacity>
         )}
 
@@ -1281,11 +1286,38 @@ export default function ProfileScreen() {
             {/* Panel de activación de administrador */}
             <AdminActivationPanel />
             <View style={styles.separator} />
-            <SettingRow icon="information" iconColor="#1976D2" title="Acerca de" subtitle="CamperSites Pro v1.0.0"
-              onPress={() => Alert.alert('CamperSites Pro', 'Tu compañero de ruta.\n\nVersión 1.0.0\nYRYS')} />
+            <SettingRow
+              icon="information"
+              iconColor="#38BDF8"
+              title="Acerca de CamperSites Pro"
+              subtitle="v1.0.0 • Soporte: contacto@nexusaiholding.com"
+              onPress={() =>
+                Alert.alert(
+                  'CamperSites Pro v1.0.0',
+                  'Navegación GPS y Asistente de Conducción Especializado para Autocaravanas y Campers.\n\nDesarrollado por NEXUS AI HOLDING.\nContacto y Soporte: contacto@nexusaiholding.com\n\n¿Deseas abrir la Política de Privacidad y Términos?',
+                  [
+                    { text: 'Cerrar', style: 'cancel' },
+                    {
+                      text: 'Ver Privacidad y Legal',
+                      onPress: () =>
+                        Linking.openURL('https://camper.nexusaiholding.com/politica-privacidad.html').catch(() => {}),
+                    },
+                  ]
+                )
+              }
+            />
             <View style={styles.separator} />
-            <SettingRow icon="star" iconColor="#FFD700" title="Valorar la app"
-              onPress={() => Alert.alert('¡Gracias!', 'Disponible próximamente.')} />
+            <SettingRow
+              icon="star"
+              iconColor="#FFD700"
+              title="Valorar la app en Google Play"
+              subtitle="Ayúdanos con 5 estrellas"
+              onPress={() =>
+                Linking.openURL('market://details?id=com.campersitespro').catch(() =>
+                  Linking.openURL('https://play.google.com/store/apps/details?id=com.campersitespro')
+                )
+              }
+            />
             {isLoggedIn && (
               <>
                 <View style={styles.separator} />
@@ -1586,6 +1618,33 @@ export default function ProfileScreen() {
         onClose={() => setShowCatalogModal(false)}
         onVehicleSaved={handleVehicleSavedFromCatalog}
       />
+
+      {/* MODAL DE AUTENTICACIÓN / LOGIN */}
+      <Modal visible={showAuthModal} animationType="slide" onRequestClose={() => setShowAuthModal(false)}>
+        <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'flex-end',
+              paddingHorizontal: 16,
+              paddingTop: 48,
+              paddingBottom: 8,
+              backgroundColor: '#0F172A',
+            }}>
+            <TouchableOpacity
+              onPress={() => setShowAuthModal(false)}
+              style={{ padding: 8, borderRadius: 20, backgroundColor: '#1E293B' }}>
+              <Icon name="close" size={20} color="#CBD5E1" />
+            </TouchableOpacity>
+          </View>
+          <AuthScreen
+            onAuthSuccess={() => {
+              setShowAuthModal(false);
+              checkAuth();
+            }}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
