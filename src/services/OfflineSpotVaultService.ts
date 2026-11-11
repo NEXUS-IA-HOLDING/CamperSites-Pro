@@ -156,6 +156,12 @@ class OfflineSpotVaultServiceImpl {
   private inMemorySpots: OfflineSpot[] = [];
 
   constructor() {
+    // Precargar inmediatamente todos los spots curados de todas las regiones
+    const baseline: OfflineSpot[] = [];
+    for (const pack of REGIONAL_OFFLINE_PACKS) {
+      baseline.push(...generateCuratedRegionalSpots(pack.id));
+    }
+    this.inMemorySpots = baseline;
     this.init();
   }
 
@@ -237,6 +243,9 @@ class OfflineSpotVaultServiceImpl {
    */
   private async reloadInMemoryCache() {
     const aggregated: OfflineSpot[] = [];
+    for (const pack of REGIONAL_OFFLINE_PACKS) {
+      aggregated.push(...generateCuratedRegionalSpots(pack.id));
+    }
     for (const packId of this.installedPackIds) {
       try {
         const raw = await AsyncStorage.getItem(`${VAULT_STORAGE_PREFIX}${packId}`);
@@ -247,6 +256,13 @@ class OfflineSpotVaultServiceImpl {
       } catch (e) {}
     }
     this.inMemorySpots = aggregated;
+  }
+
+  /**
+   * Obtiene todos los puntos y áreas disponibles en la bóveda
+   */
+  public getAllSpots(): OfflineSpot[] {
+    return this.inMemorySpots;
   }
 
   /**
@@ -275,14 +291,15 @@ class OfflineSpotVaultServiceImpl {
    */
   public searchSpots(query: string): OfflineSpot[] {
     const q = query.toLowerCase().trim();
-    if (!q) return this.inMemorySpots.slice(0, 50);
+    if (!q) return this.inMemorySpots.slice(0, 100);
     return this.inMemorySpots
       .filter(s =>
         s.name.toLowerCase().includes(q) ||
         (s.city && s.city.toLowerCase().includes(q)) ||
-        (s.province && s.province.toLowerCase().includes(q))
+        (s.province && s.province.toLowerCase().includes(q)) ||
+        (s.category && s.category.toLowerCase().includes(q))
       )
-      .slice(0, 50);
+      .slice(0, 100);
   }
 
   public getTotalOfflineSpotsCount(): number {

@@ -106,7 +106,7 @@ export default function ConfigScreen() {
   const [controlDistance, setControlDistance] = useState<number>(5000);
   const [clearanceDistance, setClearanceDistance] = useState<number>(1000);
   const [audioAlertMode, setAudioAlertMode] = useState<AudioAlertMode>('multimedia');
-  const [tachographEnabled, setTachographEnabled] = useState<boolean>(true);
+  const [tachographEnabled, setTachographEnabled] = useState<boolean>(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [cockpitThemeMode, setCockpitThemeMode] = useState<CockpitThemeMode>(CockpitNightModeService.getMode());
   const [voicePrefs, setVoicePrefs] = useState<VoicePreferences>(AudioAlertService.getVoicePreferences());

@@ -51,9 +51,14 @@ export interface ActivePassItem {
   code?: string;
   name?: string;
   activatedAt?: number;
+  rewardType?: string;
+  rewardName?: string;
+  grantedAt?: number;
 }
 
 export interface RewardsProfile {
+  userId?: string;
+  tier?: CamperTier;
   totalPoints: number;
   availablePoints: number;
   lifetimeAdsWatched: number;
@@ -91,7 +96,7 @@ export interface CommunityPointClaim {
 }
 
 const STORAGE_KEY = '@campersites_rewards_profile';
-export const STATIONARY_SPEED_THRESHOLD_KMH = 0.5; // Tolerancia a deriva GPS estática
+export const STATIONARY_SPEED_THRESHOLD_KMH = 5.0; // Tolerancia estándar automotriz a deriva y ruido GPS estático en parado (evita falsos positivos de movimiento a pie o en escritorio)
 export const MAX_DAILY_ADS = 3;
 export const AD_REWARD_POINTS = 15;
 export const AD_COOLDOWN_MS = 60000; // 60 segundos entre anuncios
@@ -223,7 +228,7 @@ export function calculateHaversineDistanceMeters(
 }
 
 /**
- * Comprueba si el vehículo está en movimiento con tolerancia a deriva GPS estática (0.5 km/h)
+ * Comprueba si el vehículo está en movimiento con tolerancia a deriva GPS estática (3.5 km/h)
  */
 export function isVehicleMoving(speedKmH: number): boolean {
   return typeof speedKmH === 'number' && speedKmH > STATIONARY_SPEED_THRESHOLD_KMH;
@@ -681,6 +686,74 @@ export class CamperRewardsServiceImpl {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Bonificación para Afiliados y Prescriptores:
+   * Por cada usuario que traigan y compre un Plan Anual de pago, se premia al titular con:
+   * - 500 CamperPoints directos
+   * - 30 Días de Suscripción PRO Totalmente Gratis
+   */
+  public async awardReferralAnnualSubscriber(
+    referredUserIdentifier: string
+  ): Promise<{
+    success: boolean;
+    pointsAwarded: number;
+    freeDaysAwarded: number;
+    newTotalPoints: number;
+    message: string;
+  }> {
+    if (!this.isLoaded) await this.loadProfile();
+
+    const pointsAwarded = 500;
+    const freeDaysAwarded = 30;
+
+    this.profile.totalPoints += pointsAwarded;
+    this.profile.availablePoints += pointsAwarded;
+
+    // Conceder Pase Pro de 30 días
+    const expiresAt = Date.now() + freeDaysAwarded * 24 * 60 * 60 * 1000;
+    const existingPass = this.profile.activePasses.find(
+      (p) => p.type === 'pro_week' || p.type === 'traffic_month'
+    );
+
+    if (existingPass) {
+      existingPass.expiresAt = Math.max(existingPass.expiresAt, Date.now()) + freeDaysAwarded * 24 * 60 * 60 * 1000;
+    } else {
+      this.profile.activePasses.push({
+        type: 'pro_week',
+        name: 'Pase Pro Mensual (Premio Afiliado Suscriptor Anual)',
+        expiresAt,
+        activatedAt: Date.now(),
+      });
+    }
+
+    // Actualizar nivel
+    const newTier = this.getTier(this.profile.totalPoints);
+    this.profile.tier = newTier.tier;
+
+    await this.saveProfile();
+
+    Logger.info(
+      'CamperRewardsService',
+      `Referral bonus awarded: +${pointsAwarded} pts and +${freeDaysAwarded} free days for referring ${referredUserIdentifier}`
+    );
+
+    return {
+      success: true,
+      pointsAwarded,
+      freeDaysAwarded,
+      newTotalPoints: this.profile.availablePoints,
+      message: `🎉 ¡Enhorabuena! Has recibido ${pointsAwarded} CamperPoints y 1 Mes Pro Gratis por referir a un nuevo suscriptor anual.`,
+    };
+  }
+
+  /**
+   * Obtiene o genera el código de afiliado único del usuario
+   */
+  public getUserReferralCode(): string {
+    const base = this.profile.userId ? this.profile.userId.substring(0, 6).toUpperCase() : 'CAMPER';
+    return `PRO-${base}`;
   }
 
   /**

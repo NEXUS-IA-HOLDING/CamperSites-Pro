@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   Clipboard,
   Dimensions,
+  Share,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Geolocation from 'react-native-geolocation-service';
@@ -51,8 +52,11 @@ export const CamperRewardsModal: React.FC<CamperRewardsModalProps> = ({
   const [activeTab, setActiveTab] = useState<'pyramid' | 'catalog' | 'earn'>('pyramid');
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
-  // Velocidad activa (sincronizada con props y GPS directo como resguardo)
-  const [liveSpeedKmH, setLiveSpeedKmH] = useState(currentSpeedKmH || 0);
+  // Velocidad activa (sincronizada con props y GPS directo como resguardo, con filtro deadband < 4.5 km/h)
+  const [liveSpeedKmH, setLiveSpeedKmH] = useState(() => {
+    const initialRaw = Math.max(0, currentSpeedKmH || 0);
+    return initialRaw < 4.5 ? 0.0 : initialRaw;
+  });
 
   // Estado de simulación de anuncio
   const [isSimulatingAd, setIsSimulatingAd] = useState(false);
@@ -66,9 +70,10 @@ export const CamperRewardsModal: React.FC<CamperRewardsModalProps> = ({
     setProfile(data);
   };
 
-  // Mantener sincronizado liveSpeedKmH con prop
+  // Mantener sincronizado liveSpeedKmH con prop con filtro deadband (< 4.5 km/h -> 0.0 km/h)
   useEffect(() => {
-    const spd = Math.max(0, currentSpeedKmH || 0);
+    const rawSpd = Math.max(0, currentSpeedKmH || 0);
+    const spd = rawSpd < 4.5 ? 0.0 : rawSpd;
     setLiveSpeedKmH(spd);
     rewardedAdSimulationEngine.updateSpeed(spd);
   }, [currentSpeedKmH]);
@@ -83,7 +88,8 @@ export const CamperRewardsModal: React.FC<CamperRewardsModalProps> = ({
           (pos) => {
             const rawSpeed = pos.coords.speed;
             const spd = rawSpeed && rawSpeed > 0 ? rawSpeed * 3.6 : 0;
-            const normalized = Math.max(0, spd);
+            // Filtro deadband: suprime deriva GPS estática en parado (< 4.5 km/h)
+            const normalized = spd < 4.5 ? 0.0 : spd;
             setLiveSpeedKmH(normalized);
             rewardedAdSimulationEngine.updateSpeed(normalized);
           },
@@ -473,6 +479,34 @@ export const CamperRewardsModal: React.FC<CamperRewardsModalProps> = ({
                         : profile.adsWatchedToday >= MAX_DAILY_ADS
                         ? 'Límite diario de 3 anuncios alcanzado'
                         : 'Ver Vídeo Patrocinado (+15 pts)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Programa de Afiliados: Invita a un Amigo */}
+                <View style={[styles.earnCard, { borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.08)' }]}>
+                  <View style={styles.earnHeaderRow}>
+                    <Icon name="account-multiple-plus" size={32} color="#10B981" />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.earnCardTitle, { color: '#10B981' }]}>
+                        Programa Afiliados: Invita a un Amigo (+500 pts)
+                      </Text>
+                      <Text style={styles.earnCardDesc}>
+                        Por cada amigo que descargue la app con tu enlace y active un plan de 1 año o superior, ambos recibís +500 CamperPoints directos y 1 mes Pro gratis.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
+                    onPress={() => {
+                      Share.share({
+                        title: 'Únete a CamperSites Pro con Descuento',
+                        message: '¡Hola! Te invito a probar CamperSites Pro, la app de navegación GPS especializada para autocaravanas y campers. Descárgala o activa tu suscripción anual con un 20% de descuento directo aquí: https://paddlecraft5.gumroad.com/l/phjqix',
+                      }).catch(() => {});
+                    }}>
+                    <Text style={[styles.actionBtnText, { color: '#0F172A', fontWeight: '900' }]}>
+                      🎁 Compartir Enlace de Afiliado (+500 pts)
                     </Text>
                   </TouchableOpacity>
                 </View>

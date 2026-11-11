@@ -11,7 +11,7 @@ import { Linking, Clipboard } from 'react-native';
 
 export interface AffiliatePartner {
   id: string;
-  category: 'fuel_lpg' | 'ferry' | 'insurance' | 'accessories' | 'tech' | 'hosting';
+  category: 'fuel_lpg' | 'ferry' | 'insurance' | 'accessories' | 'tech' | 'hosting' | 'maintenance';
   brandName: string;
   name?: string;
   title: string;
@@ -94,7 +94,7 @@ export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
     iconName: 'solar-power',
     accentColor: '#0284C7',
     priority: -1,
-    limitedTimeOffer: 'Campaña Primavera - Verano',
+    limitedTimeOffer: '10% de Descuento Directo',
     utmCampaign: 'ecoflow_camper',
   },
 
@@ -127,7 +127,7 @@ export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
     iconName: 'server-network',
     accentColor: '#673AB7',
     priority: 0,
-    limitedTimeOffer: 'Oferta Especial por Tiempo Limitado',
+    limitedTimeOffer: '20% de Descuento Directo',
     utmCampaign: 'hostinger_referral',
   },
 
@@ -315,6 +315,69 @@ export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
     priority: 6,
     deepLinkUri: 'iati://escapadas',
     utmCampaign: 'commercial_partners',
+  },
+
+  // --- RECAMBIOS Y MECÁNICA DE PRECISIÓN (AUTODOC) ---
+  {
+    id: 'autodoc_recambios',
+    category: 'maintenance',
+    brandName: 'Autodoc Repuestos',
+    name: 'Autodoc Recambios y Repuestos Camper',
+    title: 'Autodoc • Recambios Mecánicos y Filtros Originales',
+    badge: '🔧 HASTA 35% DTO',
+    badgeText: '🔧 Hasta 35% Dto',
+    discountSummary: 'Hasta 35% de descuento en repuestos y filtros originales',
+    discountText: 'Recambios compatibles para Fiat Ducato, Ford Transit, Mercedes Sprinter y VW',
+    description: 'Encuentra filtros de aceite, pastillas de freno, baterías AGM y piezas directas para el chasis de tu autocaravana al mejor precio.',
+    perks: [
+      'Catálogo completo por matrícula o modelo exacto de vehículo',
+      'Filtros de gasoil, aire, aceite y kits de frenos de primeras marcas (Bosch, Mann, Brembo)',
+      'Envío rápido con seguimiento directo a tu domicilio o taller',
+    ],
+    benefits: [
+      'Ahorra más de un 30% respecto a los recambios en concesionarios oficiales',
+      'Compatibilidad 100% garantizada con tu chasis camper',
+    ],
+    affiliateUrl: 'https://www.autodoc.es/?tag=campersitespro',
+    promoCode: 'AUTODOCCAMPER',
+    logoIcon: 'car-wrench',
+    iconName: 'car-wrench',
+    accentColor: '#0284C7',
+    priority: 7,
+    limitedTimeOffer: 'Precios Rebajados en Recambios',
+    utmCampaign: 'autodoc_partner',
+  },
+
+  // --- GADGETS Y EQUIPAMIENTO OFICIAL (AMAZON CAMPER) ---
+  {
+    id: 'amazon_camper_gadgets',
+    category: 'accessories',
+    brandName: 'Amazon Camper',
+    name: 'Amazon Gadgets & Accesorios de Viaje',
+    title: 'Amazon • Gadgets Imprescindibles para la Ruta',
+    badge: '📦 ENVÍO PRIME 24H',
+    badgeText: '📦 Envío Prime 24h',
+    discountSummary: 'Selección de mejores accesorios y gadgets con envío en 24h',
+    discountText: 'TPMS solar, calzos niveladores, inversores 220V y aislantes térmicos',
+    description: 'Accesorios probados por la comunidad de autocaravanistas para viajar con máxima comodidad y seguridad.',
+    perks: [
+      'Monitores de presión de neumáticos TPMS con carga solar',
+      'Calzos de nivelación Fiamma y Milenco homologados',
+      'Inversores de onda pura 12V a 220V para ordenadores y cafeteras',
+      'Aislantes térmicos de 9 capas para cabinas de furgoneta',
+    ],
+    benefits: [
+      'Recepción rápida en cualquier locker o punto de recogida en ruta',
+      'Garantía de devolución oficial de Amazon',
+    ],
+    affiliateUrl: 'https://www.amazon.es/s?k=accesorios+autocaravana+camper&tag=campersites-21',
+    promoCode: 'AMAZONPRIME',
+    logoIcon: 'amazon',
+    iconName: 'amazon',
+    accentColor: '#FF9900',
+    priority: 8,
+    limitedTimeOffer: 'Ofertas Diarias en Accesorios',
+    utmCampaign: 'amazon_gadgets',
   },
 ];
 

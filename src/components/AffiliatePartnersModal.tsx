@@ -126,9 +126,9 @@ export const AffiliatePartnersModal: React.FC<AffiliatePartnersModalProps> = ({
               <View key={p.id} style={styles.card}>
                 {p.limitedTimeOffer && (
                   <View style={styles.limitedTimeBanner}>
-                    <Icon name="clock-alert-outline" size={13} color="#F59E0B" style={{ marginRight: 4 }} />
+                    <Icon name="tag-percent-outline" size={13} color="#F59E0B" style={{ marginRight: 4 }} />
                     <Text style={styles.limitedTimeText}>
-                      {p.limitedTimeOffer} • 40% Comisión Titular / 20% Dto Amigo
+                      20% de Descuento Exclusivo con este Código
                     </Text>
                   </View>
                 )}

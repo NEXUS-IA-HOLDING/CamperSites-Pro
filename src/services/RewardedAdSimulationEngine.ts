@@ -63,7 +63,7 @@ export interface AdSimulationCallbacks {
 }
 
 export const AD_SIMULATION_DURATION_SECONDS = 5;
-export const STATIONARY_SPEED_THRESHOLD_KMH = 0.5;
+export const STATIONARY_SPEED_THRESHOLD_KMH = 5.0;
 
 export class RewardedAdSimulationEngine {
   private active = false;
@@ -72,6 +72,7 @@ export class RewardedAdSimulationEngine {
   private activeCallbacks: AdSimulationCallbacks | null = null;
   private currentSponsorIndex = 0;
   private currentSpeedKmH = 0;
+  private consecutiveSpeedViolations = 0;
 
   constructor() {
     this.currentSponsorIndex = Math.floor(Math.random() * AD_SPONSORS.length);
@@ -108,16 +109,22 @@ export class RewardedAdSimulationEngine {
 
   /**
    * Actualiza la velocidad del vehículo en el Watchdog.
-   * Si la simulación está activa y la velocidad supera el umbral estacionario (> 0.5 km/h),
-   * aborta inmediatamente la reproducción por seguridad vial.
+   * Si la simulación está activa y la velocidad supera el umbral estacionario (> 3.5 km/h)
+   * durante al menos 2 lecturas consecutivas, aborta la reproducción por seguridad vial.
    */
   public updateSpeed(speedKmH: number): void {
     this.currentSpeedKmH = Math.max(0, speedKmH || 0);
 
-    if (this.active && this.currentSpeedKmH > STATIONARY_SPEED_THRESHOLD_KMH) {
+    if (this.currentSpeedKmH > STATIONARY_SPEED_THRESHOLD_KMH) {
+      this.consecutiveSpeedViolations += 1;
+    } else {
+      this.consecutiveSpeedViolations = 0;
+    }
+
+    if (this.active && this.consecutiveSpeedViolations >= 2) {
       Logger.warn(
         'RewardedAdSimulationEngine',
-        `Speed Watchdog triggered: vehicle moving at ${this.currentSpeedKmH.toFixed(1)} km/h. Aborting ad.`
+        `Speed Watchdog triggered: vehicle moving at ${this.currentSpeedKmH.toFixed(1)} km/h (2 consecutive readings). Aborting ad.`
       );
       this.cancelAdSimulation(
         `Vehículo en movimiento detectado (${this.currentSpeedKmH.toFixed(1)} km/h). Anuncio abortado por seguridad vial.`
@@ -150,6 +157,7 @@ export class RewardedAdSimulationEngine {
     this.active = true;
     this.activeCallbacks = callbacks;
     this.secondsRemaining = AD_SIMULATION_DURATION_SECONDS;
+    this.consecutiveSpeedViolations = 0;
     this.getNextSponsor();
 
     Logger.info(
@@ -162,7 +170,7 @@ export class RewardedAdSimulationEngine {
 
     this.timer = setInterval(() => {
       // Vigilancia en cada tick de intervalo
-      if (this.currentSpeedKmH > STATIONARY_SPEED_THRESHOLD_KMH) {
+      if (this.currentSpeedKmH > STATIONARY_SPEED_THRESHOLD_KMH && this.consecutiveSpeedViolations >= 2) {
         this.cancelAdSimulation(
           `Vehículo en marcha detectado (${this.currentSpeedKmH.toFixed(1)} km/h). Anuncio cancelado por seguridad vial.`
         );
@@ -177,6 +185,7 @@ export class RewardedAdSimulationEngine {
         // Anuncio completado con éxito
         this.clearTimer();
         this.active = false;
+        this.consecutiveSpeedViolations = 0;
         const cb = this.activeCallbacks;
         this.activeCallbacks = null;
 
@@ -197,6 +206,7 @@ export class RewardedAdSimulationEngine {
 
     this.clearTimer();
     this.active = false;
+    this.consecutiveSpeedViolations = 0;
     const cb = this.activeCallbacks;
     this.activeCallbacks = null;
 

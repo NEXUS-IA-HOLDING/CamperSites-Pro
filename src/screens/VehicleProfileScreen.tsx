@@ -26,6 +26,7 @@ import { Logger } from '../utils/logger';
 import { profileAssistantService, VehicleProfileData, ConversationStep } from '../services/ProfileAssistantService';
 import { VehicleCatalogModal } from '../components/VehicleCatalogModal';
 import { UserVehicleSetup } from '../services/VehicleCatalogService';
+import { VehiclePersistenceService } from '../services/VehiclePersistenceService';
 
 interface VehicleProfileScreenProps {
   onComplete: () => void;
@@ -50,8 +51,23 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
     setShowCatalogModal(false);
     setIsSaving(true);
     try {
-      await AsyncStorage.setItem('@camper_profile_completed', 'true');
-      await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
+      await VehiclePersistenceService.saveMasterState({
+        vehicleSetup: setup,
+        vehicleConfig: {
+          type: setup.category || 'camper',
+          height: setup.height?.toString() || '2.8',
+          width: setup.width?.toString() || '2.2',
+          length: setup.length?.toString() || '6.0',
+          weight: setup.weight?.toString() || '3500',
+          axles: '2',
+          fuelType: setup.fuelType || 'diesel',
+          rangeKm: setup.tankCapacityL ? Math.round((setup.tankCapacityL / (setup.avgConsumptionL100km || 10)) * 100).toString() : '650',
+          environmentalBadge: setup.environmentalBadge || 'C',
+          name: `${setup.brand} ${setup.model}`,
+        },
+        onboardingCompleted: true,
+        profileCompleted: true,
+      });
       Alert.alert(
         '¡Vehículo Configurado!',
         `Se ha guardado tu ${setup.brand} ${setup.model} (${setup.height}m / ${setup.length}m) con motor de ${setup.horsepower} CV.`,
@@ -158,9 +174,9 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
 
       const sanitizedData = profileAssistantService.sanitizeProfileData(completeProfile);
 
-      // 1. Guardar de forma ultra-robusta en almacenamiento local (AsyncStorage)
+      // 1. Guardar de forma unificada y ultra-robusta en almacenamiento maestro local (AsyncStorage)
       try {
-        await AsyncStorage.setItem('@camper_vehicle_config', JSON.stringify({
+        const vehicleConfig = {
           type: sanitizedData.vehicleType,
           height: sanitizedData.height?.toString() || '2.8',
           width: sanitizedData.width?.toString() || '2.2',
@@ -171,9 +187,27 @@ export default function VehicleProfileScreen({ onComplete, onSkip }: VehicleProf
           rangeKm: sanitizedData.rangeKm?.toString() || '650',
           environmentalBadge: sanitizedData.environmentalBadge || 'C',
           name: sanitizedData.vehicleType === 'truck' ? 'Mi Camión Pesado' : 'Mi Autocaravana / Camper',
-        }));
-        await AsyncStorage.setItem('@camper_profile_completed', 'true');
-        await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
+        };
+
+        const drivingPreferences = {
+          radarAlertDistance: 1000,
+          controlAlertDistance: 5000,
+          clearanceAlertDistance: 1000,
+          audioMode: 'multimedia',
+          hapticFeedback: true,
+          tachographWarningsEnabled: sanitizedData.vehicleType === 'truck',
+          avoidTolls: sanitizedData.avoidTolls ?? false,
+          avoidHighways: sanitizedData.avoidHighways ?? false,
+          drivingStyle: sanitizedData.drivingStyle || 'balanced',
+          maxSlopePreference: sanitizedData.maxSlopePreference || 'medium',
+        };
+
+        await VehiclePersistenceService.saveMasterState({
+          vehicleConfig,
+          drivingPreferences,
+          onboardingCompleted: true,
+          profileCompleted: true,
+        });
       } catch (storageErr) {
         Logger.warn('VehicleProfile', 'Error guardando en local:', storageErr);
       }

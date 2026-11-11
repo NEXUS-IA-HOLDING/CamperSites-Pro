@@ -26,7 +26,7 @@ interface VehicleMapCursorProps {
   isMoving?: boolean;
 }
 
-export const VehicleMapCursor: React.FC<VehicleMapCursorProps> = ({
+export const VehicleMapCursor: React.FC<VehicleMapCursorProps> = React.memo(({
   cursorType = 'camper_arca',
   heading = 0,
   isMoving = false,
@@ -274,7 +274,7 @@ export const VehicleMapCursor: React.FC<VehicleMapCursorProps> = ({
       </Animated.View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   rootContainer: {

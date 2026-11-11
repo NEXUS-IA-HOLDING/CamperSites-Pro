@@ -111,18 +111,33 @@ export const QUICK_FILTERS: QuickFilter[] = [
 ];
 
 const POPULAR_DESTINATIONS = [
-  { id: 'pop-1', name: 'Cabo de Gata', subtitle: 'Almería · Playas vírgenes y pernocta', latitude: 36.7823, longitude: -2.2541, category: 'DESTINO_CAMPER' },
-  { id: 'pop-2', name: 'Picos de Europa', subtitle: 'Asturias / Cantabria · Montaña', latitude: 43.1901, longitude: -4.8288, category: 'DESTINO_CAMPER' },
-  { id: 'pop-3', name: 'Pirineos / Ordesa', subtitle: 'Huesca · Parque Nacional', latitude: 42.6375, longitude: -0.0528, category: 'DESTINO_CAMPER' },
-  { id: 'pop-4', name: 'Costa Brava', subtitle: 'Girona · Calas y pueblos medievales', latitude: 41.9794, longitude: 3.1751, category: 'DESTINO_CAMPER' },
-  { id: 'pop-5', name: 'Tarifa y Bolonia', subtitle: 'Cádiz · Viento y dunas salvajes', latitude: 36.0127, longitude: -5.6044, category: 'DESTINO_CAMPER' },
-  { id: 'pop-6', name: 'Sierra Nevada', subtitle: 'Granada · Altas cumbres y nieve', latitude: 37.0931, longitude: -3.3986, category: 'DESTINO_CAMPER' },
-  { id: 'pop-7', name: 'Rías Baixas', subtitle: 'Pontevedra / A Coruña · Costa atlántica', latitude: 42.4336, longitude: -8.6480, category: 'DESTINO_CAMPER' },
-  { id: 'pop-8', name: 'Madrid (Km 0)', subtitle: 'Comunidad de Madrid · Centro peninsular', latitude: 40.4168, longitude: -3.7038, category: 'CIUDAD' },
-  { id: 'pop-9', name: 'Barcelona', subtitle: 'Catalunya · Costa mediterránea', latitude: 41.3851, longitude: 2.1734, category: 'CIUDAD' },
-  { id: 'pop-10', name: 'Valencia', subtitle: 'Comunidad Valenciana · Costa Este', latitude: 39.4699, longitude: -0.3763, category: 'CIUDAD' },
-  { id: 'pop-11', name: 'Sevilla', subtitle: 'Andalucía · Valle del Guadalquivir', latitude: 37.3891, longitude: -5.9845, category: 'CIUDAD' },
-  { id: 'pop-12', name: 'Bilbao', subtitle: 'Bizkaia · Costa Cantábrica', latitude: 43.2630, longitude: -2.9350, category: 'CIUDAD' },
+  // España: Grandes Rutas y Parques Naturales
+  { id: 'pop-1', name: 'Cabo de Gata & Tabernas', subtitle: 'Almería · Playas vírgenes, calas y pernocta', latitude: 36.7823, longitude: -2.2541, category: 'DESTINO_CAMPER' },
+  { id: 'pop-2', name: 'Picos de Europa & Cares', subtitle: 'Asturias / Cantabria · Desfiladeros y pernocta 3D', latitude: 43.1901, longitude: -4.8288, category: 'DESTINO_CAMPER' },
+  { id: 'pop-3', name: 'Pirineos / Parque Ordesa', subtitle: 'Huesca · Cumbres, valles glaciares y puertos', latitude: 42.6375, longitude: -0.0528, category: 'DESTINO_CAMPER' },
+  { id: 'pop-4', name: 'Costa Brava & Cap de Creus', subtitle: 'Girona · Calas rocosas y Cadaqués', latitude: 41.9794, longitude: 3.1751, category: 'DESTINO_CAMPER' },
+  { id: 'pop-5', name: 'Tarifa & Duna de Bolonia', subtitle: 'Cádiz · Costa de la Luz y Marruecos de frente', latitude: 36.0127, longitude: -5.6044, category: 'DESTINO_CAMPER' },
+  { id: 'pop-6', name: 'Rías Baixas & Costa da Morte', subtitle: 'Galicia · Faros atlánticos y gastronomía', latitude: 42.4336, longitude: -8.6480, category: 'DESTINO_CAMPER' },
+  { id: 'pop-7', name: 'Sierra Nevada & La Alpujarra', subtitle: 'Granada · Altas cumbres y pueblos blancos', latitude: 37.0931, longitude: -3.3986, category: 'DESTINO_CAMPER' },
+  { id: 'pop-8', name: 'Bardenas Reales (Navarra)', subtitle: 'Navarra · Desierto lunar y pistas 4x4', latitude: 42.1872, longitude: -1.5034, category: 'DESTINO_CAMPER' },
+  { id: 'pop-9', name: 'Cañón del Sil & Ribeira Sacra', subtitle: 'Ourense / Lugo · Miradores sobre el río', latitude: 42.4082, longitude: -7.6321, category: 'DESTINO_CAMPER' },
+  { id: 'pop-10', name: 'Ruta de la Plata (N-630)', subtitle: 'Extremadura / CyL · Ruta histórica camper', latitude: 40.0381, longitude: -6.0889, category: 'DESTINO_CAMPER' },
+  { id: 'pop-11', name: 'Ronda & Pueblos Blancos', subtitle: 'Málaga / Cádiz · Tajo y sierras', latitude: 36.7462, longitude: -5.1612, category: 'DESTINO_CAMPER' },
+  { id: 'pop-12', name: 'Valle del Jerte', subtitle: 'Cáceres · Garganta de los Infiernos y cerezos', latitude: 40.2185, longitude: -5.7612, category: 'DESTINO_CAMPER' },
+  // Destinos Europa Top Camper
+  { id: 'pop-13', name: 'Costa Vicentina & Sagres', subtitle: 'Algarve, Portugal · Acantilados y pernocta libre', latitude: 37.0097, longitude: -8.9408, category: 'EUROPA_TOP' },
+  { id: 'pop-14', name: 'Dolomitas & Tre Cime', subtitle: 'Alpes, Italia · Carreteras de alta montaña 3D', latitude: 46.6186, longitude: 12.2964, category: 'EUROPA_TOP' },
+  { id: 'pop-15', name: 'Selva Negra (Schwarzwald)', subtitle: 'Alemania · Bosques y rutas de naturaleza', latitude: 48.0560, longitude: 8.2100, category: 'EUROPA_TOP' },
+  { id: 'pop-16', name: 'Castillos del Valle del Loira', subtitle: 'Francia · Rutas fluviales y áreas camper', latitude: 47.4132, longitude: 0.9831, category: 'EUROPA_TOP' },
+  { id: 'pop-17', name: 'Paso del Stelvio (2.757m)', subtitle: 'Italia / Suiza · Carretera alpina mítica', latitude: 46.5286, longitude: 10.4531, category: 'EUROPA_TOP' },
+  { id: 'pop-18', name: 'Costa Amalfitana', subtitle: 'Campania, Italia · Miradores sobre el mar', latitude: 40.6340, longitude: 14.6027, category: 'EUROPA_TOP' },
+  // Ciudades principales
+  { id: 'pop-19', name: 'Madrid (Km 0)', subtitle: 'Comunidad de Madrid · Centro peninsular', latitude: 40.4168, longitude: -3.7038, category: 'CIUDAD' },
+  { id: 'pop-20', name: 'Barcelona', subtitle: 'Catalunya · Costa mediterránea', latitude: 41.3851, longitude: 2.1734, category: 'CIUDAD' },
+  { id: 'pop-21', name: 'Valencia', subtitle: 'Comunidad Valenciana · Costa Este', latitude: 39.4699, longitude: -0.3763, category: 'CIUDAD' },
+  { id: 'pop-22', name: 'Sevilla', subtitle: 'Andalucía · Valle del Guadalquivir', latitude: 37.3891, longitude: -5.9845, category: 'CIUDAD' },
+  { id: 'pop-23', name: 'Bilbao', subtitle: 'Bizkaia · Costa Cantábrica', latitude: 43.2630, longitude: -2.9350, category: 'CIUDAD' },
+  { id: 'pop-24', name: 'Zaragoza', subtitle: 'Aragón · Valle del Ebro', latitude: 41.6488, longitude: -0.8891, category: 'CIUDAD' },
 ];
 
 interface SearchResultItem {
@@ -159,7 +174,11 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const userDismissedRef = useRef<boolean>(false);
   const searchTimeout = useRef<any>(null);
+  const currentCoordsRef = useRef(currentCoords);
+  currentCoordsRef.current = currentCoords;
 
   // Obtener sugerencias instantáneas locales (0ms de latencia)
   const getInstantSuggestions = (cleanQuery: string): SearchResultItem[] => {
@@ -252,18 +271,37 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
     return combined;
   };
 
-  // Búsqueda inteligente continua a medida que escribe
+  // Búsqueda inteligente continua controlada
   useEffect(() => {
     const cleanQuery = query.trim();
 
-    // 1. Mostrar sugerencias instantáneas locales a la primera tecla
+    // Guard: si el usuario cerró explícitamente o no hay texto y no está enfocado, mantener cerrado
+    if (userDismissedRef.current || (!isFocused && !cleanQuery)) {
+      setShowResults(false);
+      return;
+    }
+
+    // Si la consulta está vacía pero el campo está enfocado y no fue descartado, mostrar populares
+    if (!cleanQuery) {
+      if (isFocused && !userDismissedRef.current) {
+        const defaultDestinations = getInstantSuggestions('');
+        setResults(defaultDestinations);
+        setShowResults(true);
+      } else {
+        setShowResults(false);
+      }
+      setIsSearching(false);
+      return;
+    }
+
+    // 1. Mostrar sugerencias instantáneas locales al escribir
     const instantMatches = getInstantSuggestions(cleanQuery);
-    if (instantMatches.length > 0) {
+    if (instantMatches.length > 0 && !userDismissedRef.current) {
       setResults(instantMatches);
       setShowResults(true);
     }
 
-    if (!cleanQuery || cleanQuery.length < 2) {
+    if (cleanQuery.length < 2) {
       setIsSearching(false);
       return;
     }
@@ -272,8 +310,9 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
       clearTimeout(searchTimeout.current);
     }
 
-    // 2. Debounce rápido (120ms) para consultar geocodificador de Europa y nube
+    // 2. Debounce rápido (180ms) para consultar geocodificador de Europa y nube
     searchTimeout.current = setTimeout(async () => {
+      if (userDismissedRef.current) return;
       setIsSearching(true);
       try {
         const safeQuery = cleanQuery.replace(/[%_,()"\\]/g, ' ').trim();
@@ -297,10 +336,10 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
                 seenKeys.add(key);
                 combinedResults.push({
                   ...item,
-                  distanceKm: currentCoords
+                  distanceKm: currentCoordsRef.current
                     ? Math.round(
                         haversine(
-                          { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                          { latitude: currentCoordsRef.current.latitude, longitude: currentCoordsRef.current.longitude },
                           { latitude: item.latitude, longitude: item.longitude }
                         ) / 100
                       ) / 10
@@ -315,8 +354,8 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
 
         // 2. Geocodificador OpenStreetMap Photon (ciudades, pueblos, destinos en toda Europa)
         try {
-          const photonLat = currentCoords?.latitude || 40.4168;
-          const photonLng = currentCoords?.longitude || -3.7038;
+          const photonLat = currentCoordsRef.current?.latitude || 40.4168;
+          const photonLng = currentCoordsRef.current?.longitude || -3.7038;
           const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&lat=${photonLat}&lon=${photonLng}&limit=6`;
           
           const controller = new AbortController();
@@ -348,10 +387,10 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
                     category: (p.osm_value || 'DESTINO').toUpperCase(),
                     description: subtitle || 'Destino en carretera',
                     address: subtitle,
-                    distanceKm: currentCoords
+                    distanceKm: currentCoordsRef.current
                       ? Math.round(
                           haversine(
-                            { latitude: currentCoords.latitude, longitude: currentCoords.longitude },
+                            { latitude: currentCoordsRef.current.latitude, longitude: currentCoordsRef.current.longitude },
                             { latitude: lat, longitude: lng }
                           ) / 100
                         ) / 10
@@ -363,35 +402,41 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
           }
         } catch (_) {}
 
-        if (currentCoords) {
+        if (currentCoordsRef.current) {
           combinedResults.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
         }
 
-        setResults(combinedResults);
-        setShowResults(combinedResults.length > 0);
+        if (!userDismissedRef.current) {
+          setResults(combinedResults);
+          setShowResults(combinedResults.length > 0);
+        }
       } catch (e) {
         Logger.error('CockpitSearchBar', 'Fallo de búsqueda', e);
       } finally {
         setIsSearching(false);
       }
-    }, 120);
+    }, 180);
 
     return () => {
       if (searchTimeout.current) clearTimeout(searchTimeout.current);
     };
-  }, [query, currentCoords]);
+  }, [query, isFocused]);
 
   const handleSelectResult = (item: SearchResultItem) => {
+    userDismissedRef.current = true;
     Keyboard.dismiss();
+    setIsFocused(false);
     setShowResults(false);
     setQuery(item.name);
     onSelectSearchResult(item);
   };
 
   const handleClear = () => {
+    userDismissedRef.current = true;
     setQuery('');
     setResults([]);
     setShowResults(false);
+    setIsFocused(false);
     Keyboard.dismiss();
   };
 
@@ -406,22 +451,40 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
           placeholderTextColor="#94A3B8"
           value={query}
           onChangeText={(text) => {
+            userDismissedRef.current = false;
             setQuery(text);
-            const matches = getInstantSuggestions(text.trim());
-            if (matches.length > 0) {
-              setResults(matches);
-              setShowResults(true);
+            const clean = text.trim();
+            if (clean.length > 0) {
+              const matches = getInstantSuggestions(clean);
+              if (matches.length > 0) {
+                setResults(matches);
+                setShowResults(true);
+              }
+            } else {
+              if (isFocused) {
+                const matches = getInstantSuggestions('');
+                setResults(matches);
+                setShowResults(true);
+              } else {
+                setShowResults(false);
+              }
             }
           }}
           onFocus={() => {
-            const matches = getInstantSuggestions(query.trim());
+            userDismissedRef.current = false;
+            setIsFocused(true);
+            const clean = query.trim();
+            const matches = getInstantSuggestions(clean);
             if (matches.length > 0) {
               setResults(matches);
               setShowResults(true);
             }
             onFocusChange?.(true);
           }}
-          onBlur={() => onFocusChange?.(false)}
+          onBlur={() => {
+            setIsFocused(false);
+            onFocusChange?.(false);
+          }}
           returnKeyType="search"
           autoCorrect={false}
         />
@@ -445,8 +508,15 @@ export const CockpitSearchBar: React.FC<CockpitSearchBarProps> = ({
                 {query.trim().length === 0 ? 'DESTINOS RECOMENDADOS' : 'SUGERENCIAS DE UBICACIÓN'}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => setShowResults(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Icon name="close" size={15} color="#94A3B8" />
+            <TouchableOpacity
+              onPress={() => {
+                userDismissedRef.current = true;
+                setShowResults(false);
+                setIsFocused(false);
+                Keyboard.dismiss();
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Icon name="close" size={16} color="#94A3B8" />
             </TouchableOpacity>
           </View>
           <FlatList

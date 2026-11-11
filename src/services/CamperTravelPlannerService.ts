@@ -17,7 +17,7 @@ import { affiliatePartnerService } from './AffiliatePartnerService';
 import { b2bReservationService } from './B2BReservationService';
 import { Logger } from '../utils/logger';
 
-export type VehicleCategory = 'camper_van' | 'motorhome_compact' | 'motorhome_large' | 'overlander_4x4';
+export type VehicleCategory = 'camper_van' | 'campervan' | 'motorhome_compact' | 'motorhome_large' | 'overlander_4x4';
 
 export type StopType = 
   | 'poi' 
@@ -25,7 +25,12 @@ export type StopType =
   | 'water_dump' 
   | 'supermarket_parking' 
   | 'ferry_terminal' 
-  | 'panoramic_view';
+  | 'panoramic_view'
+  | 'beach'
+  | 'cultural_site'
+  | 'nature'
+  | 'viewpoint'
+  | 'parking';
 
 export interface PlannedStop {
   id: string;
@@ -33,7 +38,7 @@ export interface PlannedStop {
   type: StopType;
   coordinates: [number, number]; // [lng, lat]
   address: string;
-  durationMinutes: number;
+  durationMinutes?: number;
   notes?: string;
   partnerDiscountCode?: string;
 }
@@ -41,7 +46,7 @@ export interface PlannedStop {
 export interface OvernightSpot {
   id: string;
   name: string;
-  type: 'b2b_campsite' | 'public_camper_area' | 'wild_permitted' | 'private_farm';
+  type: 'b2b_campsite' | 'public_camper_area' | 'wild_permitted' | 'private_farm' | 'free_area';
   coordinates: [number, number];
   address: string;
   pricePerNight: number;
@@ -62,7 +67,8 @@ export interface DayStage {
   drivingKm: number;
   estimatedMinutes: number;
   stops: PlannedStop[];
-  overnight: OvernightSpot;
+  overnight?: OvernightSpot;
+  overnightSpot?: OvernightSpot;
   recommendedAction?: {
     type: 'book_pitch' | 'book_ferry' | 'buy_insurance' | 'refill_lpg';
     title: string;
@@ -78,7 +84,7 @@ export interface TravelPlan {
   title: string;
   subtitle: string;
   description: string;
-  category: 'mountain' | 'coastal' | 'desert_ferry' | 'cultural' | 'custom';
+  category: 'mountain' | 'coastal' | 'desert_ferry' | 'cultural' | 'cultural_heritage' | 'custom';
   durationDays: number;
   totalDistanceKm: number;
   totalDrivingHours: number;
@@ -738,6 +744,558 @@ export const PRESET_ITINERARIES: TravelPlan[] = [
       },
     ],
   },
+
+  // PRESET 4: PICOS DE EUROPA & CANGAS DE ONÍS
+  {
+    id: 'preset_picos_europa_4d',
+    title: 'Picos de Europa & Garganta del Cares',
+    subtitle: '4 Días • 320 km • Cangas de Onís, Covadonga y Potes',
+    description: 'Imponentes macizos calizos, carreteras panorámicas y lagos glaciares. Incluye pernocta en áreas camper autorizadas y consejos para el paso del Desfiladero de La Hermida.',
+    category: 'mountain',
+    durationDays: 4,
+    totalDistanceKm: 320,
+    totalDrivingHours: 7.5,
+    recommendedVehicle: 'motorhome_compact',
+    tags: ['Montaña', 'Gargantas', 'Queso Cabrales', 'Naturaleza'],
+    bannerImage: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 160,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Cangas de Onís y Subida a los Lagos de Covadonga',
+        startCity: 'Cangas de Onís',
+        endCity: 'Covadonga',
+        drivingKm: 65,
+        estimatedMinutes: 90,
+        stops: [
+          {
+            id: 'stop_cangas_puente',
+            name: 'Puente Romano de Cangas de Onís',
+            type: 'panoramic_view',
+            coordinates: [-5.1278, 43.3512],
+            address: 'Cangas de Onís, Asturias',
+            notes: 'Cruz de la Victoria suspendida sobre el río Sella.',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_cangas_area',
+          name: 'Área de Autocaravanas Cangas de Onís',
+          type: 'free_area',
+          coordinates: [-5.1292, 43.3533],
+          address: 'Avenida de Covadonga, Cangas de Onís',
+          pricePerNight: 0,
+          hasElectricity: false,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: false,
+        },
+        tipsForVanlife: ['En temporada alta el acceso a Lagos de Covadonga en autocaravana está restringido; utiliza el bus lanzadera.'],
+      },
+    ],
+  },
+
+  // PRESET 5: CABO DE GATA & DESIERTO DE TABERNAS
+  {
+    id: 'preset_cabo_gata_4d',
+    title: 'Cabo de Gata & Paraíso Volcánico del Sur',
+    subtitle: '4 Días • 280 km • San José, Mónsul y Las Negras',
+    description: 'Playas vírgenes de lava fósil, aguas cristalinas y atardeceres dorados en el mayor parque marítimo-terrestre del Mediterráneo.',
+    category: 'coastal',
+    durationDays: 4,
+    totalDistanceKm: 280,
+    totalDrivingHours: 6.0,
+    recommendedVehicle: 'campervan',
+    tags: ['Playas Vírgenes', 'Volcánico', 'Snorkel', 'Reserva'],
+    bannerImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 140,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Llegada a San José y Playas de los Genoveses y Mónsul',
+        startCity: 'Almería',
+        endCity: 'San José',
+        drivingKm: 70,
+        estimatedMinutes: 65,
+        stops: [
+          {
+            id: 'stop_monsul_playa',
+            name: 'Playa de Mónsul y Duna Fósil',
+            type: 'beach',
+            coordinates: [-2.1481, 36.7315],
+            address: 'Parque Natural Cabo de Gata-Níjar',
+            notes: 'Escenario de películas míticas como Indiana Jones.',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_cabo_gata_camper',
+          name: 'Cabo de Gata Camper Park',
+          type: 'b2b_campsite',
+          coordinates: [-2.2356, 36.8012],
+          address: 'Carretera AL-3115 km 7, Cabo de Gata',
+          pricePerNight: 14,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['Respeta escrupulosamente la prohibición de pernoctar a pie de playa dentro del Parque Natural para evitar sanciones ambientales.'],
+      },
+    ],
+  },
+
+  // PRESET 6: RUTA VÍA DE LA PLATA (SEVILLA A GIJÓN)
+  {
+    id: 'preset_ruta_plata_6d',
+    title: 'Vía de la Plata: De la Bética al Mar Cantábrico',
+    subtitle: '6 Días • 810 km • Sevilla, Mérida, Salamanca y Gijón',
+    description: 'La gran calzada romana que atraviesa España de sur a norte. Monumentos romanos, dehesas extremeñas, plazas mayores y sidra asturiana.',
+    category: 'cultural_heritage',
+    durationDays: 6,
+    totalDistanceKm: 810,
+    totalDrivingHours: 12.0,
+    recommendedVehicle: 'motorhome_large',
+    tags: ['Historia', 'Calzada Romana', 'Gastronomía', 'Patrimonio'],
+    bannerImage: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 260,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Sevilla y Teatro Romano de Mérida',
+        startCity: 'Sevilla',
+        endCity: 'Mérida',
+        drivingKm: 190,
+        estimatedMinutes: 125,
+        stops: [
+          {
+            id: 'stop_merida_teatro',
+            name: 'Teatro y Anfiteatro Romano de Mérida',
+            type: 'cultural_site',
+            coordinates: [-6.3382, 38.9158],
+            address: 'Mérida, Badajoz',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_merida_camper',
+          name: 'Área Camper Mérida Teatro Romano',
+          type: 'b2b_campsite',
+          coordinates: [-6.3312, 38.9214],
+          address: 'Calle Marco Agripa, Mérida',
+          pricePerNight: 12,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['El área de Mérida está vigilada por cámaras las 24 horas y permite ir caminando al conjunto arqueológico.'],
+      },
+    ],
+  },
+
+  // PRESET 7: PUEBLOS BLANCOS DE CÁDIZ & SERRANÍA DE RONDA
+  {
+    id: 'preset_pueblos_blancos_3d',
+    title: 'Pueblos Blancos & Tajo de Ronda',
+    subtitle: '3 Días • 240 km • Arcos, Grazalema, Setenil y Ronda',
+    description: 'Pueblos encalados colgados en desfiladeros, casas excavadas bajo rocas gigantes en Setenil y el majestuoso Puente Nuevo de Ronda.',
+    category: 'mountain',
+    durationDays: 3,
+    totalDistanceKm: 240,
+    totalDrivingHours: 5.5,
+    recommendedVehicle: 'motorhome_compact',
+    tags: ['Pueblos con Encanto', 'Andalucía', 'Ruta Serrana'],
+    bannerImage: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 120,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Arcos de la Frontera y Grazalema',
+        startCity: 'Arcos de la Frontera',
+        endCity: 'Grazalema',
+        drivingKm: 75,
+        estimatedMinutes: 80,
+        stops: [
+          {
+            id: 'stop_setenil_cuevas',
+            name: 'Calle Cuevas del Sol en Setenil de las Bodegas',
+            type: 'cultural_site',
+            coordinates: [-5.1812, 36.8638],
+            address: 'Setenil de las Bodegas, Cádiz',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_ronda_area',
+          name: 'Área Autocaravanas La Rondeña',
+          type: 'b2b_campsite',
+          coordinates: [-5.1589, 36.7512],
+          address: 'Carretera Ronda-Campillos, Ronda',
+          pricePerNight: 15,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['No entres con autocaravana de más de 6m al casco antiguo de Setenil ni Arcos; aparca en los parkings exteriores señalizados.'],
+      },
+    ],
+  },
+
+  // PRESET 8: COSTA DA MORTE & FAROS DEL FIN DEL MUNDO
+  {
+    id: 'preset_costa_da_morte_4d',
+    title: 'Costa da Morte & Faros del Fin del Mundo',
+    subtitle: '4 Días • 310 km • Malpica, Muxía, Fisterra y Ézaro',
+    description: 'La costa más salvaje de Europa. Acantilados donde rompe el Atlántico, leyendas de naufragios, el Faro de Finisterre y la única cascada de Europa que cae al mar.',
+    category: 'coastal',
+    durationDays: 4,
+    totalDistanceKm: 310,
+    totalDrivingHours: 7.0,
+    recommendedVehicle: 'campervan',
+    tags: ['Atlántico Salvaje', 'Faros', 'Puesta de Sol', 'Marisco'],
+    bannerImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 150,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Faro de Cabo Vilán y Santuario de Muxía',
+        startCity: 'Camariñas',
+        endCity: 'Muxía',
+        drivingKm: 70,
+        estimatedMinutes: 85,
+        stops: [
+          {
+            id: 'stop_faro_vilan',
+            name: 'Faro de Cabo Vilán',
+            type: 'panoramic_view',
+            coordinates: [-9.2104, 43.1578],
+            address: 'Camariñas, A Coruña',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_fisterra_camper',
+          name: 'Área Camper Finisterre O Cabalo',
+          type: 'b2b_campsite',
+          coordinates: [-9.2612, 42.9123],
+          address: 'Paseo Marítimo, Fisterra',
+          pricePerNight: 12,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['El viento atlántico en los faros puede superar los 80 km/h; orienta el frontal de la furgoneta hacia el viento para mayor estabilidad al dormir.'],
+      },
+    ],
+  },
+
+  // PRESET 9: BARDENAS REALES & DESIERTO DE NAVARRA
+  {
+    id: 'preset_bardenas_reales_3d',
+    title: 'Bardenas Reales: El Cañón de Colorado Español',
+    subtitle: '3 Días • 210 km • Tudela, Castildetierra y Olite',
+    description: 'Paisaje semidesértico lunar declarado Reserva de la Biosfera. Chimeneas de hadas erosionadas por el cierzo y castillos góticos navarros.',
+    category: 'desert_ferry',
+    durationDays: 3,
+    totalDistanceKm: 210,
+    totalDrivingHours: 4.5,
+    recommendedVehicle: 'motorhome_compact',
+    tags: ['Desierto', 'Paisaje Lunar', 'Fotografía', 'Castillos'],
+    bannerImage: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 110,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Ruta Perimetral de la Blanca Baja y Castildetierra',
+        startCity: 'Arguedas',
+        endCity: 'Tudela',
+        drivingKm: 85,
+        estimatedMinutes: 110,
+        stops: [
+          {
+            id: 'stop_castildetierra',
+            name: 'Monolito Natural de Castildetierra',
+            type: 'panoramic_view',
+            coordinates: [-1.5175, 42.2098],
+            address: 'Bardenas Reales, Navarra',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_arguedas_cuevas',
+          name: 'Área Municipal Camper Arguedas (Junto a las Cuevas)',
+          type: 'free_area',
+          coordinates: [-1.5945, 42.1762],
+          address: 'Camino de las Cuevas, Arguedas',
+          pricePerNight: 0,
+          hasElectricity: false,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: false,
+        },
+        tipsForVanlife: ['Prohibida la pernocta dentro del Parque Natural de las Bardenas; el área gratuita de Arguedas al pie de las cuevas trogloditas es perfecta.'],
+      },
+    ],
+  },
+
+  // PRESET 10: ALGARVE SALVAJE & COSTA VICENTINA (PORTUGAL)
+  {
+    id: 'preset_algarve_vicentina_5d',
+    title: 'Costa Vicentina & Playas Secretas del Algarve',
+    subtitle: '5 Días • 450 km • Sines, Sagres, Lagos y Tavira',
+    description: 'El litoral virgen del suroeste alentejano y los acantilados dorados del Algarve. Rutas de surf, pueblos de pescadores y gastronomía atlántica.',
+    category: 'coastal',
+    durationDays: 5,
+    totalDistanceKm: 450,
+    totalDrivingHours: 9.0,
+    recommendedVehicle: 'campervan',
+    tags: ['Portugal', 'Surf', 'Acantilados', 'Puestas de Sol'],
+    bannerImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 220,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Cabo de San Vicente y Fortaleza de Sagres',
+        startCity: 'Aljezur',
+        endCity: 'Sagres',
+        drivingKm: 90,
+        estimatedMinutes: 80,
+        stops: [
+          {
+            id: 'stop_cabo_san_vicente',
+            name: 'Faro de Cabo de São Vicente',
+            type: 'panoramic_view',
+            coordinates: [-8.9964, 37.0231],
+            address: 'Sagres, Algarve, Portugal',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_sagres_camper',
+          name: 'Área de Serviço para Autocaravanas Sagres',
+          type: 'b2b_campsite',
+          coordinates: [-8.9345, 37.0125],
+          address: 'Sitio das Hortas, Sagres',
+          pricePerNight: 13,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['En Portugal la pernocta fuera de áreas ASA autorizadas conlleva multas de la GNR; pernocta siempre en áreas reguladas ASA.'],
+      },
+    ],
+  },
+
+  // PRESET 11: DOLOMITAS & PASOS ALPINOS 3D (ITALIA)
+  {
+    id: 'preset_dolomitas_alpes_6d',
+    title: 'Dolomitas Mágicas: Tre Cime & Paso Stelvio',
+    subtitle: '6 Días • 620 km • Bolzano, Cortina, Val Gardena y Stelvio',
+    description: 'La cordillera más bella del planeta. Picos de roca rosa al atardecer (Enrosadira), lagos de color esmeralda (Lago di Braies) y curvas míticas.',
+    category: 'mountain',
+    durationDays: 6,
+    totalDistanceKm: 620,
+    totalDrivingHours: 14.5,
+    recommendedVehicle: 'motorhome_compact',
+    tags: ['Alpes', 'Dolomitas', 'Altas Cumbres', 'Pistas Panorámicas'],
+    bannerImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 380,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Bolzano y Val Gardena hacia el Paso Sella',
+        startCity: 'Bolzano',
+        endCity: 'Ortisei',
+        drivingKm: 60,
+        estimatedMinutes: 70,
+        stops: [
+          {
+            id: 'stop_passo_sella',
+            name: 'Mirador del Passo Sella (2.246m)',
+            type: 'panoramic_view',
+            coordinates: [11.7583, 46.5083],
+            address: 'Passo Sella, Dolomitas, Italia',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_cortina_camper',
+          name: 'Camping Cortina Dolomiti Resort',
+          type: 'b2b_campsite',
+          coordinates: [12.1389, 46.5245],
+          address: 'Via Campo 2, Cortina d\'Ampezzo',
+          pricePerNight: 28,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['Revisa los frenos y usa el freno de motor en las bajadas alpinas pronunciadas para evitar el fading del líquido de frenos.'],
+      },
+    ],
+  },
+
+  // PRESET 12: SELVA NEGRA (SCHWARZWALD ALEMANIA)
+  {
+    id: 'preset_selva_negra_5d',
+    title: 'Selva Negra Romántica: Cascadas, Relojes y Bosques',
+    subtitle: '5 Días • 480 km • Baden-Baden, Triberg, Titisee y Friburgo',
+    description: 'Carreteras de ensueño flanqueadas por abetos centenarios, las cascadas más altas de Alemania en Triberg y el lago alpino de Titisee.',
+    category: 'mountain',
+    durationDays: 5,
+    totalDistanceKm: 480,
+    totalDrivingHours: 9.5,
+    recommendedVehicle: 'motorhome_large',
+    tags: ['Alemania', 'Bosques', 'Cascadas', 'Lagos'],
+    bannerImage: 'https://images.unsplash.com/photo-1511497584788-87676104235f?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 290,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Baden-Baden y la Schwarzwaldhochstraße (B500)',
+        startCity: 'Baden-Baden',
+        endCity: 'Triberg',
+        drivingKm: 95,
+        estimatedMinutes: 90,
+        stops: [
+          {
+            id: 'stop_triberg_wasserfalle',
+            name: 'Cascadas de Triberg y Reloj de Cuco Gigante',
+            type: 'panoramic_view',
+            coordinates: [8.2322, 48.1306],
+            address: 'Triberg, Baden-Württemberg, Alemania',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_titisee_stellplatz',
+          name: 'Wohnmobilstellplatz am Titisee',
+          type: 'b2b_campsite',
+          coordinates: [8.1567, 47.9012],
+          address: 'Neustädter Str., Titisee-Neustadt',
+          pricePerNight: 20,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['En Alemania las autocaravanas necesitan el distintivo ambiental verde (Umweltplakette) para entrar en ciudades como Friburgo.'],
+      },
+    ],
+  },
+
+  // PRESET 13: GARROWS Y LAVANDA DE PROVENZA (FRANCIA)
+  {
+    id: 'preset_provenza_verdon_5d',
+    title: 'Provenza en Flor & Gran Cañón del Verdon',
+    subtitle: '5 Días • 420 km • Valensole, Verdon y Moustiers',
+    description: 'El mayor cañón de Europa con aguas turquesa esmeralda, campos infinitos de lavanda en la meseta de Valensole y pueblos medievales provenzales.',
+    category: 'coastal',
+    durationDays: 5,
+    totalDistanceKm: 420,
+    totalDrivingHours: 9.0,
+    recommendedVehicle: 'campervan',
+    tags: ['Francia', 'Cañón', 'Lavanda', 'Aguas Turquesa'],
+    bannerImage: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 260,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Ruta de las Gargantas del Verdon y Lago de Sainte-Croix',
+        startCity: 'Castellane',
+        endCity: 'Moustiers-Sainte-Marie',
+        drivingKm: 80,
+        estimatedMinutes: 105,
+        stops: [
+          {
+            id: 'stop_point_sublime_verdon',
+            name: 'Mirador Point Sublime del Cañón del Verdon',
+            type: 'panoramic_view',
+            coordinates: [6.3983, 43.7917],
+            address: 'Rougon, Gargantas del Verdon, Francia',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_moustiers_aire',
+          name: 'Aire Camping-Car Park Moustiers-Sainte-Marie',
+          type: 'b2b_campsite',
+          coordinates: [6.2234, 43.8456],
+          address: 'Chemin de Saint-Jean, Moustiers',
+          pricePerNight: 16,
+          hasElectricity: true,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: true,
+        },
+        tipsForVanlife: ['Los túneles de la Ruta de las Gargantas (Route des Crêtes) tienen un límite de gálibo de 3.4m; extrema precaución con capuchinas altas.'],
+      },
+    ],
+  },
+
+  // PRESET 14: RIBEIRA SACRA & CAÑÓN DEL SIL
+  {
+    id: 'preset_ribeira_sacra_3d',
+    title: 'Ribeira Sacra & Cañones del Sil',
+    subtitle: '3 Días • 230 km • Monforte, Parada de Sil y Castro Caldelas',
+    description: 'Viñedos en bancales verticales imposibles sobre el río Sil, monasterios románicos escondidos en bosques de castaños y miradores de vértigo.',
+    category: 'mountain',
+    durationDays: 3,
+    totalDistanceKm: 230,
+    totalDrivingHours: 5.5,
+    recommendedVehicle: 'motorhome_compact',
+    tags: ['Cañón Fluvial', 'Viñedos Heroicos', 'Románico', 'Miradores'],
+    bannerImage: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800',
+    createdAt: '2026-11-01',
+    isPreset: true,
+    estimatedBudgetEur: 125,
+    stages: [
+      {
+        dayNumber: 1,
+        title: 'Miradores de Parada de Sil y Balcones de Madrid',
+        startCity: 'Ourense',
+        endCity: 'Parada de Sil',
+        drivingKm: 65,
+        estimatedMinutes: 75,
+        stops: [
+          {
+            id: 'stop_balcones_madrid',
+            name: 'Mirador Balcones de Madrid sobre el Cañón del Sil',
+            type: 'panoramic_view',
+            coordinates: [-7.5689, 42.3856],
+            address: 'Parada de Sil, Ourense',
+          },
+        ],
+        overnightSpot: {
+          id: 'overnight_parada_sil_area',
+          name: 'Área Municipal Camper Parada de Sil',
+          type: 'free_area',
+          coordinates: [-7.5712, 42.3823],
+          address: 'Rúa do Campo, Parada de Sil',
+          pricePerNight: 0,
+          hasElectricity: false,
+          hasWater: true,
+          hasWasteDump: true,
+          isB2BBookable: false,
+        },
+        tipsForVanlife: ['Las carreteras secundarias de la Ribeira Sacra son estrechas y sinuosas; da preferencia a los autobuses locales en curvas cerradas.'],
+      },
+    ],
+  },
 ];
 
 // ============================================================================
@@ -767,6 +1325,18 @@ class CamperTravelPlannerService {
       const stored = await AsyncStorage.getItem(STORAGE_SAVED_PLANS_KEY);
       if (stored) {
         this.savedPlans = JSON.parse(stored);
+        // Reconciliar y asegurar que todos los presets estén disponibles
+        const existingIds = new Set(this.savedPlans.map(p => p.id));
+        let addedNew = false;
+        for (const preset of PRESET_ITINERARIES) {
+          if (!existingIds.has(preset.id)) {
+            this.savedPlans.push(preset);
+            addedNew = true;
+          }
+        }
+        if (addedNew) {
+          await this.persist();
+        }
       } else {
         // Cargar los presets como base si no hay nada
         this.savedPlans = [...PRESET_ITINERARIES];

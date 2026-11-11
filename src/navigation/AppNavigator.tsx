@@ -102,15 +102,35 @@ export default function AppNavigator() {
 
   const checkOnboardingState = async () => {
     try {
-      // 1. Verificación offline-first: Si ya se inició sesión, completó onboarding o existe perfil, mantener en la app
-      const [sessionActive, onboarded, profileCompleted, vehicleConfig] = await Promise.all([
+      // 1. Verificación offline-first: Si ya se inició sesión, completó onboarding o existe perfil/vehículo, ir directo a la app principal
+      const [
+        sessionActive,
+        onboarded,
+        profileCompleted,
+        vehicleConfig,
+        userVehicleSetup,
+        selectedVehicleId,
+        legacySetup,
+      ] = await Promise.all([
         AsyncStorage.getItem('@camper_session_active'),
         AsyncStorage.getItem('@camper_onboarding_completed'),
         AsyncStorage.getItem('@camper_profile_completed'),
         AsyncStorage.getItem('@camper_vehicle_config'),
+        AsyncStorage.getItem('@camper_user_vehicle_setup'),
+        AsyncStorage.getItem('@camper_selected_vehicle_id'),
+        AsyncStorage.getItem('@camper_vehicle_setup'),
       ]);
 
-      if (sessionActive === 'true' || onboarded === 'true' || profileCompleted === 'true' || vehicleConfig) {
+      if (
+        sessionActive === 'true' ||
+        onboarded === 'true' ||
+        profileCompleted === 'true' ||
+        vehicleConfig ||
+        userVehicleSetup ||
+        selectedVehicleId ||
+        legacySetup
+      ) {
+        await AsyncStorage.setItem('@camper_onboarding_completed', 'true');
         setCurrentStep('complete');
         setIsReady(true);
         return;

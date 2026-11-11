@@ -38,6 +38,7 @@ import {
 } from '../features/premium';
 import { VEHICLE_CURSORS, VehicleCursorType } from '../types/assistant';
 import { CamperRewardsModal } from '../components/CamperRewardsModal';
+import { camperRewardsService } from '../services/CamperRewardsService';
 import Geolocation from 'react-native-geolocation-service';
 import { AffiliatePartnersModal } from '../components/AffiliatePartnersModal';
 import { CamperBookingModal } from '../components/CamperBookingModal';
@@ -190,7 +191,7 @@ export default function ProfileScreen() {
   const [controlDistance, setControlDistance] = useState<number>(5000);
   const [clearanceDistance, setClearanceDistance] = useState<number>(1000);
   const [audioAlertMode, setAudioAlertMode] = useState<'multimedia' | 'bluetooth_hfp' | 'silent_visual'>('multimedia');
-  const [tachographEnabled, setTachographEnabled] = useState<boolean>(true);
+  const [tachographEnabled, setTachographEnabled] = useState<boolean>(false);
 
   // Vehículo y Ficha Técnica (Pilar 2)
   const [vehicleConfig, setVehicleConfig] = useState<VehicleConfig>({
@@ -453,7 +454,6 @@ export default function ProfileScreen() {
         onPress: async () => {
           await supabase.auth.signOut();
           await AsyncStorage.removeItem('@camper_session_active');
-          await AsyncStorage.removeItem('@camper_onboarding_completed');
           setIsLoggedIn(false);
           setTrustProfile(null);
         },
@@ -1098,6 +1098,20 @@ export default function ProfileScreen() {
               title="Central de Reservas B2B de Parcelas"
               subtitle="Reservas garantizadas y códigos PIN de barreras"
               onPress={() => setShowBookingModal(true)}
+            />
+            <View style={styles.separator} />
+            <SettingRow
+              icon="account-multiple-plus"
+              iconColor="#A78BFA"
+              title="Invitar Amigos y Ganar 1 Mes Pro Gratis"
+              subtitle="Gana 500 pts + 1 Mes Pro por cada suscriptor anual"
+              onPress={() => {
+                const code = camperRewardsService.getUserReferralCode();
+                Share.share({
+                  title: '¡Únete a CamperSites Pro!',
+                  message: `¡Hola! Te invito a probar CamperSites Pro, el mejor mapa y copiloto GPS para autocaravanas y campers. Usa mi código ${code} al suscribirte y llévate un 20% de descuento directo: https://camper.nexusaiholding.com/`,
+                }).catch(() => {});
+              }}
             />
           </View>
         </View>

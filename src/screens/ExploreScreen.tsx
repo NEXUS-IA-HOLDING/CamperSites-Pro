@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import Geolocation from 'react-native-geolocation-service';
 import haversine from 'haversine-distance';
@@ -167,6 +167,8 @@ const isAffiliateCategory = (cat: string) =>
 
 export default function ExploreScreen() {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
+  const watchIdRef = useRef<number | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -229,27 +231,6 @@ export default function ExploreScreen() {
   const [userCoords, setUserCoords] = useState<[number, number]>([-4.0890, 40.6720]); // Guadarrama A-6 fallback
   const [showServicesMap, setShowServicesMap] = useState<boolean>(true);
   const exploreCameraRef = useRef<any>(null);
-
-  // Obtener geolocalización real del usuario
-  useEffect(() => {
-    Geolocation.getCurrentPosition(
-      pos => {
-        if (isMountedRef.current) {
-          const newCoords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
-          setUserCoords(newCoords);
-          exploreCameraRef.current?.setCamera({
-            centerCoordinate: newCoords,
-            zoomLevel: 12.5,
-            animationDuration: 800,
-          });
-          // Recalcular y ordenar de inmediato por proximidad GPS
-          fetchLocations(searchQuery, selectedCategory, newCoords);
-        }
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 15000 }
-    );
-  }, []);
 
   // Ref para evitar race conditions en búsqueda
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -371,6 +352,57 @@ export default function ExploreScreen() {
       }
     }
   }, [userCoords]);
+
+  // Geolocalización en tiempo real con useFocusEffect + Geolocation.watchPosition
+  useFocusEffect(
+    useCallback(() => {
+      // 1. Obtención inmediata de posición al enfocar la pestaña con timeout de 10s
+      Geolocation.getCurrentPosition(
+        pos => {
+          if (isMountedRef.current) {
+            const newCoords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+            setUserCoords(newCoords);
+            exploreCameraRef.current?.setCamera({
+              centerCoordinate: newCoords,
+              zoomLevel: 12.5,
+              animationDuration: 800,
+            });
+            fetchLocations(searchQuery, selectedCategory, newCoords);
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      );
+
+      // 2. Suscripción continua con distanceFilter 100m mientras ExploreScreen esté activa
+      try {
+        watchIdRef.current = Geolocation.watchPosition(
+          pos => {
+            if (isMountedRef.current) {
+              const newCoords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+              setUserCoords(newCoords);
+              exploreCameraRef.current?.setCamera({
+                centerCoordinate: newCoords,
+                zoomLevel: 12.5,
+                animationDuration: 800,
+              });
+            }
+          },
+          () => {},
+          { enableHighAccuracy: true, distanceFilter: 100, interval: 3000 }
+        );
+      } catch (e) {
+        // En emuladores o entornos sin permiso
+      }
+
+      return () => {
+        if (watchIdRef.current !== null) {
+          Geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+      };
+    }, [searchQuery, selectedCategory, fetchLocations])
+  );
 
   // Efecto para búsqueda con debounce
   useEffect(() => {
@@ -703,6 +735,188 @@ export default function ExploreScreen() {
     </View>
   );
 
+  const renderExploreFeedHeader = useCallback(() => {
+    return (
+      <View style={{ marginBottom: 8 }}>
+        {/* Banner Destacado: Travel Planner Camper */}
+        <TouchableOpacity
+          style={styles.travelPlannerBanner}
+          onPress={() => setShowTravelPlanner(true)}
+          activeOpacity={0.88}>
+          <View style={styles.travelPlannerBannerLeft}>
+            <View style={styles.travelPlannerIconBox}>
+              <Icon name="map-clock-outline" size={24} color="#38BDF8" />
+            </View>
+            <View style={styles.travelPlannerTextBox}>
+              <View style={styles.travelPlannerBadgeRow}>
+                <Text style={styles.travelPlannerBadge}>TRAVEL PLANNER</Text>
+                <View style={styles.proTag}>
+                  <Text style={styles.proTagText}>PRO 3D</Text>
+                </View>
+              </View>
+              <Text style={styles.travelPlannerTitle}>Diseña tu Itinerario por Etapas</Text>
+              <Text style={styles.travelPlannerSub}>
+                14+ Rutas 3D con pernocta segura, vaciado y GLP
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={22} color="#38BDF8" />
+        </TouchableOpacity>
+
+        {/* Banner 1: Pase Fundador Pionero VIP (Crowdfunding & Impulso Google Play) */}
+        <TouchableOpacity
+          style={[styles.travelPlannerBanner, { borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.12)', marginBottom: 10 }]}
+          onPress={() => {
+            Linking.openURL('https://camper.nexusaiholding.com/patrocinios.html');
+          }}
+          activeOpacity={0.88}>
+          <View style={styles.travelPlannerBannerLeft}>
+            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.25)' }]}>
+              <Icon name="crown" size={24} color="#10B981" />
+            </View>
+            <View style={styles.travelPlannerTextBox}>
+              <View style={styles.travelPlannerBadgeRow}>
+                <Text style={[styles.travelPlannerBadge, { color: '#10B981' }]}>PASE FUNDADOR VIP</Text>
+                <View style={[styles.proTag, { backgroundColor: '#10B981' }]}>
+                  <Text style={styles.proTagText}>2 AÑOS VIP (19,99€)</Text>
+                </View>
+              </View>
+              <Text style={styles.travelPlannerTitle}>Pase Pionero 2 Años (Solo 100 Plazas)</Text>
+              <Text style={styles.travelPlannerSub}>
+                2 Años completos de acceso VIP Pro y apoya el lanzamiento
+              </Text>
+            </View>
+          </View>
+          <Icon name="open-in-new" size={20} color="#10B981" />
+        </TouchableOpacity>
+
+        {/* Banner Monetización: Club Descuentos Camper & Hostinger */}
+        <TouchableOpacity
+          style={[styles.travelPlannerBanner, { borderColor: 'rgba(103, 58, 183, 0.45)', backgroundColor: 'rgba(103, 58, 183, 0.12)', marginBottom: 12 }]}
+          onPress={() => setSelectedCategory('DESCUENTOS')}
+          activeOpacity={0.88}>
+          <View style={styles.travelPlannerBannerLeft}>
+            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(103, 58, 183, 0.25)' }]}>
+              <Icon name="tag-multiple" size={24} color="#A78BFA" />
+            </View>
+            <View style={styles.travelPlannerTextBox}>
+              <View style={styles.travelPlannerBadgeRow}>
+                <Text style={[styles.travelPlannerBadge, { color: '#A78BFA' }]}>DESCUENTOS EXCLUSIVOS</Text>
+                <View style={[styles.proTag, { backgroundColor: '#673AB7' }]}>
+                  <Text style={styles.proTagText}>-20% DTO</Text>
+                </View>
+              </View>
+              <Text style={styles.travelPlannerTitle}>Hostinger, GLP Repsol, IATI & Autodoc</Text>
+              <Text style={styles.travelPlannerSub}>
+                20% de descuento verificado con nuestros códigos
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={22} color="#A78BFA" />
+        </TouchableOpacity>
+
+        {/* Sección Autodoc Recambios & Amazon Camper Gadgets */}
+        <View style={styles.showcaseSection}>
+          <View style={styles.showcaseHeaderRow}>
+            <Icon name="tools" size={16} color="#38BDF8" style={{ marginRight: 6 }} />
+            <Text style={styles.showcaseHeaderTitle}>Recambios Autodoc & Accesorios Amazon</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+            <TouchableOpacity
+              style={styles.showcaseChip}
+              onPress={() => Linking.openURL('https://www.autodoc.es').catch(() => {})}
+              activeOpacity={0.8}>
+              <Icon name="car-cog" size={20} color="#38BDF8" />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={styles.showcaseChipTitle}>Autodoc Pro</Text>
+                <Text style={styles.showcaseChipSub}>Filtros, frenos y recambios</Text>
+              </View>
+              <Icon name="open-in-new" size={14} color="#64748B" style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.showcaseChip}
+              onPress={() => Linking.openURL('https://www.amazon.es/s?k=camper+accesorios').catch(() => {})}
+              activeOpacity={0.8}>
+              <Icon name="package-variant-closed" size={20} color="#F59E0B" />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={styles.showcaseChipTitle}>Amazon Camper</Text>
+                <Text style={styles.showcaseChipSub}>Calzos, aislantes y placas</Text>
+              </View>
+              <Icon name="open-in-new" size={14} color="#64748B" style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        {/* Sponsor / Google Ads */}
+        <CamperAdBanner placement="feed" />
+
+        {/* Barra de cabecera del radar de proximidad */}
+        {!isAffiliateCategory(selectedCategory) && (
+          <>
+            <View style={styles.servicesMapHeader}>
+              <View style={styles.servicesMapHeaderLeft}>
+                <Text style={styles.servicesMapHeaderTitle}>Radar de Servicios Cercanos</Text>
+                <Text style={styles.servicesMapHeaderSub}>Servicios activos alrededor de tu posición</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.mapToggleBtn, showServicesMap && styles.mapToggleBtnActive]}
+                onPress={() => setShowServicesMap(prev => !prev)}
+                activeOpacity={0.8}>
+                <Icon name={showServicesMap ? 'map-minus' : 'map-search'} size={15} color="#FFF" />
+                <Text style={styles.mapToggleBtnText}>
+                  {showServicesMap ? 'Ocultar' : 'Ver Mapa'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Mapa Satelital de Servicios Cercanos */}
+            {showServicesMap && (
+              <View style={styles.servicesMapContainer}>
+                <MapLibreGL.MapView
+                  style={styles.servicesMap}
+                  mapStyle={EXPLORE_MAP_STYLE}
+                  logoEnabled={false}
+                  attributionEnabled={false}>
+                  <MapLibreGL.Camera
+                    ref={exploreCameraRef}
+                    defaultSettings={{
+                      centerCoordinate: userCoords,
+                      zoomLevel: 12.5,
+                    }}
+                  />
+                  <MapLibreGL.PointAnnotation id="explore-user-beacon" coordinate={userCoords}>
+                    <View style={styles.userBeacon}>
+                      <View style={styles.userBeaconCore} />
+                    </View>
+                  </MapLibreGL.PointAnnotation>
+                  {displayedLocations.slice(0, 25).map(loc => {
+                    if (!loc.latitude || !loc.longitude) return null;
+                    const config = getCategoryConfig(loc.category);
+                    return (
+                      <MapLibreGL.PointAnnotation
+                        key={loc.id}
+                        id={`marker-${loc.id}`}
+                        coordinate={[loc.longitude, loc.latitude]}
+                        onSelected={() => setSelectedLocationForReviews(loc)}>
+                        <View style={[styles.servicePin, { borderColor: config.color }]}>
+                          <Text style={styles.servicePinEmoji}>{config.emoji}</Text>
+                        </View>
+                      </MapLibreGL.PointAnnotation>
+                    );
+                  })}
+                </MapLibreGL.MapView>
+              </View>
+            )}
+          </>
+        )}
+      </View>
+    );
+  }, [showServicesMap, selectedCategory, userCoords, displayedLocations]);
+
   return (
     <View style={styles.container}>
       {/* Header con gradiente visual */}
@@ -776,167 +990,11 @@ export default function ExploreScreen() {
         </ScrollView>
       )}
 
-      {/* Banner Destacado: Travel Planner Camper */}
-      {!showCategoryGrid && (
-        <TouchableOpacity
-          style={styles.travelPlannerBanner}
-          onPress={() => setShowTravelPlanner(true)}
-          activeOpacity={0.88}>
-          <View style={styles.travelPlannerBannerLeft}>
-            <View style={styles.travelPlannerIconBox}>
-              <Icon name="map-clock-outline" size={24} color="#38BDF8" />
-            </View>
-            <View style={styles.travelPlannerTextBox}>
-              <View style={styles.travelPlannerBadgeRow}>
-                <Text style={styles.travelPlannerBadge}>TRAVEL PLANNER</Text>
-                <View style={styles.proTag}>
-                  <Text style={styles.proTagText}>PRO</Text>
-                </View>
-              </View>
-              <Text style={styles.travelPlannerTitle}>Diseña tu Itinerario por Etapas</Text>
-              <Text style={styles.travelPlannerSub}>
-                Rutas con pernocta segura, vaciado y GLP
-              </Text>
-            </View>
-          </View>
-          <Icon name="chevron-right" size={22} color="#38BDF8" />
-        </TouchableOpacity>
-      )}
-
-      {/* Banner 1: Pase Fundador Pionero VIP (Crowdfunding & Impulso Google Play) */}
-      {!showCategoryGrid && (
-        <TouchableOpacity
-          style={[styles.travelPlannerBanner, { borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.12)', marginBottom: 10 }]}
-          onPress={() => {
-            Linking.openURL('https://camper.nexusaiholding.com/patrocinios.html');
-          }}
-          activeOpacity={0.88}>
-          <View style={styles.travelPlannerBannerLeft}>
-            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.25)' }]}>
-              <Icon name="crown" size={24} color="#10B981" />
-            </View>
-            <View style={styles.travelPlannerTextBox}>
-              <View style={styles.travelPlannerBadgeRow}>
-                <Text style={[styles.travelPlannerBadge, { color: '#10B981' }]}>PASE FUNDADOR VIP</Text>
-                <View style={[styles.proTag, { backgroundColor: '#10B981' }]}>
-                  <Text style={styles.proTagText}>2 AÑOS VIP (19,99€)</Text>
-                </View>
-              </View>
-              <Text style={styles.travelPlannerTitle}>Pase Pionero 2 Años (Solo 100 Plazas)</Text>
-              <Text style={styles.travelPlannerSub}>
-                2 Años completos de acceso VIP Pro y apoya el lanzamiento en Google Play y Apple Store
-              </Text>
-            </View>
-          </View>
-          <Icon name="open-in-new" size={20} color="#10B981" />
-        </TouchableOpacity>
-      )}
-
-      {/* Banner Monetización: Club Descuentos Camper & Hostinger */}
-      {!showCategoryGrid && (
-        <TouchableOpacity
-          style={[styles.travelPlannerBanner, { borderColor: 'rgba(103, 58, 183, 0.45)', backgroundColor: 'rgba(103, 58, 183, 0.12)' }]}
-          onPress={() => setSelectedCategory('DESCUENTOS')}
-          activeOpacity={0.88}>
-          <View style={styles.travelPlannerBannerLeft}>
-            <View style={[styles.travelPlannerIconBox, { backgroundColor: 'rgba(103, 58, 183, 0.25)' }]}>
-              <Icon name="tag-multiple" size={24} color="#A78BFA" />
-            </View>
-            <View style={styles.travelPlannerTextBox}>
-              <View style={styles.travelPlannerBadgeRow}>
-                <Text style={[styles.travelPlannerBadge, { color: '#A78BFA' }]}>DESCUENTOS & COMISIONES</Text>
-                <View style={[styles.proTag, { backgroundColor: '#673AB7' }]}>
-                  <Text style={styles.proTagText}>HOSTINGER -20%</Text>
-                </View>
-              </View>
-              <Text style={styles.travelPlannerTitle}>Hostinger VPS & Cloud, GLP Repsol & IATI</Text>
-              <Text style={styles.travelPlannerSub}>
-                Ahorra hasta un 20% con nuestros códigos de referencia verificados
-              </Text>
-            </View>
-          </View>
-          <Icon name="chevron-right" size={22} color="#A78BFA" />
-        </TouchableOpacity>
-      )}
-
-      {/* Sponsor / Google Ads Banner for Free Users */}
-      {!showCategoryGrid && <CamperAdBanner placement="feed" />}
-
       {/* Grid de categorías expandido */}
       {showCategoryGrid && (
         <ScrollView style={styles.categoryGridScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
           {renderCategoryGrid()}
         </ScrollView>
-      )}
-
-      {/* Barra de cabecera del mapa de servicios de proximidad */}
-      {!showCategoryGrid && !isAffiliateCategory(selectedCategory) && (
-        <View style={styles.servicesMapHeader}>
-          <View style={styles.servicesMapHeaderLeft}>
-            <Text style={styles.servicesMapHeaderTitle}>Radar de Servicios Cercanos</Text>
-            <Text style={styles.servicesMapHeaderSub}>Servicios activos alrededor de tu posición</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.mapToggleBtn, showServicesMap && styles.mapToggleBtnActive]}
-            onPress={() => setShowServicesMap(prev => !prev)}
-            activeOpacity={0.8}>
-            <Icon name={showServicesMap ? 'map-minus' : 'map-search'} size={15} color="#FFF" />
-            <Text style={styles.mapToggleBtnText}>
-              {showServicesMap ? 'Ocultar' : 'Ver Mapa'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Mapa Satelital de Servicios Cercanos a la Posición del Usuario */}
-      {!showCategoryGrid && !isAffiliateCategory(selectedCategory) && showServicesMap && (
-        <View style={styles.servicesMapContainer}>
-          <MapLibreGL.MapView
-            style={styles.servicesMap}
-            mapStyle={EXPLORE_MAP_STYLE}
-            logoEnabled={false}
-            attributionEnabled={false}
-          >
-            <MapLibreGL.Camera
-              ref={exploreCameraRef}
-              defaultSettings={{
-                centerCoordinate: userCoords,
-                zoomLevel: 12.5,
-              }}
-            />
-
-            {/* Baliza GPS del Usuario */}
-            <MapLibreGL.PointAnnotation id="explore-user-beacon" coordinate={userCoords}>
-              <View style={styles.userBeacon}>
-                <View style={styles.userBeaconCore} />
-              </View>
-            </MapLibreGL.PointAnnotation>
-
-            {/* Marcadores de Servicios Georreferenciados */}
-            {displayedLocations.slice(0, 25).map(loc => {
-              if (!loc.latitude || !loc.longitude) return null;
-              const config = getCategoryConfig(loc.category);
-              return (
-                <MapLibreGL.PointAnnotation
-                  key={loc.id}
-                  id={`marker-${loc.id}`}
-                  coordinate={[loc.longitude, loc.latitude]}
-                  onSelected={() => setSelectedLocationForReviews(loc)}
-                >
-                  <View style={[styles.servicePin, { borderColor: config.color }]}>
-                    <Text style={styles.servicePinEmoji}>{config.emoji}</Text>
-                  </View>
-                  <MapLibreGL.Callout title={loc.name}>
-                    <View style={styles.serviceCallout}>
-                      <Text style={styles.calloutTitle}>{loc.name}</Text>
-                      <Text style={styles.calloutSub}>{config.label} · Toca para ver</Text>
-                    </View>
-                  </MapLibreGL.Callout>
-                </MapLibreGL.PointAnnotation>
-              );
-            })}
-          </MapLibreGL.MapView>
-        </View>
       )}
 
       {/* Lista de Códigos de Descuento & Afiliados Oficiales */}
@@ -960,6 +1018,7 @@ export default function ExploreScreen() {
           keyExtractor={item => item.id}
           renderItem={renderLocationCard}
           contentContainerStyle={styles.listContent}
+          ListHeaderComponent={!showCategoryGrid ? renderExploreFeedHeader : undefined}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           removeClippedSubviews={true}
@@ -1742,5 +1801,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
+  },
+  showcaseSection: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    padding: 12,
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  showcaseHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  showcaseHeaderTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  showcaseChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  showcaseChipTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#F8FAFC',
+  },
+  showcaseChipSub: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 1,
   },
 });

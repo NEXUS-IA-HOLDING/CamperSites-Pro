@@ -4,7 +4,7 @@
  * CamperSites Pro - Central de Reservas Integrada
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -26,6 +26,7 @@ import {
   B2BReservationResult,
 } from '../services/B2BReservationService';
 import { vehicleCatalogService } from '../services/VehicleCatalogService';
+import { offlineSpotVault } from '../services/OfflineSpotVaultService';
 
 export interface PartnerCampsite {
   id: string;
@@ -38,14 +39,57 @@ export interface PartnerCampsite {
 }
 
 export const PARTNER_CAMPSITES: PartnerCampsite[] = [
+  // MADRID & CENTRO
   { id: 'area_sierra_madrid_01', name: 'Área Camper Sierra Norte', region: 'Madrid', rating: 4.8, pricePerNight: 16.50, availablePitches: 8, badge: 'DGT 0 Emisiones' },
-  { id: 'camping_costa_brava_02', name: 'Camping Resort Costa Brava', region: 'Girona, Cataluña', rating: 4.9, pricePerNight: 24.00, availablePitches: 5, badge: 'Playa & Piscina' },
-  { id: 'area_cabo_gata_03', name: 'Área Ecoturismo Cabo de Gata', region: 'Almería, Andalucía', rating: 4.7, pricePerNight: 14.00, availablePitches: 12, badge: 'Parque Natural' },
-  { id: 'camping_picos_europa_04', name: 'Camping Picos de Europa', region: 'Cangas de Onís, Asturias', rating: 4.9, pricePerNight: 21.00, availablePitches: 4, badge: 'Montaña & Rutas' },
-  { id: 'area_pirineos_ordesa_05', name: 'Camper Park Pirineos Ordesa', region: 'Huesca, Aragón', rating: 4.8, pricePerNight: 18.00, availablePitches: 7, badge: 'Esquí & Senderismo' },
-  { id: 'area_tarifa_wind_06', name: 'Tarifa Camper Beach Haven', region: 'Cádiz, Andalucía', rating: 4.6, pricePerNight: 19.50, availablePitches: 6, badge: 'Kitesurf & Playa' },
-  { id: 'camping_rias_baixas_07', name: 'Camping Rías Baixas O Grove', region: 'Pontevedra, Galicia', rating: 4.8, pricePerNight: 20.00, availablePitches: 9, badge: 'Gastronomía & Mar' },
-  { id: 'area_valencia_albufera_08', name: 'Área Albufera Camper Park', region: 'Valencia', rating: 4.7, pricePerNight: 15.00, availablePitches: 11, badge: 'Cerca Albufera' },
+  { id: 'area_aranjuez_02', name: 'Camping & Camper Resort Aranjuez', region: 'Madrid', rating: 4.7, pricePerNight: 19.00, availablePitches: 14, badge: 'Río Tajo & Jardines' },
+
+  // CATALUÑA
+  { id: 'camping_costa_brava_03', name: 'Camping Resort Costa Brava Nautic', region: 'Girona, Cataluña', rating: 4.9, pricePerNight: 24.00, availablePitches: 5, badge: 'Playa & Piscina' },
+  { id: 'area_delta_ebro_04', name: 'Camper Park Delta del Ebro Ecoturismo', region: 'Tarragona, Cataluña', rating: 4.8, pricePerNight: 15.00, availablePitches: 16, badge: 'Flamencos & Arrozales' },
+  { id: 'area_garrotxa_volcans_05', name: 'Área Camper La Garrotxa Santa Pau', region: 'Girona, Cataluña', rating: 4.8, pricePerNight: 14.50, availablePitches: 9, badge: 'Parque Volcánico' },
+  { id: 'area_montserrat_06', name: 'Montserrat Natura Camper Haven', region: 'Barcelona, Cataluña', rating: 4.6, pricePerNight: 17.00, availablePitches: 6, badge: 'Monasterio 360°' },
+
+  // ANDALUCÍA
+  { id: 'area_cabo_gata_07', name: 'Área Ecoturismo Cabo de Gata', region: 'Almería, Andalucía', rating: 4.7, pricePerNight: 14.00, availablePitches: 12, badge: 'Parque Natural' },
+  { id: 'area_tarifa_wind_08', name: 'Tarifa Camper Beach Haven', region: 'Cádiz, Andalucía', rating: 4.6, pricePerNight: 19.50, availablePitches: 6, badge: 'Kitesurf & Playa' },
+  { id: 'area_ronda_malaga_09', name: 'Área Autocaravanas La Rondeña', region: 'Málaga, Andalucía', rating: 4.8, pricePerNight: 15.00, availablePitches: 10, badge: 'Tajo de Ronda' },
+  { id: 'area_sevilla_bellavista_10', name: 'Camper Park Sevilla Direct Bus', region: 'Sevilla, Andalucía', rating: 4.7, pricePerNight: 18.00, availablePitches: 15, badge: 'Bus al Centro' },
+  { id: 'area_cazorla_jaen_11', name: 'Área Parque Natural Sierra de Cazorla', region: 'Jaén, Andalucía', rating: 4.9, pricePerNight: 13.50, availablePitches: 11, badge: 'Nacimiento Guadalquivir' },
+  { id: 'area_sierra_nevada_12', name: 'Camper Station Sierra Nevada Cumbres', region: 'Granada, Andalucía', rating: 4.7, pricePerNight: 16.00, availablePitches: 7, badge: 'Esquí & Nieve' },
+
+  // ASTURIAS & CANTABRIA
+  { id: 'camping_picos_europa_13', name: 'Camping Picos de Europa Cangas', region: 'Cangas de Onís, Asturias', rating: 4.9, pricePerNight: 21.00, availablePitches: 4, badge: 'Montaña & Covadonga' },
+  { id: 'area_llanes_costa_14', name: 'Área Camper Llanes Playas Acantiladas', region: 'Asturias', rating: 4.8, pricePerNight: 15.50, availablePitches: 8, badge: 'Costas Cantábricas' },
+  { id: 'area_cabarceno_15', name: 'Área Parque de la Naturaleza Cabárceno', region: 'Cantabria', rating: 4.8, pricePerNight: 12.00, availablePitches: 18, badge: 'Safari & Lago' },
+  { id: 'area_san_vicente_16', name: 'San Vicente de la Barquera Surf Camper', region: 'Cantabria', rating: 4.7, pricePerNight: 17.50, availablePitches: 9, badge: 'Surf & Ría' },
+
+  // GALICIA
+  { id: 'camping_rias_baixas_17', name: 'Camping Rías Baixas O Grove', region: 'Pontevedra, Galicia', rating: 4.8, pricePerNight: 20.00, availablePitches: 9, badge: 'Gastronomía & Mar' },
+  { id: 'area_fisterra_atlantico_18', name: 'Área Camper Finisterre O Cabalo', region: 'A Coruña, Galicia', rating: 4.9, pricePerNight: 13.00, availablePitches: 14, badge: 'Faro Fin del Mundo' },
+  { id: 'area_ribeira_sacra_19', name: 'Camper Park Cañones del Sil Ourense', region: 'Ourense, Galicia', rating: 4.8, pricePerNight: 14.00, availablePitches: 7, badge: 'Miradores Fluviales' },
+
+  // ARAGÓN & PIRINEOS
+  { id: 'area_pirineos_ordesa_20', name: 'Camper Park Pirineos Ordesa Monte Perdido', region: 'Huesca, Aragón', rating: 4.8, pricePerNight: 18.00, availablePitches: 7, badge: 'Esquí & Senderismo' },
+  { id: 'area_albarracin_medieval_21', name: 'Área Albarracín Ciudad Medieval', region: 'Teruel, Aragón', rating: 4.9, pricePerNight: 13.00, availablePitches: 12, badge: 'Patrimonio de la Humanidad' },
+
+  // COMUNIDAD VALENCIANA & MURCIA
+  { id: 'area_valencia_albufera_22', name: 'Área Albufera Camper Park El Saler', region: 'Valencia', rating: 4.7, pricePerNight: 15.00, availablePitches: 11, badge: 'Playa & Albufera' },
+  { id: 'area_costa_blanca_calpe_23', name: 'Calpe Austral Camper Park', region: 'Alicante', rating: 4.8, pricePerNight: 16.50, availablePitches: 10, badge: 'Peñón de Ifach' },
+  { id: 'area_manga_murcia_24', name: 'Área Camper La Manga Mar Menor', region: 'Murcia', rating: 4.6, pricePerNight: 14.00, availablePitches: 13, badge: 'Sol Todo el Año' },
+
+  // CASTILLA Y LEÓN & EXTREMADURA
+  { id: 'area_merida_romana_25', name: 'Área Camper Mérida Monumental', region: 'Badajoz, Extremadura', rating: 4.8, pricePerNight: 12.50, availablePitches: 14, badge: 'Teatro Romano' },
+  { id: 'area_salamanca_tormes_26', name: 'Camper Park Salamanca Río Tormes', region: 'Salamanca, Castilla y León', rating: 4.7, pricePerNight: 14.00, availablePitches: 12, badge: 'Catedrales & Paseo' },
+  { id: 'area_gredos_avila_27', name: 'Área Sierra de Gredos Valle del Tiétar', region: 'Ávila, Castilla y León', rating: 4.8, pricePerNight: 12.00, availablePitches: 8, badge: 'Cumbres & Piscinas Naturales' },
+  { id: 'area_monfrague_28', name: 'Camper Monfragüe Birdwatching', region: 'Cáceres, Extremadura', rating: 4.9, pricePerNight: 15.00, availablePitches: 9, badge: 'Reserva de la Biosfera' },
+
+  // PAÍS VASCO & NAVARRA
+  { id: 'area_zarautz_euskadi_29', name: 'Gran Camping Zarautz Talai Mendi', region: 'Gipuzkoa, País Vasco', rating: 4.8, pricePerNight: 23.00, availablePitches: 6, badge: 'Vistas al Cantábrico' },
+  { id: 'area_arguedas_bardenas_30', name: 'Área Arguedas Desierto de Bardenas', region: 'Navarra', rating: 4.8, pricePerNight: 10.00, availablePitches: 20, badge: 'Cuevas Trogloditas' },
+
+  // PORTUGAL
+  { id: 'area_sagres_algarve_31', name: 'Sagres ASA Cabo de São Vicente', region: 'Algarve, Portugal', rating: 4.7, pricePerNight: 13.00, availablePitches: 15, badge: 'Surf & Acantilados' },
+  { id: 'area_ericeira_surf_32', name: 'Ericeira Camping World Surf Reserve', region: 'Lisboa, Portugal', rating: 4.8, pricePerNight: 18.00, availablePitches: 10, badge: 'Reserva Mundial de Surf' },
 ];
 
 interface CamperBookingModalProps {
@@ -168,7 +212,28 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
     }
   };
 
-  const filteredCampsites = PARTNER_CAMPSITES.filter((c) => {
+  const allAvailableCampsites = useMemo(() => {
+    const list: PartnerCampsite[] = [...PARTNER_CAMPSITES];
+    const seenIds = new Set(list.map((c) => c.id));
+    const vault = offlineSpotVault.getAllSpots();
+    for (const s of vault) {
+      if (!seenIds.has(s.id)) {
+        list.push({
+          id: s.id,
+          name: s.name,
+          region: s.city ? `${s.city}, ${s.province || 'España'}` : s.province || 'España',
+          rating: 4.8,
+          pricePerNight: s.price && s.price > 0 ? s.price : 14.5,
+          availablePitches: 8,
+          badge: s.has_electricity ? '⚡ Luz & Agua' : '🏕️ Área Verificada',
+        });
+        seenIds.add(s.id);
+      }
+    }
+    return list;
+  }, []);
+
+  const filteredCampsites = allAvailableCampsites.filter((c) => {
     const q = areaSearchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
