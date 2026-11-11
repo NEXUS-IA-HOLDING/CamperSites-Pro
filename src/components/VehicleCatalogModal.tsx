@@ -23,6 +23,7 @@ import {
   VEHICLE_CATALOG,
   VehicleModelItem,
   UserVehicleSetup,
+  VehicleCategoryType,
   VehicleRecambioAutodoc,
   VehicleGadgetAmazon,
 } from '../services/VehicleCatalogService';
@@ -41,6 +42,7 @@ export const VehicleCatalogModal: React.FC<Props> = ({ visible, onClose, onVehic
   const [activeTab, setActiveTab] = useState<ModalTab>('catalogo');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<VehicleCategoryType | 'ALL'>('ALL');
 
   // Vehículo seleccionado / en edición
   const [currentSetup, setCurrentSetup] = useState<UserVehicleSetup>({
@@ -181,13 +183,25 @@ export const VehicleCatalogModal: React.FC<Props> = ({ visible, onClose, onVehic
     }
   };
 
-  const filteredModels = vehicleCatalogService.searchModels(searchQuery).filter((item) => {
-    if (!selectedBrand) return true;
-    return item.brand.toLowerCase() === selectedBrand.toLowerCase();
-  });
+  const filteredModels = vehicleCatalogService
+    .searchModels(searchQuery, selectedCategory)
+    .filter((item) => {
+      if (!selectedBrand) return true;
+      return item.brand.toLowerCase() === selectedBrand.toLowerCase();
+    });
 
   const brands = vehicleCatalogService.getBrands();
   const tripEstimate500km = vehicleCatalogService.calculateTripFuelEstimate(500, 1.48, currentSetup);
+
+  const categoryFilters: { key: VehicleCategoryType | 'ALL'; label: string; icon: string }[] = [
+    { key: 'ALL', label: 'Todas', icon: 'apps' },
+    { key: 'campervan', label: 'Campervan', icon: 'van-utility' },
+    { key: 'gran_volumen', label: 'Gran Volumen', icon: 'bus' },
+    { key: 'perfilada', label: 'Perfilada', icon: 'caravan' },
+    { key: 'capuchina', label: 'Capuchina', icon: 'home-roof' },
+    { key: 'integral', label: 'Integral', icon: 'bus-double-decker' },
+    { key: 'camion_overland', label: '4x4 Overland', icon: 'jeepney' },
+  ];
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
@@ -259,12 +273,37 @@ export const VehicleCatalogModal: React.FC<Props> = ({ visible, onClose, onVehic
                   ) : null}
                 </View>
 
-                {/* Filtro por marca */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                {/* Filtro por Categoría */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                  {categoryFilters.map((cat) => {
+                    const isActive = selectedCategory === cat.key;
+                    return (
+                      <TouchableOpacity
+                        key={cat.key}
+                        style={[styles.categoryFilterChip, isActive && styles.categoryFilterChipActive]}
+                        onPress={() => setSelectedCategory(cat.key)}>
+                        <Icon
+                          name={cat.icon}
+                          size={14}
+                          color={isActive ? '#0F172A' : '#94A3B8'}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={[styles.categoryFilterText, isActive && styles.categoryFilterTextActive]}>
+                          {cat.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Filtro por Marca */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
                   <TouchableOpacity
                     style={[styles.brandChip, selectedBrand === null && styles.brandChipActive]}
                     onPress={() => setSelectedBrand(null)}>
-                    <Text style={[styles.brandChipText, selectedBrand === null && styles.brandChipTextActive]}>Todas</Text>
+                    <Text style={[styles.brandChipText, selectedBrand === null && styles.brandChipTextActive]}>
+                      Todas las Marcas
+                    </Text>
                   </TouchableOpacity>
                   {brands.map((b) => (
                     <TouchableOpacity
@@ -275,6 +314,44 @@ export const VehicleCatalogModal: React.FC<Props> = ({ visible, onClose, onVehic
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+
+                {/* Barra de contador y reseteo de filtros */}
+                <View style={styles.resultsInfoRow}>
+                  <Text style={styles.resultsCountText}>
+                    {filteredModels.length} de {VEHICLE_CATALOG.length} modelos
+                  </Text>
+                  {(selectedBrand !== null || selectedCategory !== 'ALL' || searchQuery.trim().length > 0) && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setSelectedBrand(null);
+                        setSelectedCategory('ALL');
+                        setSearchQuery('');
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Estado vacío si no hay coincidencias */}
+                {filteredModels.length === 0 && (
+                  <View style={styles.emptyStateContainer}>
+                    <Icon name="car-off" size={40} color="#64748B" style={{ marginBottom: 8 }} />
+                    <Text style={styles.emptyStateTitle}>No se encontraron modelos</Text>
+                    <Text style={styles.emptyStateSubtitle}>
+                      Prueba con otro término de búsqueda o limpia los filtros activos.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.resetFiltersBtn}
+                      onPress={() => {
+                        setSelectedBrand(null);
+                        setSelectedCategory('ALL');
+                        setSearchQuery('');
+                      }}>
+                      <Text style={styles.resetFiltersBtnText}>Mostrar todos los modelos</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Listado de modelos */}
                 {filteredModels.map((item) => {
@@ -649,17 +726,41 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     fontSize: 13,
   },
+  categoryFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    marginRight: 6,
+  },
+  categoryFilterChipActive: {
+    backgroundColor: '#38BDF8',
+    borderColor: '#38BDF8',
+  },
+  categoryFilterText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '700',
+  },
+  categoryFilterTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
   brandChip: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
     borderWidth: 1,
     borderColor: 'rgba(148, 163, 184, 0.2)',
     marginRight: 6,
   },
   brandChipActive: {
-    backgroundColor: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.25)',
     borderColor: '#38BDF8',
   },
   brandChipText: {
@@ -668,8 +769,61 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   brandChipTextActive: {
-    color: '#0F172A',
+    color: '#38BDF8',
     fontWeight: '800',
+  },
+  resultsInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  resultsCountText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  clearFiltersText: {
+    fontSize: 11,
+    color: '#38BDF8',
+    fontWeight: '700',
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.1)',
+    marginVertical: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#F8FAFC',
+    marginBottom: 4,
+  },
+  emptyStateSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  resetFiltersBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  resetFiltersBtnText: {
+    fontSize: 12,
+    color: '#38BDF8',
+    fontWeight: '700',
   },
   modelCard: {
     backgroundColor: 'rgba(30, 41, 59, 0.7)',

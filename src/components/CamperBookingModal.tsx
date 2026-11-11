@@ -4,7 +4,7 @@
  * CamperSites Pro - Central de Reservas Integrada
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -25,6 +25,7 @@ import {
   PitchType,
   B2BReservationResult,
 } from '../services/B2BReservationService';
+import { vehicleCatalogService } from '../services/VehicleCatalogService';
 
 export interface PartnerCampsite {
   id: string;
@@ -67,18 +68,43 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
   const [showAreaPicker, setShowAreaPicker] = useState(false);
   const [areaSearchQuery, setAreaSearchQuery] = useState('');
 
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getTomorrowStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0];
+  };
+
   const [pitchType, setPitchType] = useState<PitchType>('comfort_medium');
-  const [vehicleLength, setVehicleLength] = useState('6.8');
-  const [vehicleHeight, setVehicleHeight] = useState('2.9');
+  const [vehicleLength, setVehicleLength] = useState('6.0');
+  const [vehicleHeight, setVehicleHeight] = useState('2.6');
   const [selectedAddons, setSelectedAddons] = useState<string[]>(['addon_electricity']);
-  const [checkInDate, setCheckInDate] = useState('2026-11-01');
-  const [checkOutDate, setCheckOutDate] = useState('2026-11-03');
-  const [licensePlate, setLicensePlate] = useState('9842-MCG');
-  const [customerName, setCustomerName] = useState('Carlos Camper');
-  const [customerEmail, setCustomerEmail] = useState('carlos.camper@nomad.com');
-  const [customerPhone, setCustomerPhone] = useState('+34 612 345 678');
+  const [checkInDate, setCheckInDate] = useState(getTodayStr());
+  const [checkOutDate, setCheckOutDate] = useState(getTomorrowStr());
+  const [licensePlate, setLicensePlate] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<B2BReservationResult | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      vehicleCatalogService.loadUserVehicleSetup().then((setup) => {
+        if (setup) {
+          if (setup.length) setVehicleLength(String(setup.length));
+          if (setup.height) setVehicleHeight(String(setup.height));
+          if (setup.length > 8.0) {
+            setPitchType('xxl_heavy');
+          } else if (setup.length > 6.0) {
+            setPitchType('comfort_medium');
+          } else {
+            setPitchType('standard_small');
+          }
+        }
+      });
+    }
+  }, [visible]);
 
   const numVehicleLength = parseFloat(vehicleLength) || 0;
   const numVehicleHeight = parseFloat(vehicleHeight) || 0;
@@ -107,7 +133,12 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
     }
 
     if (!licensePlate.trim()) {
-      Alert.alert('Matrícula requerida', 'Introduce la matrícula para el reconocimiento de barrera.');
+      Alert.alert('Matrícula requerida', 'Introduce la matrícula de tu vehículo para el reconocimiento de barrera.');
+      return;
+    }
+
+    if (!customerEmail.trim() || !customerEmail.includes('@')) {
+      Alert.alert('Correo Electrónico requerido', 'Introduce un correo válido para enviarte el voucher de reserva y el PIN de apertura.');
       return;
     }
 
@@ -121,11 +152,11 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
         pitchType,
         vehicleLengthMeters: numVehicleLength,
         vehicleHeightMeters: numVehicleHeight,
-        licensePlate,
+        licensePlate: licensePlate.trim().toUpperCase(),
         addons: selectedAddons,
-        customerName,
-        customerEmail,
-        customerPhone,
+        customerName: customerName.trim(),
+        customerEmail: customerEmail.trim().toLowerCase(),
+        customerPhone: customerPhone.trim(),
       });
 
       setConfirmedBooking(res);
@@ -418,9 +449,49 @@ export const CamperBookingModal: React.FC<CamperBookingModalProps> = ({
                   );
                 })}
 
-                {/* 5. Resumen de Precios y Comisión B2B */}
+                {/* 5. Datos de Contacto y Envío de PIN */}
+                <Text style={styles.formSectionTitle}>5. Datos de Contacto y Envío de Voucher</Text>
+                <View style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                    <View style={[styles.inputCol, { marginHorizontal: 0, marginRight: 6 }]}>
+                      <Text style={styles.inputLabel}>Nombre y Apellidos</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={customerName}
+                        onChangeText={setCustomerName}
+                        placeholder="Nombre titular"
+                        placeholderTextColor="#64748B"
+                      />
+                    </View>
+                    <View style={[styles.inputCol, { marginHorizontal: 0, marginLeft: 6 }]}>
+                      <Text style={styles.inputLabel}>Teléfono Móvil</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={customerPhone}
+                        onChangeText={setCustomerPhone}
+                        placeholder="+34 600 000 000"
+                        placeholderTextColor="#64748B"
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                  </View>
+                  <View>
+                    <Text style={styles.inputLabel}>Correo Electrónico (Voucher & PIN barrera)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={customerEmail}
+                      onChangeText={setCustomerEmail}
+                      placeholder="tu.correo@ejemplo.com"
+                      placeholderTextColor="#64748B"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </View>
+
+                {/* 6. Resumen de Precios y Comisión B2B */}
                 <View style={styles.quoteCard}>
-                  <Text style={styles.quoteTitle}>5. Desglose de Facturación B2B</Text>
+                  <Text style={styles.quoteTitle}>6. Desglose de Facturación B2B</Text>
                   <View style={styles.quoteRow}>
                     <Text style={styles.qLabel}>
                       Estancia ({quote.nights} noches x {quote.nightlyRate} €):
