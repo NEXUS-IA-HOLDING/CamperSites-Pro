@@ -33,6 +33,7 @@ export interface MapControlDockProps {
   onOpenTelemetry?: () => void;
   onOpenCopilot?: () => void;
   onOpenDimensions?: () => void;
+  onOpenQuickWaypoints?: () => void;
 }
 
 interface MapLayerOption {
@@ -71,6 +72,7 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
   onOpenTelemetry,
   onOpenCopilot,
   onOpenDimensions,
+  onOpenQuickWaypoints,
 }) => {
   const [layersOpen, setLayersOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -222,6 +224,21 @@ export const MapControlDock: React.FC<MapControlDockProps> = ({
                 <View style={styles.toolTextBox}>
                   <Text style={styles.toolLabel}>Medidas y Gálibo</Text>
                   <Text style={styles.toolSublabel}>Altura, peso y anchura</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {onOpenQuickWaypoints && (
+              <TouchableOpacity
+                style={styles.toolItem}
+                onPress={() => handleToolAction(onOpenQuickWaypoints)}
+                activeOpacity={0.75}>
+                <View style={[styles.toolIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.2)' }]}>
+                  <Icon name="map-marker-path" size={17} color="#38BDF8" />
+                </View>
+                <View style={styles.toolTextBox}>
+                  <Text style={styles.toolLabel}>Paradas Copiloto</Text>
+                  <Text style={styles.toolSublabel}>GLP, aguas y gálibo</Text>
                 </View>
               </TouchableOpacity>
             )}

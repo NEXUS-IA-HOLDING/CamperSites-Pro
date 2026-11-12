@@ -45,6 +45,10 @@ import { OvernightSleepModeModal } from '../components/OvernightSleepModeModal';
 import { VehicleTelemetryModal } from '../components/VehicleTelemetryModal';
 import { CamperTravelPlannerModal } from '../components/CamperTravelPlannerModal';
 import { CamperVehicleDimensionsModal } from '../components/CamperVehicleDimensionsModal';
+import { PreDepartureChecklistModal, SKIP_CHECKLIST_STORAGE_KEY } from '../components/PreDepartureChecklistModal';
+import { CockpitQuickWaypointModal } from '../components/CockpitQuickWaypointModal';
+import { OfflineTripPackService } from '../services/OfflineTripPackService';
+import { TripCostCalculatorService, TripCostEstimate } from '../services/TripCostCalculatorService';
 import { CamperValhallaRoutingService } from '../services/CamperValhallaRoutingService';
 import { FuelStationItem } from '../services/FuelPriceService';
 import {
@@ -464,6 +468,12 @@ const MapScreen = () => {
   const [markedPoint, setMarkedPoint] = useState<MarkedPointItem | null>(null);
   const [isMarkedPointFavorite, setIsMarkedPointFavorite] = useState(false);
   const [savedCustomPoints, setSavedCustomPoints] = useState<MarkedPointItem[]>([]);
+  const [showPreDepartureChecklist, setShowPreDepartureChecklist] = useState<boolean>(false);
+  const [showQuickWaypointModal, setShowQuickWaypointModal] = useState<boolean>(false);
+  const [pendingNavigationRoute, setPendingNavigationRoute] = useState<Route | null>(null);
+  const [tripCostEstimate, setTripCostEstimate] = useState<TripCostEstimate | null>(null);
+  const [isSavingOfflinePack, setIsSavingOfflinePack] = useState<boolean>(false);
+  const [isTripSavedOffline, setIsTripSavedOffline] = useState<boolean>(false);
   const [destinationSheetMode, setDestinationSheetMode] = useState<DestinationSheetMode>('standard');
   const isDestinationCardMinimized = destinationSheetMode === 'minimized';
   const setIsDestinationCardMinimized = useCallback((minimized: boolean) => {
@@ -513,6 +523,33 @@ const MapScreen = () => {
       }
     } catch {}
   }, []);
+
+  // Comprobación de estado offline al seleccionar destino
+  useEffect(() => {
+    if (selectedLocation) {
+      OfflineTripPackService.isTripSavedOffline(selectedLocation.id).then((saved) => {
+        setIsTripSavedOffline(saved);
+      });
+    } else {
+      setIsTripSavedOffline(false);
+      setTripCostEstimate(null);
+    }
+  }, [selectedLocation]);
+
+  // Cálculo dinámico de presupuesto de viaje (Diésel/GLP + Pernocta + Descuento Waylet)
+  useEffect(() => {
+    const route = selectedRoute || (routes.length > 0 ? routes[0] : null);
+    if (route && selectedLocation) {
+      TripCostCalculatorService.calculateEstimate({
+        distanceMeters: route.distance,
+        durationSeconds: route.duration,
+      }).then((est) => {
+        setTripCostEstimate(est);
+      });
+    } else {
+      setTripCostEstimate(null);
+    }
+  }, [selectedRoute, routes, selectedLocation]);
 
   const handleToggleFullScreen = useCallback(() => {
     setIsFullScreen(prev => {
@@ -1704,6 +1741,65 @@ const MapScreen = () => {
     });
   };
 
+  const handleStartRouteWithChecklist = useCallback(async (targetRoute: Route) => {
+    try {
+      const skip = await AsyncStorage.getItem(SKIP_CHECKLIST_STORAGE_KEY);
+      if (skip === 'true') {
+        startNavigation(targetRoute);
+        return;
+      }
+    } catch {}
+    setPendingNavigationRoute(targetRoute);
+    setShowPreDepartureChecklist(true);
+  }, []);
+
+  const handleDownloadOfflineTripPack = useCallback(async () => {
+    if (!selectedLocation) return;
+    setIsSavingOfflinePack(true);
+    try {
+      const fromLng = currentLocation?.longitude;
+      const fromLat = currentLocation?.latitude;
+      const res = await OfflineTripPackService.downloadTripPack({
+        tripId: selectedLocation.id,
+        name: selectedLocation.name,
+        destinationCoords: [selectedLocation.longitude, selectedLocation.latitude],
+        originCoords: fromLng && fromLat ? [fromLng, fromLat] : undefined,
+      });
+      setIsSavingOfflinePack(false);
+      if (res.success) {
+        setIsTripSavedOffline(true);
+        Alert.alert(
+          '💾 Pack Desconexión Listo',
+          `Se han empaquetado y guardado en tu memoria local:\n\n• ${res.spotsCount} áreas y puntos de servicio\n• ${res.hazardsCount} alertas de gálibo crítico\n• Tamaño: ${res.sizeKb} KB\n\nPuedes navegar sin cobertura ni datos.`
+        );
+      } else {
+        Alert.alert('Aviso', 'No se ha podido empaquetar el trayecto offline.');
+      }
+    } catch (err) {
+      setIsSavingOfflinePack(false);
+      Alert.alert('Error', 'Ocurrió un error guardando el pack offline.');
+    }
+  }, [selectedLocation, currentLocation]);
+
+  const handleAddQuickWaypoint = useCallback(async (point: { name: string; latitude: number; longitude: number; category: string }) => {
+    setShowQuickWaypointModal(false);
+    AudioAlertService.speak(`Añadiendo parada: ${point.name}`);
+    const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
+    const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
+    const calcs = await calculateRoutes(fromLat, fromLng, point.latitude, point.longitude, false, false);
+    if (calcs && calcs.length > 0) {
+      setSelectedLocation({
+        id: `quick_stop_${Date.now()}`,
+        name: point.name,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        category: point.category,
+        address: 'Parada añadida por Copiloto',
+      });
+      startNavigation(calcs[0]);
+    }
+  }, [currentLocation]);
+
   const handleStartDemoSimulation = useCallback((route?: Route) => {
     setShowFullDetailSheet(false);
     setIsSimulationActive(true);
@@ -2751,10 +2847,22 @@ const MapScreen = () => {
         onOpenTelemetry={() => setShowTelemetryModal(true)}
         onOpenCopilot={() => setShowTravelPlannerModal(true)}
         onOpenDimensions={() => setShowDimensionsModal(true)}
+        onOpenQuickWaypoints={() => setShowQuickWaypointModal(true)}
         onToggleSimulation={() =>
           isSimulationActive ? handleStopDemoSimulation() : handleStartDemoSimulation(selectedRoute || routes[0])
         }
       />
+
+      {/* Botón Flotante de Parada Rápida Copiloto durante navegación (GLP, aguas, descanso) */}
+      {isNavigating && (
+        <TouchableOpacity
+          style={styles.cockpitQuickStopFloatingBtn}
+          activeOpacity={0.85}
+          onPress={() => setShowQuickWaypointModal(true)}>
+          <Icon name="gas-station-outline" size={16} color="#38BDF8" style={{ marginRight: 6 }} />
+          <Text style={styles.cockpitQuickStopFloatingBtnText}>Parada Copiloto</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Banner Superior de Simulación de Conducción 3D Activa */}
       {isSimulationActive && (
@@ -2904,13 +3012,13 @@ const MapScreen = () => {
           onSelectRoute={(rt) => setSelectedRoute(rt)}
           onStartDirectNavigation={async (rt) => {
             if (rt) {
-              startNavigation(rt);
+              handleStartRouteWithChecklist(rt);
             } else {
               const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
               const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
               const calc = await calculateRoutes(fromLat, fromLng, selectedLocation.latitude, selectedLocation.longitude, false, false);
               if (calc && calc.length > 0) {
-                startNavigation(calc[0]);
+                handleStartRouteWithChecklist(calc[0]);
               }
             }
           }}
@@ -3131,10 +3239,28 @@ const MapScreen = () => {
                       </Text>
                     </View>
                   </View>
+
+                  {/* Presupuesto Estimado & Ahorro Repsol */}
+                  {tripCostEstimate && (
+                    <View style={styles.destinationBudgetPill}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <Icon name="gas-station" size={13} color="#10B981" style={{ marginRight: 5 }} />
+                        <Text style={styles.destinationBudgetText} numberOfLines={1}>
+                          ~{tripCostEstimate.fuelCostEur.toFixed(2)}€ {tripCostEstimate.fuelType.toUpperCase()} ({tripCostEstimate.avgConsumptionL100km} L/100km)
+                        </Text>
+                      </View>
+                      <View style={styles.destinationWayletTag}>
+                        <Icon name="tag-outline" size={10} color="#F59E0B" style={{ marginRight: 3 }} />
+                        <Text style={styles.destinationWayletTagText}>
+                          -10cts/L Repsol
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </>
               ) : null}
 
-              {/* Botones de Acción: Iniciar Ruta (Principal), Simular 3D, Compartir y Ver Ficha */}
+              {/* Botones de Acción: Iniciar Ruta (Principal), Pack Offline, Simular 3D y Ver Ficha */}
               <View style={styles.destinationActionsRow}>
                 <TouchableOpacity
                   style={styles.destinationStartBtn}
@@ -3142,19 +3268,45 @@ const MapScreen = () => {
                   onPress={() => {
                     const target = selectedRoute || (routes.length > 0 ? routes[0] : null);
                     if (target) {
-                      startNavigation(target);
+                      handleStartRouteWithChecklist(target);
                     } else {
                       const fromLat = currentLocation?.latitude || DEFAULT_CENTER[1];
                       const fromLng = currentLocation?.longitude || DEFAULT_CENTER[0];
                       calculateRoutes(fromLat, fromLng, selectedLocation.latitude, selectedLocation.longitude, false, false).then((calcs) => {
                         if (calcs && calcs.length > 0) {
-                          startNavigation(calcs[0]);
+                          handleStartRouteWithChecklist(calcs[0]);
                         }
                       });
                     }
                   }}>
-                  <Icon name="navigation-variant" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.destinationStartBtnText}>🚀 Iniciar Ruta</Text>
+                  <Icon name="navigation-variant" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.destinationStartBtnText}>🚀 Iniciar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.destinationOfflineBtn, isTripSavedOffline && styles.destinationOfflineBtnActive]}
+                  activeOpacity={0.85}
+                  disabled={isSavingOfflinePack}
+                  onPress={handleDownloadOfflineTripPack}>
+                  {isSavingOfflinePack ? (
+                    <ActivityIndicator size="small" color="#38BDF8" />
+                  ) : (
+                    <>
+                      <Icon
+                        name={isTripSavedOffline ? 'check-circle' : 'cloud-download-outline'}
+                        size={17}
+                        color={isTripSavedOffline ? '#10B981' : '#38BDF8'}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text
+                        style={[
+                          styles.destinationOfflineBtnText,
+                          isTripSavedOffline && styles.destinationOfflineBtnTextActive,
+                        ]}>
+                        {isTripSavedOffline ? 'Listo' : 'Offline'}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -3164,8 +3316,8 @@ const MapScreen = () => {
                     const target = selectedRoute || (routes.length > 0 ? routes[0] : undefined);
                     handleStartDemoSimulation(target);
                   }}>
-                  <Icon name="gamepad-variant" size={18} color="#38BDF8" style={{ marginRight: 6 }} />
-                  <Text style={styles.destinationSimBtnText}>Simular</Text>
+                  <Icon name="gamepad-variant" size={17} color="#38BDF8" style={{ marginRight: 4 }} />
+                  <Text style={styles.destinationSimBtnText}>Demo</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -3325,6 +3477,40 @@ const MapScreen = () => {
               calculateRoutes(currentLocation.latitude, currentLocation.longitude, selectedLocation.latitude, selectedLocation.longitude);
             }
           }}
+        />
+      )}
+
+      {/* Modal de Checklist de Seguridad Antes de Arrancar + Presupuesto Financiero */}
+      {showPreDepartureChecklist && pendingNavigationRoute && (
+        <PreDepartureChecklistModal
+          visible={true}
+          destinationName={selectedLocation?.name || 'Destino de Ruta'}
+          distanceMeters={pendingNavigationRoute.distance}
+          durationSeconds={pendingNavigationRoute.duration}
+          onConfirmStartNavigation={() => {
+            setShowPreDepartureChecklist(false);
+            if (pendingNavigationRoute) {
+              startNavigation(pendingNavigationRoute);
+              setPendingNavigationRoute(null);
+            }
+          }}
+          onCancel={() => {
+            setShowPreDepartureChecklist(false);
+            setPendingNavigationRoute(null);
+          }}
+        />
+      )}
+
+      {/* Modal de Asistente de Paradas Rápidas en Ruta para Copiloto (GLP, aguas, descanso) */}
+      {showQuickWaypointModal && (
+        <CockpitQuickWaypointModal
+          visible={true}
+          currentCoords={[
+            currentLocation?.longitude || DEFAULT_CENTER[0],
+            currentLocation?.latitude || DEFAULT_CENTER[1],
+          ]}
+          onSelectWaypoint={handleAddQuickWaypoint}
+          onClose={() => setShowQuickWaypointModal(false)}
         />
       )}
 
@@ -3865,6 +4051,85 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(148, 163, 184, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  destinationBudgetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 10,
+  },
+  destinationBudgetText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#34D399',
+  },
+  destinationWayletTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  destinationWayletTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FBBF24',
+  },
+  destinationOfflineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  destinationOfflineBtnActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.5)',
+  },
+  destinationOfflineBtnText: {
+    color: '#38BDF8',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  destinationOfflineBtnTextActive: {
+    color: '#34D399',
+  },
+  cockpitQuickStopFloatingBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 140 : 130,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 900,
+  },
+  cockpitQuickStopFloatingBtnText: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '800',
   },
   verifyModal: {
     backgroundColor: '#1E293B',
